@@ -1,31 +1,47 @@
-use gio::prelude::*;
+use gio::{prelude::*, spawn_blocking};
 use gtk::gdk::Key;
 use gtk::glib::clone;
 use gtk::prelude::*;
 use gtk::{Application, ApplicationWindow, Entry, Label, ListBox, ListBoxRow, Orientation};
 use std::fs;
+use std::io::Write;
+use std::net::{TcpListener, TcpStream};
 
 const WINDOW_WIDTH: i32 = 800;
+const SOCKET_ADDR: &str = "127.0.0.1:7547";
 
 fn main() {
-    let app = Application::new(Some("com.blorbb.qlist"), Default::default());
-
-    app.connect_activate(build_ui);
-
-    app.run();
+    match TcpListener::bind(SOCKET_ADDR) {
+        Ok(listener) => {
+            let app = Application::new(Some("com.blorbb.qlist"), Default::default());
+            app.connect_activate(move |app| build_ui(app, listener.try_clone().unwrap()));
+            app.run();
+        }
+        Err(_) => {
+            // another instance running
+            println!("activating other instance");
+            match TcpStream::connect(SOCKET_ADDR) {
+                Ok(mut stream) => stream
+                    .write_all(b"1")
+                    .unwrap_or_else(|e| eprintln!("error writing to stream: {e}")),
+                Err(e) => eprintln!("error connecting to stream: {e}"),
+            }
+        }
+    }
 }
 
-fn build_ui(app: &Application) {
+fn build_ui(app: &Application, listener: TcpListener) {
     // Create the main application window
     let window = ApplicationWindow::builder()
         .application(app)
         .title("qlist")
         .decorated(false)
-        // .hide_on_close(true)
+        .hide_on_close(true)
+        .deletable(false)
+        .can_focus(true)
         .vexpand(true)
         .resizable(true)
         .default_width(WINDOW_WIDTH)
-        .default_height(-1)
         .build();
 
     // Main vertical layout
@@ -34,11 +50,8 @@ fn build_ui(app: &Application) {
         .build();
 
     // Input entry field
-    let entry = Entry::builder()
-        .placeholder_text("Search...")
-        .build();
+    let entry = Entry::builder().placeholder_text("Search...").build();
     vbox.append(&entry);
-    entry.grab_focus();
 
     // Results list
     let list_box = ListBox::new();
@@ -117,9 +130,26 @@ fn build_ui(app: &Application) {
     ));
 
     window.add_controller(global_events);
-    // Add the vertical box to the window
     window.set_child(Some(&vbox));
+    window.set_default_widget(Some(&entry));
     window.present();
+
+    let (tx, rx) = async_channel::bounded(1);
+    spawn_blocking(move || {
+        for stream in listener.incoming() {
+            eprintln!("got stream {stream:?}");
+            if stream.is_ok() {
+                tx.send_blocking(())
+                    .unwrap_or_else(|e| eprintln!("failed to send stream: {e}"));
+            }
+        }
+    });
+
+    glib::spawn_future_local(async move {
+        while rx.recv().await.is_ok() {
+            window.present();
+        }
+    });
 }
 
 fn find_applications(query: &str) -> Vec<String> {

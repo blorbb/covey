@@ -1,13 +1,14 @@
 use gio::{prelude::*, spawn_blocking};
 use gtk::gdk::Key;
 use gtk::glib::clone;
-use gtk::prelude::*;
+use gtk::{prelude::*, ScrolledWindow};
 use gtk::{Application, ApplicationWindow, Entry, Label, ListBox, ListBoxRow, Orientation};
 use std::fs;
 use std::io::Write;
 use std::net::{TcpListener, TcpStream};
 
 const WINDOW_WIDTH: i32 = 800;
+const MAX_LIST_HEIGHT: i32 = 600;
 const SOCKET_ADDR: &str = "127.0.0.1:7547";
 
 fn main() {
@@ -49,20 +50,25 @@ fn build_ui(app: &Application, listener: TcpListener) {
         .orientation(Orientation::Vertical)
         .build();
 
-    // Input entry field
     let entry = Entry::builder().placeholder_text("Search...").build();
     vbox.append(&entry);
 
-    // Results list
+    let scroller = ScrolledWindow::builder()
+        .min_content_height(0)
+        .max_content_height(MAX_LIST_HEIGHT)
+        .propagate_natural_height(true)
+        .build();
+    vbox.append(&scroller);
+
     let list_box = ListBox::new();
+    scroller.set_child(Some(&list_box));
+
     list_box.set_selection_mode(gtk::SelectionMode::Browse);
     list_box.connect_row_activated(clone!(
         #[weak]
         entry,
         move |_, _| _ = entry.grab_focus_without_selecting()
     ));
-
-    vbox.append(&list_box);
 
     // Connect to the entry's "changed" signal to update search results
     entry.connect_changed(clone!(
@@ -89,7 +95,6 @@ fn build_ui(app: &Application, listener: TcpListener) {
             window.set_default_size(WINDOW_WIDTH, -1);
         }
     ));
-    list_box.selected_row().map(|a| a.next_accessible_sibling());
 
     let global_events = gtk::EventControllerKey::new();
     global_events.connect_key_pressed(clone!(

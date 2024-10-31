@@ -3,13 +3,18 @@ use gtk::gdk::Key;
 use gtk::glib::clone;
 use gtk::{prelude::*, ScrolledWindow};
 use gtk::{Application, ApplicationWindow, Entry, Label, ListBox, ListBoxRow, Orientation};
+use plugins::initialise_plugin;
+use std::cell::RefCell;
 use std::fs;
 use std::io::Write;
 use std::net::{TcpListener, TcpStream};
+use std::rc::Rc;
 
 const WINDOW_WIDTH: i32 = 800;
 const MAX_LIST_HEIGHT: i32 = 600;
 const SOCKET_ADDR: &str = "127.0.0.1:7547";
+
+mod plugins;
 
 fn main() {
     match TcpListener::bind(SOCKET_ADDR) {
@@ -32,6 +37,9 @@ fn main() {
 }
 
 fn build_ui(app: &Application, listener: TcpListener) {
+    let (echo_store, echo) = initialise_plugin("./echo.wasm").unwrap();
+    let (echo_store, echo) = (Rc::new(RefCell::new(echo_store)), Rc::new(echo));
+
     // Create the main application window
     let window = ApplicationWindow::builder()
         .application(app)
@@ -76,6 +84,11 @@ fn build_ui(app: &Application, listener: TcpListener) {
         list_box,
         #[weak]
         window,
+        // both of these must be strong
+        #[strong]
+        echo,
+        #[strong]
+        echo_store,
         move |entry| {
             // Clear the current list
             list_box.remove_all();
@@ -83,9 +96,13 @@ fn build_ui(app: &Application, listener: TcpListener) {
             // Get the current text from the entry
             let query = entry.text().to_string();
 
+            let result = echo
+                .call_test(&mut *echo_store.borrow_mut(), &query)
+                .unwrap();
+
             // Filter applications based on the query
-            let apps = find_applications(&query);
-            for app in apps {
+            // let apps = find_applications(&query);
+            for app in result {
                 let row = ListBoxRow::new();
                 let label = Label::new(Some(&app));
                 row.set_child(Some(&label));

@@ -1,0 +1,5 @@
+package blorbb:qlist;
+
+world qlist {
+    export test: func(name: string) -> list<string>;
+}

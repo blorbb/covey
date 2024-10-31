@@ -1,10 +1,12 @@
-use qpmu_api::{export, Plugin};
+use qpmu_api::{export, host::{self, Capture}, Plugin};
 
 struct Echo;
 
 impl Plugin for Echo {
     fn test(name: String) -> Vec<String> {
-        vec![name]
+        let output = host::spawn("echo", &[name], Capture::STDOUT);
+
+        vec![format!("{output:?}")]
     }
 }
 

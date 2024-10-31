@@ -1,4 +1,4 @@
-use bindings::Qlist;
+use bindings::Qpmu;
 use wasmtime::{
     component::{Component, Linker},
     Config, Engine, Store,
@@ -21,10 +21,10 @@ pub struct State {
 }
 
 pub mod bindings {
-    wasmtime::component::bindgen!({world: "qlist", path: "./qlist-api/wit/world.wit"});
+    wasmtime::component::bindgen!({world: "qpmu", path: "./qpmu-api/wit/world.wit"});
 }
 
-pub fn initialise_plugin(file: &str) -> Result<(Store<State>, Qlist), wasmtime::Error> {
+pub fn initialise_plugin(file: &str) -> Result<(Store<State>, Qpmu), wasmtime::Error> {
     let mut config = Config::new();
     config.wasm_component_model(true).debug_info(true);
     let engine = Engine::new(&config)?;
@@ -42,6 +42,6 @@ pub fn initialise_plugin(file: &str) -> Result<(Store<State>, Qlist), wasmtime::
     );
 
     let component = Component::from_file(&engine, file)?;
-    let instance = Qlist::instantiate(&mut store, &component, &linker)?;
+    let instance = Qpmu::instantiate(&mut store, &component, &linker)?;
     Ok((store, instance))
 }

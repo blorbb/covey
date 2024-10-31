@@ -19,7 +19,7 @@ mod plugins;
 fn main() {
     match TcpListener::bind(SOCKET_ADDR) {
         Ok(listener) => {
-            let app = Application::new(Some("com.blorbb.qlist"), Default::default());
+            let app = Application::new(Some("com.blorbb.qpmu"), Default::default());
             app.connect_activate(move |app| build_ui(app, listener.try_clone().unwrap()));
             app.run();
         }
@@ -43,7 +43,7 @@ fn build_ui(app: &Application, listener: TcpListener) {
     // Create the main application window
     let window = ApplicationWindow::builder()
         .application(app)
-        .title("qlist")
+        .title("qpmu")
         .decorated(false)
         .hide_on_close(true)
         .deletable(false)

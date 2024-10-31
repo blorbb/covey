@@ -1,5 +1,5 @@
-package blorbb:qlist;
+package blorbb:qpmu;
 
-world qlist {
+world qpmu {
     export test: func(name: string) -> list<string>;
 }

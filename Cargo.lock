@@ -519,7 +519,7 @@ dependencies = [
 name = "echo"
 version = "0.1.0"
 dependencies = [
- "qlist-api",
+ "qpmu-api",
  "wit-bindgen-rt",
 ]
 
@@ -1431,7 +1431,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "qlist"
+name = "qpmu"
 version = "0.1.0"
 dependencies = [
  "async-channel",
@@ -1443,7 +1443,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "qlist-api"
+name = "qpmu-api"
 version = "0.1.0"
 dependencies = [
  "wit-bindgen",

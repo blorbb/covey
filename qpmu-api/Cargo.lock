@@ -126,7 +126,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "qlist-api"
+name = "qpmu-api"
 version = "0.1.0"
 dependencies = [
  "wit-bindgen",

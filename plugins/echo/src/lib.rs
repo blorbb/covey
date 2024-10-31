@@ -1,11 +1,11 @@
-use qlist_api::{export, Plugin};
+use qpmu_api::{export, Plugin};
 
-struct Component;
+struct Echo;
 
-impl Plugin for Component {
+impl Plugin for Echo {
     fn test(name: String) -> Vec<String> {
         vec![name]
     }
 }
 
-export!(Component with_types_in qlist_api::bindings);
+export!(Echo with_types_in qpmu_api::bindings);

@@ -129,7 +129,17 @@ fn build_ui(app: &Application, listener: TcpListener) {
         }
     ));
 
+    let focus_events = gtk::EventControllerFocus::new();
+    focus_events.connect_leave(clone!(
+        #[weak]
+        window,
+        move |_| {
+            window.close();
+        }
+    ));
+
     window.add_controller(global_events);
+    window.add_controller(focus_events);
     window.set_child(Some(&vbox));
     window.set_default_widget(Some(&entry));
     window.present();

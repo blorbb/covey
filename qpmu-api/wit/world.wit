@@ -37,5 +37,12 @@ world qpmu {
         metadata: string,
     }
 
+    variant plugin-action {
+        close,
+        run-command(tuple<string, list<string>>),
+        run-command-string(string),
+    }
+
     export input: func(query: string) -> list<list-item>;
+    export activate: func(selected: list-item) -> list<plugin-action>;
 }

@@ -3,13 +3,15 @@ use color_eyre::eyre::{Context, ContextCompat, Result};
 use gio::{prelude::*, spawn_blocking};
 use gtk::gdk::Key;
 use gtk::glib::clone;
-use gtk::{prelude::*, ScrolledWindow};
-use gtk::{Application, ApplicationWindow, Entry, Label, ListBox, ListBoxRow, Orientation};
+use gtk::{prelude::*, ScrolledWindow, Window};
+use gtk::{Application, ApplicationWindow, Entry, ListBoxRow, Orientation};
 use install::install_plugin;
-use plugins::{initialise_plugin, Plugin};
+use plugins::{initialise_plugin, ListItem, Plugin, PluginAction};
+use result_list::ResultList;
 use std::cell::RefCell;
 use std::io::Write;
 use std::net::{TcpListener, TcpStream};
+use std::process::Stdio;
 use std::rc::Rc;
 use std::{fs, process};
 
@@ -19,6 +21,7 @@ const SOCKET_ADDR: &str = "127.0.0.1:7547";
 
 mod install;
 mod plugins;
+mod result_list;
 mod styles;
 
 #[derive(Parser, Debug)]
@@ -132,55 +135,58 @@ fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Pl
         .build();
     vbox.append(&scroller);
 
-    let list_box = ListBox::new();
-    scroller.set_child(Some(&list_box));
+    let results = ResultList::new();
+    scroller.set_child(Some(results.list_box()));
 
-    list_box.set_selection_mode(gtk::SelectionMode::Browse);
-    list_box.connect_row_activated(clone!(
+    let active_plugin = Rc::new(RefCell::new(None::<Rc<RefCell<Plugin>>>));
+
+    results.connect_row_activated(clone!(
         #[weak]
         entry,
-        move |_, _| _ = entry.grab_focus_without_selecting()
+        #[weak]
+        window,
+        #[strong]
+        active_plugin,
+        move |_, _, _, selected| {
+            entry.grab_focus_without_selecting();
+            activate_row(&selected, &active_plugin, window.into());
+        }
     ));
 
     // Connect to the entry's "changed" signal to update search results
     entry.connect_changed(clone!(
-        #[weak]
-        list_box,
+        #[strong]
+        results,
         #[weak]
         window,
+        #[strong]
+        active_plugin,
         #[strong]
         plugins,
         move |entry| {
             // Clear the current list
-            list_box.remove_all();
+            results.clear();
 
             // Get the current text from the entry
             let query = entry.text().to_string();
 
-            let result = plugins
-                .first()
+            *active_plugin.borrow_mut() = plugins.first().map(Rc::clone);
+            let result = active_plugin
+                .borrow()
+                .as_ref()
                 .map(|p| p.borrow_mut().call_input(&query).unwrap())
                 .unwrap_or_default();
 
             // Filter applications based on the query
             // let apps = find_applications(&query);
-            for app in &result {
-                let row = ListBoxRow::builder()
-                    .halign(gtk::Align::Fill)
-                    .hexpand(true)
-                    .build();
-                row.add_css_class("list-item");
-                let label = Label::builder()
-                    .halign(gtk::Align::Start)
-                    .wrap(true)
-                    .build();
-                label.set_text(&app.title);
-                row.set_child(Some(&label));
-                list_box.append(&row);
-            }
-            list_box.select_row(list_box.row_at_index(0).as_ref());
-            window.set_default_size(WINDOW_WIDTH, -1);
             scroller.set_visible(!result.is_empty());
+            for app in result {
+                results.push(app);
+            }
+            results
+                .list_box()
+                .select_row(results.list_box().row_at_index(0).as_ref());
+            window.set_default_size(WINDOW_WIDTH, -1);
         }
     ));
 
@@ -188,18 +194,21 @@ fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Pl
     global_events.connect_key_pressed(clone!(
         #[weak]
         window,
-        #[weak]
-        list_box,
+        #[strong]
+        results,
         #[weak]
         entry,
+        #[weak]
+        active_plugin,
         #[upgrade_or]
         glib::Propagation::Proceed,
         move |_self, key, _keycode, _modifiers| {
             match key {
                 Key::Escape => window.close(),
                 Key::Up => {
-                    list_box.select_row(
-                        list_box
+                    results.list_box().select_row(
+                        results
+                            .list_box()
                             .selected_row()
                             .and_then(|a| a.prev_sibling())
                             .and_then(|a| a.downcast::<ListBoxRow>().ok())
@@ -207,13 +216,25 @@ fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Pl
                     );
                 }
                 Key::Down => {
-                    list_box.select_row(
-                        list_box
+                    results.list_box().select_row(
+                        results
+                            .list_box()
                             .selected_row()
                             .and_then(|a| a.next_sibling())
                             .and_then(|a| a.downcast::<ListBoxRow>().ok())
                             .as_ref(),
                     );
+                }
+                Key::Return => {
+                    dbg!("return");
+                    if let Some(row) = results.list_box().selected_row() {
+                        dbg!(&row);
+                        activate_row(
+                            &results.get_item(row.index() as usize).unwrap(),
+                            &active_plugin,
+                            window.into(),
+                        );
+                    }
                 }
                 _ => return glib::Propagation::Proceed,
             }
@@ -221,6 +242,7 @@ fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Pl
             glib::Propagation::Stop
         }
     ));
+    global_events.set_propagation_phase(gtk::PropagationPhase::Capture);
 
     let focus_events = gtk::EventControllerFocus::new();
     focus_events.connect_leave(clone!(
@@ -251,6 +273,45 @@ fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Pl
     glib::spawn_future_local(async move {
         while rx.recv().await.is_ok() {
             window.present();
+            entry.grab_focus();
+            entry.select_region(0, entry.text_length() as i32);
         }
     });
+}
+
+fn activate_row(
+    item: &ListItem,
+    // TODO: fix this cursed type
+    active_plugin: &RefCell<Option<Rc<RefCell<Plugin>>>>,
+    window: Window,
+) {
+    let actions = active_plugin
+        .borrow()
+        .as_ref()
+        .unwrap()
+        .borrow_mut()
+        .call_activate(item)
+        .unwrap();
+    execute_actions(actions, window).unwrap();
+}
+
+fn execute_actions(actions: Vec<PluginAction>, window: Window) -> Result<()> {
+    for action in actions {
+        match action {
+            PluginAction::Close => window.close(),
+            PluginAction::RunCommand((cmd, args)) => {
+                std::process::Command::new(cmd).args(args).spawn()?;
+            }
+            PluginAction::RunCommandString(cmd) => {
+                std::process::Command::new("sh")
+                    .arg("-c")
+                    .arg(cmd)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn()?;
+            }
+        }
+    }
+
+    Ok(())
 }

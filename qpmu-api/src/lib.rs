@@ -7,4 +7,4 @@ pub mod bindings {
     });
 }
 
-pub use bindings::{export, host, Guest as Plugin, ListItem};
+pub use bindings::{export, host, Guest as Plugin, ListItem, PluginAction};

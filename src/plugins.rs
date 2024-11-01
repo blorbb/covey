@@ -47,7 +47,7 @@ use bindings::{
     Qpmu,
 };
 
-pub use bindings::ListItem;
+pub use bindings::{ListItem, PluginAction};
 
 pub struct State {
     ctx: WasiCtx,
@@ -124,5 +124,9 @@ impl Plugin {
 
     pub fn call_input(&mut self, input: &str) -> Result<Vec<ListItem>, wasmtime::Error> {
         self.plugin.call_input(&mut self.store, input)
+    }
+
+    pub fn call_activate(&mut self, item: &ListItem) -> Result<Vec<PluginAction>, wasmtime::Error> {
+        self.plugin.call_activate(&mut self.store, item)
     }
 }

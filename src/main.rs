@@ -1,9 +1,11 @@
+use clap::{Parser, Subcommand};
 use color_eyre::eyre::{Context, ContextCompat, Result};
 use gio::{prelude::*, spawn_blocking};
 use gtk::gdk::Key;
 use gtk::glib::clone;
 use gtk::{prelude::*, ScrolledWindow};
 use gtk::{Application, ApplicationWindow, Entry, Label, ListBox, ListBoxRow, Orientation};
+use install::install_plugin;
 use plugins::{initialise_plugin, Plugin};
 use std::cell::RefCell;
 use std::io::Write;
@@ -15,12 +17,37 @@ const WINDOW_WIDTH: i32 = 800;
 const MAX_LIST_HEIGHT: i32 = 600;
 const SOCKET_ADDR: &str = "127.0.0.1:7547";
 
+mod install;
 mod plugins;
 
+#[derive(Parser, Debug)]
+#[command(version)]
+struct Args {
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Debug, Subcommand)]
+enum Command {
+    Install { rest: Vec<String> },
+}
+
 fn main() -> Result<()> {
+    color_eyre::install()?;
+    let args = Args::parse();
+
+    match args.command {
+        Some(Command::Install { rest }) => {
+            process::exit(install_plugin(&rest)?.code().unwrap_or(1));
+        }
+        None => try_run_instance(),
+    }
+}
+
+fn try_run_instance() -> Result<()> {
     match TcpListener::bind(SOCKET_ADDR) {
         Ok(listener) => {
-            let exit_code = build_new(listener)?;
+            let exit_code = new_instance(listener)?;
             process::exit(exit_code.value());
         }
         Err(_) => {
@@ -35,7 +62,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn build_new(listener: TcpListener) -> Result<glib::ExitCode> {
+fn new_instance(listener: TcpListener) -> Result<glib::ExitCode> {
     let cfg = dirs::config_dir().context("could not open config directory")?;
     let plugins = cfg.join("qpmu").join("plugins");
     if !plugins.is_dir() {

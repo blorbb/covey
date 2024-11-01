@@ -17,6 +17,7 @@ wasmtime = { version = "26.0.0", features = [
 wasmtime-wasi = "26.0.0"
 dirs = "5.0.1"
 color-eyre = "0.6.3"
+clap = { version = "4.5.20", features = ["derive"] }
 
 [workspace]
 members = ["qpmu-api"]

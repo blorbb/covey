@@ -1,4 +1,4 @@
-use std::process::Stdio;
+use std::{path::Path, process::Stdio};
 
 use bindings::{
     host::{Capture, Output, SpawnError},
@@ -82,7 +82,7 @@ impl bindings::host::Host for State {
     }
 }
 
-pub fn initialise_plugin(file: &str) -> Result<(Store<State>, Qpmu), wasmtime::Error> {
+pub fn initialise_plugin(file: impl AsRef<Path>) -> Result<Plugin, wasmtime::Error> {
     let mut config = Config::new();
     config.wasm_component_model(true).debug_info(true);
     let engine = Engine::new(&config)?;
@@ -106,5 +106,20 @@ pub fn initialise_plugin(file: &str) -> Result<(Store<State>, Qpmu), wasmtime::E
 
     let component = Component::from_file(&engine, file)?;
     let instance = Qpmu::instantiate(&mut store, &component, &linker)?;
-    Ok((store, instance))
+    Ok(Plugin::new(instance, store))
+}
+
+pub struct Plugin {
+    plugin: Qpmu,
+    store: Store<State>,
+}
+
+impl Plugin {
+    fn new(plugin: Qpmu, store: Store<State>) -> Self {
+        Self { plugin, store }
+    }
+
+    pub fn call_test(&mut self, input: &str) -> Result<Vec<String>, wasmtime::Error> {
+        self.plugin.call_test(&mut self.store, input)
+    }
 }

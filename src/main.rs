@@ -1,14 +1,15 @@
+use color_eyre::eyre::{Context, ContextCompat, Result};
 use gio::{prelude::*, spawn_blocking};
 use gtk::gdk::Key;
 use gtk::glib::clone;
 use gtk::{prelude::*, ScrolledWindow};
 use gtk::{Application, ApplicationWindow, Entry, Label, ListBox, ListBoxRow, Orientation};
-use plugins::initialise_plugin;
+use plugins::{initialise_plugin, Plugin};
 use std::cell::RefCell;
-use std::fs;
 use std::io::Write;
 use std::net::{TcpListener, TcpStream};
 use std::rc::Rc;
+use std::{fs, process};
 
 const WINDOW_WIDTH: i32 = 800;
 const MAX_LIST_HEIGHT: i32 = 600;
@@ -16,30 +17,63 @@ const SOCKET_ADDR: &str = "127.0.0.1:7547";
 
 mod plugins;
 
-fn main() {
+fn main() -> Result<()> {
     match TcpListener::bind(SOCKET_ADDR) {
         Ok(listener) => {
-            let app = Application::new(Some("com.blorbb.qpmu"), Default::default());
-            app.connect_activate(move |app| build_ui(app, listener.try_clone().unwrap()));
-            app.run();
+            let exit_code = build_new(listener)?;
+            process::exit(exit_code.value());
         }
         Err(_) => {
             // another instance running
             println!("activating other instance");
-            match TcpStream::connect(SOCKET_ADDR) {
-                Ok(mut stream) => stream
-                    .write_all(b"1")
-                    .unwrap_or_else(|e| eprintln!("error writing to stream: {e}")),
-                Err(e) => eprintln!("error connecting to stream: {e}"),
-            }
+            TcpStream::connect(SOCKET_ADDR)?
+                .write_all(b"1")
+                .context("error writing to stream")?;
         }
     }
+
+    Ok(())
 }
 
-fn build_ui(app: &Application, listener: TcpListener) {
-    let (echo_store, echo) = initialise_plugin("./echo.wasm").unwrap();
-    let (echo_store, echo) = (Rc::new(RefCell::new(echo_store)), Rc::new(echo));
+fn build_new(listener: TcpListener) -> Result<glib::ExitCode> {
+    let cfg = dirs::config_dir().context("could not open config directory")?;
+    let plugins = cfg.join("qpmu").join("plugins");
+    if !plugins.is_dir() {
+        fs::create_dir_all(&plugins).context("could not create qpmu/plugins directory")?;
+    }
 
+    let plugins: Vec<_> = plugins
+        .read_dir()?
+        .filter_map(|path| Some(path.ok()?.path()))
+        .filter(|p| p.extension().is_some_and(|s| s.to_str() == Some("wasm")))
+        .inspect(|p| {
+            println!(
+                "loading plugin {}",
+                p.file_stem()
+                    .expect("path should be a file")
+                    .to_str()
+                    .expect("plugin should have utf-8 file name")
+            )
+        })
+        .filter_map(|path| {
+            initialise_plugin(&path)
+                .inspect_err(|e| {
+                    eprintln!(
+                        "failed to load plugin {path}: {e}",
+                        path = path.to_string_lossy()
+                    )
+                })
+                .ok()
+        })
+        .map(|plugin| Rc::new(RefCell::new(plugin)))
+        .collect();
+
+    let app = Application::new(Some("com.blorbb.qpmu"), Default::default());
+    app.connect_activate(move |app| build_ui(app, listener.try_clone().unwrap(), plugins.clone()));
+    Ok(app.run())
+}
+
+fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Plugin>>>) {
     // Create the main application window
     let window = ApplicationWindow::builder()
         .application(app)
@@ -84,11 +118,8 @@ fn build_ui(app: &Application, listener: TcpListener) {
         list_box,
         #[weak]
         window,
-        // both of these must be strong
         #[strong]
-        echo,
-        #[strong]
-        echo_store,
+        plugins,
         move |entry| {
             // Clear the current list
             list_box.remove_all();
@@ -96,9 +127,10 @@ fn build_ui(app: &Application, listener: TcpListener) {
             // Get the current text from the entry
             let query = entry.text().to_string();
 
-            let result = echo
-                .call_test(&mut *echo_store.borrow_mut(), &query)
-                .unwrap();
+            let result = plugins
+                .first()
+                .map(|p| p.borrow_mut().call_test(&query).unwrap())
+                .unwrap_or_else(|| find_applications(&query));
 
             // Filter applications based on the query
             // let apps = find_applications(&query);

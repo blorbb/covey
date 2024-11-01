@@ -12,4 +12,4 @@ wasmtime = { version = "26.0.0", features = ["component-model", "cranelift", "st
 wasmtime-wasi = "26.0.0"
 
 [workspace]
-members = ["plugins/echo", "qpmu-api"]
+members = ["qpmu-api"]

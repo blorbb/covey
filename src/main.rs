@@ -1,18 +1,18 @@
 use clap::{Parser, Subcommand};
-use color_eyre::eyre::{Context, ContextCompat, Result};
+use color_eyre::eyre::{Context, Result};
+use config::Config;
 use gio::prelude::*;
 use gtk::gdk::Key;
 use gtk::glib::clone;
 use gtk::{prelude::*, ScrolledWindow, Window};
 use gtk::{Application, ApplicationWindow, Entry, ListBoxRow, Orientation};
 use install::install_plugin;
-use plugins::{initialise_plugin, ListItem, Plugin, PluginAction};
+use plugins::{Plugin, PluginAction};
 use result_list::ResultList;
-use std::cell::RefCell;
 use std::io::Write;
 use std::net::{TcpListener, TcpStream};
+use std::path::PathBuf;
 use std::process::Stdio;
-use std::rc::Rc;
 use std::sync::LazyLock;
 use std::time::Duration;
 use std::{fs, process};
@@ -23,7 +23,14 @@ const MAX_LIST_HEIGHT: i32 = 600;
 const SOCKET_ADDR: &str = "127.0.0.1:7547";
 
 static RUNTIME: LazyLock<Runtime> = LazyLock::new(|| Runtime::new().expect("runtime must succeed"));
+static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
+    dirs::config_dir()
+        .expect("missing config directory")
+        .join("qpmu")
+});
+static PLUGINS_DIR: LazyLock<PathBuf> = LazyLock::new(|| CONFIG_DIR.join("plugins"));
 
+mod config;
 mod install;
 mod plugins;
 mod result_list;
@@ -72,36 +79,21 @@ fn try_run_instance() -> Result<()> {
 }
 
 fn new_instance(listener: TcpListener) -> Result<glib::ExitCode> {
-    let cfg = dirs::config_dir().context("could not open config directory")?;
-    let plugins = cfg.join("qpmu").join("plugins");
+    let plugins = &*PLUGINS_DIR;
     if !plugins.is_dir() {
-        fs::create_dir_all(&plugins).context("could not create qpmu/plugins directory")?;
+        fs::create_dir_all(plugins).context("could not create qpmu/plugins directory")?;
     }
 
-    let plugins: Vec<_> = plugins
-        .read_dir()?
-        .filter_map(|path| Some(path.ok()?.path()))
-        .filter(|p| p.extension().is_some_and(|s| s.to_str() == Some("wasm")))
-        .inspect(|p| {
-            println!(
-                "loading plugin {}",
-                p.file_stem()
-                    .expect("path should be a file")
-                    .to_str()
-                    .expect("plugin should have utf-8 file name")
-            )
-        })
-        .filter_map(|path| {
-            initialise_plugin(&path)
-                .inspect_err(|e| {
-                    eprintln!(
-                        "failed to load plugin {path}: {e}",
-                        path = path.to_string_lossy()
-                    )
-                })
+    let config = Config::read()?;
+    let plugins: Vec<_> = config
+        .plugins
+        .iter()
+        .inspect(|p| eprintln!("loading plugin {}", p.name))
+        .filter_map(|p| {
+            Plugin::from_config(p.clone())
+                .inspect_err(|e| eprintln!("{e}"))
                 .ok()
         })
-        .map(|plugin| Rc::new(RefCell::new(plugin)))
         .collect();
 
     let app = Application::new(Some("com.blorbb.qpmu"), Default::default());
@@ -110,7 +102,7 @@ fn new_instance(listener: TcpListener) -> Result<glib::ExitCode> {
     Ok(app.run())
 }
 
-fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Plugin>>>) {
+fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Plugin>) {
     // Create the main application window
     let window = ApplicationWindow::builder()
         .application(app)
@@ -143,18 +135,14 @@ fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Pl
     let results = ResultList::new();
     scroller.set_child(Some(results.list_box()));
 
-    let active_plugin = Rc::new(RefCell::new(None::<Rc<RefCell<Plugin>>>));
-
     results.connect_row_activated(clone!(
         #[weak]
         entry,
         #[weak]
         window,
-        #[strong]
-        active_plugin,
         move |_, _, _, selected| {
             entry.grab_focus_without_selecting();
-            activate_row(&selected, &active_plugin, window.into());
+            execute_actions(selected.clone().activate().unwrap(), window.into()).unwrap();
         }
     ));
 
@@ -165,8 +153,6 @@ fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Pl
         #[weak]
         window,
         #[strong]
-        active_plugin,
-        #[strong]
         plugins,
         move |entry| {
             // Clear the current list
@@ -174,13 +160,10 @@ fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Pl
 
             // Get the current text from the entry
             let query = entry.text().to_string();
-
-            *active_plugin.borrow_mut() = plugins.first().map(Rc::clone);
-            let result = active_plugin
-                .borrow()
-                .as_ref()
-                .map(|p| p.borrow_mut().call_input(&query).unwrap())
-                .unwrap_or_default();
+            let result = plugins
+                .iter()
+                .find_map(|p| p.try_call_input(&query))
+                .map_or(vec![], |p| p.unwrap());
 
             // Filter applications based on the query
             // let apps = find_applications(&query);
@@ -188,6 +171,7 @@ fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Pl
             for app in result {
                 results.push(app);
             }
+
             results
                 .list_box()
                 .select_row(results.list_box().row_at_index(0).as_ref());
@@ -203,8 +187,6 @@ fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Pl
         results,
         #[weak]
         entry,
-        #[weak]
-        active_plugin,
         #[upgrade_or]
         glib::Propagation::Proceed,
         move |_self, key, _keycode, _modifiers| {
@@ -231,14 +213,8 @@ fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Pl
                     );
                 }
                 Key::Return => {
-                    dbg!("return");
-                    if let Some(row) = results.list_box().selected_row() {
-                        dbg!(&row);
-                        activate_row(
-                            &results.get_item(row.index() as usize).unwrap(),
-                            &active_plugin,
-                            window.into(),
-                        );
+                    if let Some(r) = results.active_item() {
+                        execute_actions(r.activate().unwrap(), window.into()).unwrap();
                     }
                 }
                 _ => return glib::Propagation::Proceed,
@@ -300,22 +276,6 @@ fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Pl
             );
         }
     });
-}
-
-fn activate_row(
-    item: &ListItem,
-    // TODO: fix this cursed type
-    active_plugin: &RefCell<Option<Rc<RefCell<Plugin>>>>,
-    window: Window,
-) {
-    let actions = active_plugin
-        .borrow()
-        .as_ref()
-        .unwrap()
-        .borrow_mut()
-        .call_activate(item)
-        .unwrap();
-    execute_actions(actions, window).unwrap();
 }
 
 fn execute_actions(actions: Vec<PluginAction>, window: Window) -> Result<()> {

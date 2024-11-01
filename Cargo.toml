@@ -19,6 +19,8 @@ dirs = "5.0.1"
 color-eyre = "0.6.3"
 clap = { version = "4.5.20", features = ["derive"] }
 tokio = { version = "1.41.0", features = ["rt-multi-thread"] }
+toml = "0.8.19"
+serde = { version = "1.0.214", features = ["derive"] }
 
 [workspace]
 members = ["qpmu-api"]

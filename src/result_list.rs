@@ -40,8 +40,8 @@ impl ResultList {
         })
     }
 
-    pub fn get_item(&self, index: usize) -> Option<ListItem> {
-        self.results.borrow().get(index).cloned()
+    pub fn active_item(&self) -> Option<ListItem> {
+        Some(self.results.borrow()[self.list.selected_row()?.index() as usize].clone())
     }
 
     pub fn list_box(&self) -> &ListBox {

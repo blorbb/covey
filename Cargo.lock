@@ -1640,7 +1640,9 @@ dependencies = [
  "gio",
  "glib",
  "gtk4",
+ "serde",
  "tokio",
+ "toml",
  "wasmtime",
  "wasmtime-wasi",
 ]

@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use color_eyre::eyre::{Context, ContextCompat, Result};
-use gio::{prelude::*, spawn_blocking};
+use gio::prelude::*;
 use gtk::gdk::Key;
 use gtk::glib::clone;
 use gtk::{prelude::*, ScrolledWindow, Window};
@@ -13,11 +13,16 @@ use std::io::Write;
 use std::net::{TcpListener, TcpStream};
 use std::process::Stdio;
 use std::rc::Rc;
+use std::sync::LazyLock;
+use std::time::Duration;
 use std::{fs, process};
+use tokio::runtime::Runtime;
 
 const WINDOW_WIDTH: i32 = 800;
 const MAX_LIST_HEIGHT: i32 = 600;
 const SOCKET_ADDR: &str = "127.0.0.1:7547";
+
+static RUNTIME: LazyLock<Runtime> = LazyLock::new(|| Runtime::new().expect("runtime must succeed"));
 
 mod install;
 mod plugins;
@@ -260,11 +265,16 @@ fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Pl
     window.present();
 
     let (tx, rx) = async_channel::bounded(1);
-    spawn_blocking(move || {
-        for stream in listener.incoming() {
-            eprintln!("got stream {stream:?}");
-            if stream.is_ok() {
-                tx.send_blocking(())
+
+    RUNTIME.spawn(async move {
+        listener.set_nonblocking(true).unwrap();
+        let listener = tokio::net::TcpListener::from_std(listener).unwrap();
+        loop {
+            if let Ok(stream) = listener.accept().await {
+                eprintln!("got stream {stream:?}");
+
+                tx.send(())
+                    .await
                     .unwrap_or_else(|e| eprintln!("failed to send stream: {e}"));
             }
         }
@@ -274,7 +284,20 @@ fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Pl
         while rx.recv().await.is_ok() {
             window.present();
             entry.grab_focus();
-            entry.select_region(0, entry.text_length() as i32);
+            // need a short delay for the select_region to actually work. no clue why.
+            glib::timeout_add_local(
+                Duration::from_millis(10),
+                clone!(
+                    #[weak]
+                    entry,
+                    #[upgrade_or]
+                    glib::ControlFlow::Break,
+                    move || {
+                        entry.select_region(0, dbg!(entry.text_length()) as i32);
+                        glib::ControlFlow::Break
+                    }
+                ),
+            );
         }
     });
 }

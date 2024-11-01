@@ -19,6 +19,7 @@ const SOCKET_ADDR: &str = "127.0.0.1:7547";
 
 mod install;
 mod plugins;
+mod styles;
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -96,6 +97,7 @@ fn new_instance(listener: TcpListener) -> Result<glib::ExitCode> {
         .collect();
 
     let app = Application::new(Some("com.blorbb.qpmu"), Default::default());
+    app.connect_startup(|_| styles::load_css().unwrap());
     app.connect_activate(move |app| build_ui(app, listener.try_clone().unwrap(), plugins.clone()));
     Ok(app.run())
 }
@@ -120,6 +122,7 @@ fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Pl
         .build();
 
     let entry = Entry::builder().placeholder_text("Search...").build();
+    entry.add_css_class("main-entry");
     vbox.append(&entry);
 
     let scroller = ScrolledWindow::builder()
@@ -161,14 +164,23 @@ fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Pl
 
             // Filter applications based on the query
             // let apps = find_applications(&query);
-            for app in result {
-                let row = ListBoxRow::new();
-                let label = Label::new(Some(&app));
+            for app in &result {
+                let row = ListBoxRow::builder()
+                    .halign(gtk::Align::Fill)
+                    .hexpand(true)
+                    .build();
+                row.add_css_class("list-item");
+                let label = Label::builder()
+                    .halign(gtk::Align::Start)
+                    .wrap(true)
+                    .build();
+                label.set_text(&app);
                 row.set_child(Some(&label));
                 list_box.append(&row);
             }
             list_box.select_row(list_box.row_at_index(0).as_ref());
             window.set_default_size(WINDOW_WIDTH, -1);
+            scroller.set_visible(!result.is_empty());
         }
     ));
 

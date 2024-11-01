@@ -159,8 +159,8 @@ fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Pl
 
             let result = plugins
                 .first()
-                .map(|p| p.borrow_mut().call_test(&query).unwrap())
-                .unwrap_or_else(|| find_applications(&query));
+                .map(|p| p.borrow_mut().call_input(&query).unwrap())
+                .unwrap_or_default();
 
             // Filter applications based on the query
             // let apps = find_applications(&query);
@@ -174,7 +174,7 @@ fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Pl
                     .halign(gtk::Align::Start)
                     .wrap(true)
                     .build();
-                label.set_text(&app);
+                label.set_text(&app.title);
                 row.set_child(Some(&label));
                 list_box.append(&row);
             }
@@ -253,21 +253,4 @@ fn build_ui(app: &Application, listener: TcpListener, plugins: Vec<Rc<RefCell<Pl
             window.present();
         }
     });
-}
-
-fn find_applications(query: &str) -> Vec<String> {
-    let mut results = Vec::new();
-
-    if let Ok(entries) = fs::read_dir("/usr/share/applications") {
-        for entry in entries.filter_map(Result::ok) {
-            let path = entry.path();
-            if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
-                if name.contains(query) {
-                    results.push(name.to_string());
-                }
-            }
-        }
-    }
-
-    results
 }

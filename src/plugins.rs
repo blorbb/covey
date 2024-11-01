@@ -1,14 +1,10 @@
 use std::{path::Path, process::Stdio};
 
-use bindings::{
-    host::{Capture, Output, SpawnError},
-    Qpmu,
-};
 use wasmtime::{
     component::{Component, Linker},
     Config, Engine, Store,
 };
-use wasmtime_wasi::{ResourceTable, WasiCtx, WasiCtxBuilder, WasiView};
+use wasmtime_wasi::{DirPerms, FilePerms, ResourceTable, WasiCtx, WasiCtxBuilder, WasiView};
 
 pub mod bindings {
     use std::io;
@@ -46,6 +42,12 @@ pub mod bindings {
         }
     }
 }
+use bindings::{
+    host::{Capture, Output, SpawnError},
+    Qpmu,
+};
+
+pub use bindings::ListItem;
 
 pub struct State {
     ctx: WasiCtx,
@@ -95,6 +97,7 @@ pub fn initialise_plugin(file: impl AsRef<Path>) -> Result<Plugin, wasmtime::Err
         .inherit_stdio()
         .inherit_env()
         .inherit_network()
+        .preopened_dir(Path::new("/"), "/", DirPerms::READ, FilePerms::READ)?
         .build();
     let mut store = Store::new(
         &engine,
@@ -119,7 +122,7 @@ impl Plugin {
         Self { plugin, store }
     }
 
-    pub fn call_test(&mut self, input: &str) -> Result<Vec<String>, wasmtime::Error> {
-        self.plugin.call_test(&mut self.store, input)
+    pub fn call_input(&mut self, input: &str) -> Result<Vec<ListItem>, wasmtime::Error> {
+        self.plugin.call_input(&mut self.store, input)
     }
 }

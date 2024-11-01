@@ -31,5 +31,11 @@ world qpmu {
         spawn: func(cmd: string, args: list<string>, capture: capture) -> result<output, spawn-error>;
     }
 
-    export test: func(name: string) -> list<string>;
+    record list-item {
+        title: string,
+        description: string,
+        metadata: string,
+    }
+
+    export input: func(query: string) -> list<list-item>;
 }

@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, fmt};
 
 use color_eyre::eyre::{bail, eyre, Result};
 use wasmtime::Store;
@@ -10,7 +10,7 @@ use super::{
     PluginAction,
 };
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ListItem {
     pub title: String,
     pub description: String,
@@ -50,7 +50,7 @@ impl From<ListItem> for bindings::ListItem {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Plugin(&'static RefCell<PluginInner>);
 
 impl Plugin {
@@ -79,6 +79,12 @@ pub struct PluginInner {
     plugin: Qpmu,
     store: Store<wasm::State>,
     config: PluginConfig,
+}
+
+impl fmt::Debug for PluginInner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PluginInner").field("config", &self.config).finish()
+    }
 }
 
 impl PluginInner {
@@ -186,8 +192,11 @@ pub mod wasm {
             args: Vec<String>,
             capture: Capture,
         ) -> Result<Output, SpawnError> {
+            eprintln!("calling command {cmd} {args:?}, capturing {capture:?}");
             let mut command = std::process::Command::new(cmd);
             command.args(args);
+            // disallow stdin
+            command.stdin(Stdio::null());
             if capture.contains(Capture::STDOUT) {
                 command.stdout(Stdio::piped());
             }

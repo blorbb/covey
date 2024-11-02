@@ -41,6 +41,7 @@ world qpmu {
         close,
         run-command(tuple<string, list<string>>),
         run-command-string(string),
+        copy(string),
     }
 
     export input: func(query: string) -> list<list-item>;

@@ -293,6 +293,10 @@ fn execute_actions(actions: Vec<PluginAction>, window: Window) -> Result<()> {
                     .stderr(Stdio::null())
                     .spawn()?;
             }
+            PluginAction::Copy(s) => {
+                eprintln!("copying {s:?}");
+                arboard::Clipboard::new()?.set_text(s)?;
+            }
         }
     }
 

@@ -2,7 +2,7 @@ use std::sync::mpsc;
 
 use color_eyre::eyre::Result;
 use eframe::{
-    egui::{self, CentralPanel, Key, Modifiers, TextEdit, Ui},
+    egui::{self, Button, CentralPanel, Key, Modifiers, TextEdit, Ui, Vec2, Widget},
     CreationContext,
 };
 
@@ -39,7 +39,18 @@ impl App {
         if let Err(e) = eframe::run_native(
             "qpmu",
             native_options,
-            Box::new(|cc| Ok(Box::new(Self::new(cc, plugins)))),
+            Box::new(|cc| {
+                // increase font size for everything
+                let ctx = &cc.egui_ctx;
+                ctx.all_styles_mut(|style| {
+                    style
+                        .text_styles
+                        .iter_mut()
+                        .for_each(|(_, text)| text.size *= 1.6)
+                });
+
+                Ok(Box::new(Self::new(cc, plugins)))
+            }),
         ) {
             bail!("{e}");
         };
@@ -103,10 +114,10 @@ impl eframe::App for App {
                         })
                         .unwrap();
                 }
+
                 // TODO: focus flickering if a value is clicked
-                // TODO: style this like a list
                 for (i, item) in self.results.iter().enumerate() {
-                    ui.radio_value(&mut self.selection, i, item);
+                    ui.add(Row::new(&mut self.selection, i, item, ""));
                 }
 
                 ctx
@@ -121,4 +132,49 @@ impl eframe::App for App {
 
 pub fn consume_input(ui: &mut Ui, key: Key) -> bool {
     ui.input_mut(|state| state.consume_key(Modifiers::NONE, key))
+}
+
+struct Row<'sel, Value> {
+    title: String,
+    description: String,
+    current_value: &'sel mut Value,
+    selected_value: Value,
+}
+
+impl<'sel, Value: PartialEq> Row<'sel, Value> {
+    pub fn new(
+        current_value: &'sel mut Value,
+        selected_value: Value,
+        title: impl Into<String>,
+        description: impl Into<String>,
+    ) -> Self {
+        Self {
+            title: title.into(),
+            description: description.into(),
+            current_value,
+            selected_value,
+        }
+    }
+}
+
+impl<Value: PartialEq> Widget for Row<'_, Value> {
+    fn ui(self, ui: &mut Ui) -> egui::Response {
+        let fill = if *self.current_value == self.selected_value {
+            ui.visuals().selection.bg_fill
+        } else {
+            ui.visuals().panel_fill
+        };
+
+        let button = Button::new(self.title)
+            .frame(false)
+            .min_size(Vec2::new(ui.available_width(), 0.0))
+            .fill(fill)
+            .ui(ui);
+
+        if button.clicked() {
+            *self.current_value = self.selected_value;
+        }
+
+        button
+    }
 }

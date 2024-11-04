@@ -5,9 +5,6 @@ edition = "2021"
 
 [dependencies]
 async-channel = "2.3.1"
-gio = "0.20.5"
-glib = "0.20.5"
-gtk = { version = "0.9.2", package = "gtk4", features = ["v4_16"] }
 wasmtime = { version = "26.0.0", features = [
     "component-model",
     "cranelift",
@@ -22,6 +19,7 @@ tokio = { version = "1.41.0", features = ["rt-multi-thread"] }
 toml = "0.8.19"
 serde = { version = "1.0.214", features = ["derive"] }
 arboard = { version = "3.4.1", features = ["wayland-data-control"] }
+eframe = "0.29.1"
 
 [workspace]
 members = ["qpmu-api"]

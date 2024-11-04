@@ -35,6 +35,17 @@ pub mod bindings {
     }
 }
 
-pub use bindings::PluginAction;
+pub use bindings::PluginAction as PluginActivationAction;
+
+pub enum PluginEvent {
+    SetList(Vec<ListItem>),
+    Activate(PluginActivationAction),
+}
+
+pub struct UiEvent {
+    pub query: String,
+}
+
 mod wrappers;
 pub use wrappers::{ListItem, Plugin};
+pub mod comm;

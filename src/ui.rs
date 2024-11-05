@@ -4,12 +4,16 @@ use color_eyre::eyre::{bail, Result};
 use eframe::{
     egui::{
         self, text::LayoutJob, Button, CentralPanel, Color32, Context, FontData, FontDefinitions,
-        Key, Modifiers, TextEdit, TextFormat, Ui, Vec2, Widget,
+        Key, Modifiers, ScrollArea, TextEdit, TextFormat, Ui, Vec2, ViewportCommand, Widget,
     },
     CreationContext,
 };
 
 use crate::plugins::{self, ListItem, Plugin, PluginEvent, UiEvent};
+
+const WINDOW_WIDTH: f32 = 800.0;
+const MAX_WINDOW_HEIGHT: f32 = 600.0;
+const PADDING: f32 = 10.0;
 
 #[derive(Debug)]
 pub struct App {
@@ -33,7 +37,7 @@ impl App {
 
         let native_options = eframe::NativeOptions {
             viewport: egui::ViewportBuilder::default()
-                .with_max_inner_size([800.0, 600.0])
+                .with_max_inner_size([WINDOW_WIDTH, MAX_WINDOW_HEIGHT])
                 .with_resizable(false)
                 .with_decorations(false)
                 .with_active(true)
@@ -119,6 +123,64 @@ impl App {
             PluginEvent::Activate(action) => todo!(),
         }
     }
+
+    fn main_ui(&mut self, ui: &mut Ui) {
+        // handle special keys first, do not pass them through
+        let old_selection = self.selection;
+        if consume_input(ui, Key::ArrowDown) {
+            self.selection += 1;
+        } else if consume_input(ui, Key::ArrowUp) {
+            self.selection -= 1;
+        }
+        let selection_changed = old_selection != self.selection;
+
+        // INPUT LINE //
+
+        let text_edit = TextEdit::singleline(&mut self.query)
+            .hint_text("Search...")
+            .desired_width(f32::INFINITY)
+            .return_key(None)
+            .show(ui);
+
+        if !text_edit.response.has_focus() {
+            text_edit.response.request_focus();
+        }
+
+        if text_edit.response.changed() {
+            self.ui_events
+                .send(UiEvent {
+                    query: self.query.clone(),
+                })
+                .unwrap();
+        }
+
+        // don't add the list if there are no results
+        if self.results.is_empty() {
+            return;
+        }
+
+        // RESULTS LIST //
+
+        ui.add_space(PADDING);
+        ui.allocate_ui(
+            Vec2::new(ui.available_width(), MAX_WINDOW_HEIGHT - ui.cursor().top()),
+            |ui| {
+                // TODO: focus flickering if a value is clicked
+                ScrollArea::vertical()
+                    .max_height(MAX_WINDOW_HEIGHT)
+                    .show(ui, |ui| {
+                        for (i, item) in self.results.iter().enumerate() {
+                            let response = ui.add(Row::new(&mut self.selection, i, item));
+                            // make sure the selected item is in view
+                            // don't scroll to the item if the user just scrolled away though
+                            if self.selection == i && (response.changed() || selection_changed) {
+                                response.scroll_to_me(None);
+                            }
+                        }
+                    });
+            },
+        );
+    }
 }
 
 impl eframe::App for App {
@@ -128,36 +190,18 @@ impl eframe::App for App {
         }
 
         CentralPanel::default()
-            .frame(egui::Frame::none().outer_margin(10.0))
+            .frame(egui::Frame::dark_canvas(&ctx.style()).inner_margin(PADDING))
             .show(ctx, |ui| {
-                // handle special keys first, do not pass them through
-                if consume_input(ui, Key::ArrowDown) {
-                    self.selection += 1;
-                } else if consume_input(ui, Key::ArrowUp) {
-                    self.selection -= 1;
-                }
+                self.main_ui(ui);
 
-                let text_edit = TextEdit::singleline(&mut self.query)
-                    .hint_text("Search...")
-                    .desired_width(f32::INFINITY)
-                    .return_key(None)
-                    .show(ui);
+                let existing_height = ctx.input(|i| i.screen_rect.height());
+                let new_height = ui.cursor().top() + PADDING;
 
-                if !text_edit.response.has_focus() {
-                    text_edit.response.request_focus();
-                }
-
-                if text_edit.response.changed() {
-                    self.ui_events
-                        .send(UiEvent {
-                            query: self.query.clone(),
-                        })
-                        .unwrap();
-                }
-
-                // TODO: focus flickering if a value is clicked
-                for (i, item) in self.results.iter().enumerate() {
-                    ui.add(Row::new(&mut self.selection, i, item));
+                if (existing_height - new_height).abs() >= 1.0 {
+                    ctx.send_viewport_cmd(ViewportCommand::InnerSize(Vec2::new(
+                        WINDOW_WIDTH,
+                        new_height,
+                    )));
                 }
             });
     }
@@ -233,7 +277,7 @@ impl<Value: PartialEq> Widget for Row<'_, '_, Value> {
             );
         }
 
-        let button = Button::new(contents)
+        let mut button = Button::new(contents)
             .frame(false)
             .min_size(Vec2::new(ui.available_width(), 0.0))
             .fill(fill)
@@ -241,6 +285,8 @@ impl<Value: PartialEq> Widget for Row<'_, '_, Value> {
 
         if button.clicked() {
             *self.current_value = self.selected_value;
+            button.mark_changed();
+            dbg!(button.changed());
         }
 
         button

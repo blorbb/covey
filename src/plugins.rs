@@ -39,11 +39,12 @@ pub use bindings::PluginAction as PluginActivationAction;
 
 pub enum PluginEvent {
     SetList(Vec<ListItem>),
-    Activate(PluginActivationAction),
+    Activate(Vec<PluginActivationAction>),
 }
 
-pub struct UiEvent {
-    pub query: String,
+pub enum UiEvent {
+    InputChanged { query: String },
+    Activate { item: ListItem },
 }
 
 mod wrappers;

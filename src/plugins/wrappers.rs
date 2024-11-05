@@ -46,9 +46,7 @@ impl ListItem {
             .collect()
     }
 
-    pub fn activate(
-        self,
-    ) -> std::result::Result<Vec<PluginActivationAction>, color_eyre::eyre::Error> {
+    pub fn activate(self) -> Result<Vec<PluginActivationAction>> {
         self.plugin.clone().activate(self)
     }
 }

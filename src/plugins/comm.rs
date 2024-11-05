@@ -1,5 +1,7 @@
 use std::{sync::mpsc, thread};
 
+use color_eyre::eyre::Result;
+
 use super::{Plugin, PluginEvent, UiEvent};
 
 /// Spawns a detached thread that receives events from the
@@ -15,10 +17,14 @@ pub fn create_channel(
     thread::spawn(move || {
         while let Ok(ui_event) = ui_receiver.recv() {
             eprintln!("got ui event");
-            if let Some(action) = process_ui_event(&plugins, ui_event) {
-                plugin_sender
+
+            match process_ui_event(&plugins, ui_event) {
+                Ok(action) => plugin_sender
                     .send(action)
-                    .expect("plugin event receiver must not be closed");
+                    .expect("plugin event receiver must not be closed"),
+                Err(e) => {
+                    eprintln!("error processing event: {e}")
+                }
             }
         }
     });
@@ -26,11 +32,16 @@ pub fn create_channel(
     (ui_sender, plugin_receiver)
 }
 
-fn process_ui_event(plugins: &[Plugin], ev: UiEvent) -> Option<PluginEvent> {
-    plugins
-        .iter()
-        .find_map(|plugin| plugin.try_call_input(&ev.query))
-        .map_or(Some(PluginEvent::SetList(vec![])), |ev| {
-            ev.ok().map(PluginEvent::SetList)
-        })
+fn process_ui_event(plugins: &[Plugin], ev: UiEvent) -> Result<PluginEvent> {
+    Ok(match ev {
+        UiEvent::InputChanged { query } => PluginEvent::SetList(
+            plugins
+                .iter()
+                .find_map(|plugin| plugin.try_call_input(&query))
+                .transpose()?
+                .unwrap_or_default(),
+        ),
+
+        UiEvent::Activate { item } => PluginEvent::Activate(item.activate()?),
+    })
 }

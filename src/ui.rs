@@ -1,4 +1,4 @@
-use std::sync::mpsc;
+use std::{process::Stdio, sync::mpsc};
 
 use color_eyre::eyre::{bail, Result};
 use eframe::{
@@ -9,7 +9,7 @@ use eframe::{
     CreationContext,
 };
 
-use crate::plugins::{self, ListItem, Plugin, PluginEvent, UiEvent};
+use crate::plugins::{self, ListItem, Plugin, PluginActivationAction, PluginEvent, UiEvent};
 
 const WINDOW_WIDTH: f32 = 800.0;
 const MAX_WINDOW_HEIGHT: f32 = 600.0;
@@ -114,13 +114,45 @@ impl App {
         }
     }
 
-    fn apply_plugin_event(&mut self, ev: PluginEvent) {
+    fn apply_plugin_event(&mut self, ev: PluginEvent, ctx: &Context) {
         match ev {
             PluginEvent::SetList(vec) => {
                 self.results = vec;
                 self.selection = 0;
             }
-            PluginEvent::Activate(action) => todo!(),
+            PluginEvent::Activate(evs) => {
+                evs.into_iter().for_each(|a| self.apply_activation(a, ctx))
+            }
+        }
+    }
+
+    fn apply_activation(&mut self, activation: PluginActivationAction, ctx: &Context) {
+        match activation {
+            PluginActivationAction::Close => ctx.send_viewport_cmd(ViewportCommand::Close),
+            PluginActivationAction::RunCommandString(cmd) => {
+                if let Err(e) = std::process::Command::new("sh")
+                    .arg("-c")
+                    .arg(&cmd)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn()
+                {
+                    eprintln!("error running command {cmd:?}: {e}")
+                }
+            }
+            PluginActivationAction::RunCommand((cmd, args)) => {
+                if let Err(e) = std::process::Command::new(&cmd)
+                    .args(&args)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn()
+                {
+                    eprintln!("error running command {cmd} {args:?}: {e}")
+                }
+            }
+            PluginActivationAction::Copy(string) => {
+                ctx.copy_text(string);
+            }
         }
     }
 
@@ -131,6 +163,12 @@ impl App {
             self.selection += 1;
         } else if consume_input(ui, Key::ArrowUp) {
             self.selection -= 1;
+        } else if consume_input(ui, Key::Enter) {
+            if let Some(item) = self.results.get(self.selection).cloned() {
+                self.ui_events
+                    .send(UiEvent::Activate { item })
+                    .expect("ui event receiver must not be closed");
+            }
         }
         let selection_changed = old_selection != self.selection;
 
@@ -148,7 +186,7 @@ impl App {
 
         if text_edit.response.changed() {
             self.ui_events
-                .send(UiEvent {
+                .send(UiEvent::InputChanged {
                     query: self.query.clone(),
                 })
                 .unwrap();
@@ -186,7 +224,7 @@ impl App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if let Ok(ev) = self.plugin_events.try_recv() {
-            self.apply_plugin_event(ev);
+            self.apply_plugin_event(ev, ctx);
         }
 
         CentralPanel::default()

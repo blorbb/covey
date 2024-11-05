@@ -13,8 +13,8 @@ pub struct App {
     query: String,
     results: Vec<String>,
     selection: usize,
-    ui_events: mpsc::Sender<UiEvent>,
-    plugin_events: mpsc::Receiver<PluginEvent>,
+    ui_events: &'static mpsc::Sender<UiEvent>,
+    plugin_events: &'static mpsc::Receiver<PluginEvent>,
 }
 
 impl App {
@@ -23,6 +23,12 @@ impl App {
     /// This should only be called once.
     pub fn run(plugins: Vec<Plugin>) -> Result<()> {
         use color_eyre::eyre::bail;
+
+        let (ui_events, plugin_events) = plugins::comm::create_channel(plugins);
+        let (ui_events, plugin_events) = (
+            Box::leak(Box::new(ui_events)),
+            Box::leak(Box::new(plugin_events)),
+        );
 
         let native_options = eframe::NativeOptions {
             viewport: egui::ViewportBuilder::default()
@@ -49,7 +55,7 @@ impl App {
                         .for_each(|(_, text)| text.size *= 1.6)
                 });
 
-                Ok(Box::new(Self::new(cc, plugins)))
+                Ok(Box::new(Self::new(cc, ui_events, plugin_events)))
             }),
         ) {
             bail!("{e}");
@@ -58,15 +64,17 @@ impl App {
         Ok(())
     }
 
-    pub fn new(_cc: &CreationContext<'_>, plugins: Vec<Plugin>) -> Self {
-        let (sender, receiver) = plugins::comm::create_channel(plugins);
-
+    pub fn new(
+        _cc: &CreationContext<'_>,
+        ui_events: &'static mpsc::Sender<UiEvent>,
+        plugin_events: &'static mpsc::Receiver<PluginEvent>,
+    ) -> Self {
         Self {
             query: Default::default(),
             results: Default::default(),
             selection: Default::default(),
-            ui_events: sender,
-            plugin_events: receiver,
+            ui_events,
+            plugin_events,
         }
     }
 
@@ -119,8 +127,6 @@ impl eframe::App for App {
                 for (i, item) in self.results.iter().enumerate() {
                     ui.add(Row::new(&mut self.selection, i, item, ""));
                 }
-
-                ctx
             });
     }
 

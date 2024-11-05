@@ -22,6 +22,10 @@ pub struct App {
     selection: usize,
     ui_events: &'static mpsc::Sender<UiEvent>,
     plugin_events: &'static mpsc::Receiver<PluginEvent>,
+    /// Whether the app has been focused at least once.
+    ///
+    /// Used to only close the app after focus blur.
+    initial_focus: bool,
 }
 
 impl App {
@@ -111,6 +115,7 @@ impl App {
             selection: Default::default(),
             ui_events,
             plugin_events,
+            initial_focus: false,
         }
     }
 
@@ -156,7 +161,7 @@ impl App {
         }
     }
 
-    fn main_ui(&mut self, ui: &mut Ui) {
+    fn main_ui(&mut self, ctx: &Context, ui: &mut Ui) {
         // handle special keys first, do not pass them through
         let old_selection = self.selection;
         if consume_input(ui, Key::ArrowDown) {
@@ -169,8 +174,18 @@ impl App {
                     .send(UiEvent::Activate { item })
                     .expect("ui event receiver must not be closed");
             }
+        } else if consume_input(ui, Key::Escape) {
+            ctx.send_viewport_cmd(ViewportCommand::Close);
         }
         let selection_changed = old_selection != self.selection;
+
+        // auto close on focus blur
+        if ui.input(|i| i.focused) {
+            self.initial_focus = true;
+        } else if self.initial_focus {
+            ctx.send_viewport_cmd(ViewportCommand::Close);
+        }
+
 
         // INPUT LINE //
 
@@ -230,7 +245,7 @@ impl eframe::App for App {
         CentralPanel::default()
             .frame(egui::Frame::dark_canvas(&ctx.style()).inner_margin(PADDING))
             .show(ctx, |ui| {
-                self.main_ui(ui);
+                self.main_ui(ctx, ui);
 
                 let existing_height = ctx.input(|i| i.screen_rect.height());
                 let new_height = ui.cursor().top() + PADDING;

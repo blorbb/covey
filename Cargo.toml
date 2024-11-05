@@ -20,6 +20,7 @@ toml = "0.8.19"
 serde = { version = "1.0.214", features = ["derive"] }
 arboard = { version = "3.4.1", features = ["wayland-data-control"] }
 eframe = "0.29.1"
+font-kit = "0.14.2"
 
 [workspace]
 members = ["qpmu-api"]

@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fmt};
+use std::fmt;
 
 use color_eyre::eyre::{bail, eyre, Result};
 use eframe::egui::mutex::Mutex;
@@ -7,7 +7,8 @@ use wasmtime::Store;
 use crate::{config::PluginConfig, PLUGINS_DIR};
 
 use super::{
-    bindings::{self, Qpmu}, PluginActivationAction, PluginEvent
+    bindings::{self, Qpmu},
+    PluginActivationAction,
 };
 
 #[derive(Clone)]
@@ -16,6 +17,16 @@ pub struct ListItem {
     pub description: String,
     pub metadata: String,
     pub plugin: Plugin,
+}
+
+impl fmt::Debug for ListItem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ListItem")
+            .field("title", &self.title)
+            .field("description", &self.description)
+            .field("metadata", &self.metadata)
+            .finish()
+    }
 }
 
 impl ListItem {
@@ -35,7 +46,9 @@ impl ListItem {
             .collect()
     }
 
-    pub fn activate(self) -> std::result::Result<Vec<PluginActivationAction>, color_eyre::eyre::Error> {
+    pub fn activate(
+        self,
+    ) -> std::result::Result<Vec<PluginActivationAction>, color_eyre::eyre::Error> {
         self.plugin.clone().activate(self)
     }
 }

@@ -48,7 +48,7 @@ impl Component for Launcher {
         let window = root.clone();
         window.set_title(Some("qpmu"));
         window.set_default_width(WIDTH);
-        window.set_default_height(HEIGHT_MAX);
+        window.set_default_height(-1);
         window.set_hide_on_close(true);
         window.set_decorated(false);
         window.set_vexpand(true);
@@ -119,6 +119,7 @@ impl Component for Launcher {
         self.reset();
         // should be here to ensure it is always false when update_view is run.
         self.grab_full_focus = false;
+        root.set_default_height(-1);
 
         match message {
             LauncherMsg::Query(query) => {

@@ -1,7 +1,7 @@
 use std::fmt;
 
 use color_eyre::eyre::{bail, eyre, Result};
-use eframe::egui::mutex::Mutex;
+use parking_lot::Mutex;
 use wasmtime::Store;
 
 use crate::{config::PluginConfig, PLUGINS_DIR};

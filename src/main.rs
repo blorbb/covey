@@ -2,13 +2,14 @@ use clap::{Parser, Subcommand};
 use color_eyre::eyre::{Context, Result};
 use config::Config;
 use install::install_plugin;
+use model::Launcher;
 use plugins::Plugin;
+use relm4::RelmApp;
 use std::io::Write;
 use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::sync::LazyLock;
 use std::{fs, process};
-use ui::App;
 
 const SOCKET_ADDR: &str = "127.0.0.1:7547";
 
@@ -23,6 +24,7 @@ mod config;
 mod install;
 mod plugins;
 mod ui;
+mod model;
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -81,5 +83,8 @@ fn new_instance(listener: TcpListener) -> Result<()> {
         })
         .collect();
 
-    App::run(plugins)
+    let app = RelmApp::new("r4.qpmu");
+    app.run::<Launcher>(plugins);
+
+    Ok(())
 }

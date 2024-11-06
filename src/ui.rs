@@ -7,12 +7,12 @@ use relm4::{
         },
         EventControllerKey, ListBox, ListBoxRow,
     },
-    ComponentParts, RelmContainerExt as _, RelmRemoveAllExt, SimpleComponent,
+    Component, ComponentParts, ComponentSender, RelmContainerExt as _, RelmRemoveAllExt,
 };
 
 use crate::{
-    model::{Launcher, LauncherMsg},
-    plugins::Plugin,
+    model::{Launcher, LauncherCmd, LauncherMsg},
+    plugins::{self, PluginActivationAction, PluginEvent},
 };
 
 const WIDTH: i32 = 800;
@@ -27,23 +27,24 @@ pub struct LauncherWidgets {
 
 // not using the macro because the app has a lot of custom behaviour
 // and the list of items is not static.
-impl SimpleComponent for Launcher {
+impl Component for Launcher {
     type Input = LauncherMsg;
     type Output = ();
-    type Init = Vec<Plugin>;
+    type Init = ();
     type Widgets = LauncherWidgets;
     type Root = gtk::Window;
+    type CommandOutput = LauncherCmd;
 
     fn init_root() -> Self::Root {
         gtk::Window::default()
     }
 
     fn init(
-        init: Self::Init,
+        _init: Self::Init,
         root: Self::Root,
         sender: relm4::ComponentSender<Self>,
-    ) -> relm4::ComponentParts<Self> {
-        let model = Launcher::new(init);
+    ) -> ComponentParts<Self> {
+        let model = Launcher::new();
         let window = root.clone();
         window.set_title(Some("qpmu"));
         window.set_default_width(WIDTH);
@@ -51,6 +52,14 @@ impl SimpleComponent for Launcher {
         window.set_hide_on_close(true);
         window.set_decorated(false);
         window.set_vexpand(true);
+        // {
+        //     let sender = sender.clone();
+        //     root.connect_close_request(move |window| {
+        //         sender.command(move |sender, _shutdown| async move {
+        //         });
+        //         gtk::glib::Propagation::Proceed
+        //     });
+        // }
 
         // main box layout
         let vbox = gtk::Box::builder()
@@ -101,22 +110,19 @@ impl SimpleComponent for Launcher {
         ComponentParts { model, widgets }
     }
 
-    fn update(&mut self, message: Self::Input, sender: relm4::ComponentSender<Self>) {
+    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>, root: &Self::Root) {
         self.reset();
 
         match message {
             LauncherMsg::Query(query) => {
                 self.set_query(query.clone());
-                _ = self
-                    .ui_events()
-                    .send(crate::plugins::UiEvent::InputChanged { query });
-                let result = self.plugin_events().recv().unwrap();
-                match result {
-                    crate::plugins::PluginEvent::Activate(_) => todo!(),
-                    crate::plugins::PluginEvent::SetList(list) => {
-                        sender.input(LauncherMsg::SetList(list));
-                    }
-                }
+
+                sender.spawn_oneshot_command(|| {
+                    LauncherCmd::PluginEvent(
+                        plugins::process_ui_event(plugins::UiEvent::InputChanged { query })
+                            .unwrap(),
+                    )
+                });
             }
             LauncherMsg::SetList(list) => {
                 self.set_results(list);
@@ -129,12 +135,23 @@ impl SimpleComponent for Launcher {
             LauncherMsg::SelectDelta(delta) => {
                 self.update_selection(|sel| *sel = sel.saturating_add_signed(delta));
             }
-            LauncherMsg::Activate => todo!(),
-            LauncherMsg::Close => todo!(),
+            LauncherMsg::Activate => {
+                if let Some(plugin) = self.results.get(self.selection).cloned() {
+                    sender.spawn_oneshot_command(|| {
+                        LauncherCmd::PluginEvent(
+                            plugins::process_ui_event(plugins::UiEvent::Activate { item: plugin })
+                                .unwrap(),
+                        )
+                    });
+                }
+            }
+            LauncherMsg::Close => {
+                root.close();
+            }
         }
     }
 
-    fn update_view(&self, widgets: &mut Self::Widgets, _sender: relm4::ComponentSender<Self>) {
+    fn update_view(&self, widgets: &mut Self::Widgets, _sender: ComponentSender<Self>) {
         let Self::Widgets {
             entry,
             scroller,
@@ -168,10 +185,52 @@ impl SimpleComponent for Launcher {
             );
         }
     }
+
+    fn update_cmd(
+        &mut self,
+        message: Self::CommandOutput,
+        sender: ComponentSender<Self>,
+        _root: &Self::Root,
+    ) {
+        match message {
+            LauncherCmd::PluginEvent(e) => match e {
+                PluginEvent::SetList(vec) => sender.input(LauncherMsg::SetList(vec)),
+                PluginEvent::Activate(vec) => {
+                    use std::process::{Command, Stdio};
+                    // TODO: remove unwraps
+                    for ev in vec {
+                        match ev {
+                            PluginActivationAction::Close => sender.input(LauncherMsg::Close),
+                            PluginActivationAction::RunCommand((cmd, args)) => {
+                                Command::new(cmd)
+                                    .args(args)
+                                    .stdout(Stdio::null())
+                                    .stderr(Stdio::null())
+                                    .spawn()
+                                    .unwrap();
+                            }
+                            PluginActivationAction::RunCommandString(str) => {
+                                Command::new("sh")
+                                    .arg("-c")
+                                    .arg(str)
+                                    .stdout(Stdio::null())
+                                    .stderr(Stdio::null())
+                                    .spawn()
+                                    .unwrap();
+                            }
+                            PluginActivationAction::Copy(string) => {
+                                arboard::Clipboard::new().unwrap().set_text(string).unwrap();
+                            }
+                        }
+                    }
+                }
+            },
+        }
+    }
 }
 
 impl Launcher {
-    fn key_controller(&self, sender: relm4::ComponentSender<Self>) -> EventControllerKey {
+    fn key_controller(&self, sender: ComponentSender<Self>) -> EventControllerKey {
         let key_events = EventControllerKey::builder()
             .propagation_phase(gtk::PropagationPhase::Capture)
             .build();

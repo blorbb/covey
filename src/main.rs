@@ -40,6 +40,7 @@ mod install;
 mod model;
 mod plugins;
 mod ui;
+mod styles;
 
 #[derive(Parser, Debug)]
 #[command(version)]

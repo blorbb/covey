@@ -13,6 +13,7 @@ use relm4::{
 use crate::{
     model::{Launcher, LauncherCmd, LauncherMsg},
     plugins::{self, PluginActivationAction, PluginEvent},
+    styles::load_css,
 };
 
 const WIDTH: i32 = 800;
@@ -44,6 +45,7 @@ impl Component for Launcher {
         root: Self::Root,
         sender: relm4::ComponentSender<Self>,
     ) -> ComponentParts<Self> {
+        load_css();
         let model = Launcher::new();
         let window = root.clone();
         window.set_title(Some("qpmu"));
@@ -52,6 +54,7 @@ impl Component for Launcher {
         window.set_hide_on_close(true);
         window.set_decorated(false);
         window.set_vexpand(true);
+        window.set_css_classes(&["window"]);
         {
             let sender = sender.clone();
             window.connect_visible_notify(move |window| {
@@ -69,10 +72,14 @@ impl Component for Launcher {
         // main box layout
         let vbox = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
+            .spacing(10)
             .build();
 
         // main input line
-        let entry = gtk::Entry::builder().placeholder_text("Search...").build();
+        let entry = gtk::Entry::builder()
+            .placeholder_text("Search...")
+            .css_classes(["main-entry"])
+            .build();
         {
             let sender = sender.clone();
             entry.connect_changed(move |entry| {
@@ -85,11 +92,13 @@ impl Component for Launcher {
             .min_content_height(0)
             .max_content_height(HEIGHT_MAX)
             .propagate_natural_height(true)
+            .css_classes(["main-scroller"])
             .build();
         list_scroller.set_visible(!model.results.is_empty());
 
         let list = ListBox::builder()
             .selection_mode(gtk::SelectionMode::Browse)
+            .css_classes(["main-list"])
             .build();
         list.select_row(list.row_at_index(model.selection as i32).as_ref());
         {
@@ -183,6 +192,7 @@ impl Component for Launcher {
             for item in &self.results {
                 results_list.append(
                     &ListBoxRow::builder()
+                        .css_classes(["list-item"])
                         .child(&gtk::Label::new(Some(&item.title)))
                         .build(),
                 );

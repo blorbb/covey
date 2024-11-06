@@ -1,21 +1,32 @@
-use std::{cell::RefCell, fmt};
+use std::fmt;
 
 use color_eyre::eyre::{bail, eyre, Result};
+use parking_lot::Mutex;
 use wasmtime::Store;
 
 use crate::{config::PluginConfig, PLUGINS_DIR};
 
 use super::{
     bindings::{self, Qpmu},
-    PluginAction,
+    PluginActivationAction,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ListItem {
     pub title: String,
     pub description: String,
     pub metadata: String,
     pub plugin: Plugin,
+}
+
+impl fmt::Debug for ListItem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ListItem")
+            .field("title", &self.title)
+            .field("description", &self.description)
+            .field("metadata", &self.metadata)
+            .finish()
+    }
 }
 
 impl ListItem {
@@ -35,7 +46,7 @@ impl ListItem {
             .collect()
     }
 
-    pub fn activate(self) -> std::result::Result<Vec<PluginAction>, color_eyre::eyre::Error> {
+    pub fn activate(self) -> Result<Vec<PluginActivationAction>> {
         self.plugin.clone().activate(self)
     }
 }
@@ -50,28 +61,26 @@ impl From<ListItem> for bindings::ListItem {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Plugin(&'static RefCell<PluginInner>);
+#[derive(Clone, Copy)]
+pub struct Plugin(&'static Mutex<PluginInner>);
 
 impl Plugin {
     pub fn from_config(config: PluginConfig) -> color_eyre::Result<Self> {
-        let boxed = Box::new(RefCell::new(PluginInner::from_config(config)?));
+        let boxed = Box::new(Mutex::new(PluginInner::from_config(config)?));
         Ok(Self(Box::leak(boxed)))
     }
 
     pub fn try_call_input(&self, query: &str) -> Option<color_eyre::Result<Vec<ListItem>>> {
         Some(
             self.0
-                .borrow_mut()
+                .lock()
                 .try_call_input(query)?
                 .map(|item| ListItem::from_many_and_plugin(item, *self)),
         )
     }
 
-    pub fn activate(&self, item: ListItem) -> color_eyre::Result<Vec<PluginAction>> {
-        self.0
-            .borrow_mut()
-            .call_activate(&bindings::ListItem::from(item))
+    pub fn activate(&self, item: ListItem) -> color_eyre::Result<Vec<PluginActivationAction>> {
+        self.0.lock().call_activate(&bindings::ListItem::from(item))
     }
 }
 
@@ -83,7 +92,9 @@ pub struct PluginInner {
 
 impl fmt::Debug for PluginInner {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PluginInner").field("config", &self.config).finish()
+        f.debug_struct("PluginInner")
+            .field("config", &self.config)
+            .finish()
     }
 }
 
@@ -120,7 +131,7 @@ impl PluginInner {
     fn call_activate(
         &mut self,
         item: &bindings::ListItem,
-    ) -> color_eyre::Result<Vec<PluginAction>> {
+    ) -> color_eyre::Result<Vec<PluginActivationAction>> {
         self.plugin
             .call_activate(&mut self.store, item)
             .map_err(|e| eyre!(Box::new(e)))
@@ -142,7 +153,9 @@ pub mod wasm {
         Qpmu,
     };
 
-    pub(super) fn initialise_plugin(file: impl AsRef<Path>) -> Result<(Qpmu, Store<State>), wasmtime::Error> {
+    pub(super) fn initialise_plugin(
+        file: impl AsRef<Path>,
+    ) -> Result<(Qpmu, Store<State>), wasmtime::Error> {
         let mut config = Config::new();
         config.wasm_component_model(true).debug_info(true);
         let engine = Engine::new(&config)?;

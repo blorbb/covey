@@ -1,7 +1,18 @@
+.window {
+    padding: 10px;
+    border-radius: 9px;
+    background: black;
+}
+
 .main-entry {
     padding: 10px;
+    border-radius: 4px;
 }
 
 .list-item {
     padding: 10px;
+}
+
+.list-item-description {
+    font-size: 0.9em;
 }

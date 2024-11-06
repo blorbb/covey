@@ -35,6 +35,35 @@ pub mod bindings {
     }
 }
 
-pub use bindings::PluginAction;
+use crate::PLUGINS;
+pub use bindings::PluginAction as PluginActivationAction;
+use color_eyre::eyre::Result;
+
+#[derive(Debug)]
+pub enum PluginEvent {
+    SetList(Vec<ListItem>),
+    Activate(Vec<PluginActivationAction>),
+}
+
+#[derive(Debug)]
+pub enum UiEvent {
+    InputChanged { query: String },
+    Activate { item: ListItem },
+}
+
+pub fn process_ui_event(ev: UiEvent) -> Result<PluginEvent> {
+    Ok(match ev {
+        UiEvent::InputChanged { query } => PluginEvent::SetList(
+            PLUGINS
+                .iter()
+                .find_map(|plugin| plugin.try_call_input(&query))
+                .transpose()?
+                .unwrap_or_default(),
+        ),
+
+        UiEvent::Activate { item } => PluginEvent::Activate(item.activate()?),
+    })
+}
+
 mod wrappers;
 pub use wrappers::{ListItem, Plugin};

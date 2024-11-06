@@ -5,7 +5,7 @@ use relm4::{
         prelude::{
             EditableExt as _, EntryExt as _, GtkWindowExt as _, ListBoxRowExt, WidgetExt as _,
         },
-        EventControllerKey, ListBox, ListBoxRow,
+        EventControllerKey, ListBox,
     },
     Component, ComponentParts, ComponentSender, RelmContainerExt as _, RelmRemoveAllExt,
 };
@@ -189,11 +189,32 @@ impl Component for Launcher {
 
         if self.changed_results() {
             results_list.remove_all();
+            // recreate list of results
             for item in &self.results {
-                results_list.append(
-                    &ListBoxRow::builder()
+                let vbox = gtk::Box::builder()
+                    .orientation(gtk::Orientation::Vertical)
+                    .spacing(4)
+                    .build();
+                let title = gtk::Label::builder()
+                    .label(&item.title)
+                    .halign(gtk::Align::Start)
+                    .css_classes(["list-item-title"])
+                    .build();
+                vbox.container_add(&title);
+
+                if !item.description.is_empty() {
+                    let description = gtk::Label::builder()
+                        .label(&item.description)
+                        .halign(gtk::Align::Start)
+                        .css_classes(["list-item-description"])
+                        .build();
+                    vbox.container_add(&description);
+                }
+
+                results_list.container_add(
+                    &gtk::ListBoxRow::builder()
                         .css_classes(["list-item"])
-                        .child(&gtk::Label::new(Some(&item.title)))
+                        .child(&vbox)
                         .build(),
                 );
             }

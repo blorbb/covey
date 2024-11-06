@@ -12,3 +12,7 @@
 .list-item {
     padding: 10px;
 }
+
+.list-item-description {
+    font-size: 0.9em;
+}

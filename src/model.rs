@@ -7,6 +7,8 @@ pub struct Launcher {
     #[no_eq]
     pub results: Vec<ListItem>,
     pub selection: usize,
+    #[do_not_track]
+    pub grab_full_focus: bool,
 }
 
 impl Launcher {
@@ -15,6 +17,7 @@ impl Launcher {
             query: Default::default(),
             results: Default::default(),
             selection: Default::default(),
+            grab_full_focus: false,
             tracker: 0,
         }
     }
@@ -39,4 +42,6 @@ pub enum LauncherMsg {
 #[derive(Debug)]
 pub enum LauncherCmd {
     PluginEvent(PluginEvent),
+    /// Focus the window and select the existing query
+    Focus,
 }

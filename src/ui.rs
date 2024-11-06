@@ -52,14 +52,19 @@ impl Component for Launcher {
         window.set_hide_on_close(true);
         window.set_decorated(false);
         window.set_vexpand(true);
-        // {
-        //     let sender = sender.clone();
-        //     root.connect_close_request(move |window| {
-        //         sender.command(move |sender, _shutdown| async move {
-        //         });
-        //         gtk::glib::Propagation::Proceed
-        //     });
-        // }
+        {
+            let sender = sender.clone();
+            window.connect_visible_notify(move |window| {
+                if window.is_visible() {
+                    sender.spawn_oneshot_command(|| {
+                        // needs a short delay before focusing, otherwise
+                        // it doesn't focus properly
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                        LauncherCmd::Focus
+                    })
+                }
+            });
+        }
 
         // main box layout
         let vbox = gtk::Box::builder()
@@ -112,6 +117,8 @@ impl Component for Launcher {
 
     fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>, root: &Self::Root) {
         self.reset();
+        // should be here to ensure it is always false when update_view is run.
+        self.grab_full_focus = false;
 
         match message {
             LauncherMsg::Query(query) => {
@@ -158,7 +165,11 @@ impl Component for Launcher {
             results_list,
         } = widgets;
 
-        entry.grab_focus_without_selecting();
+        if self.grab_full_focus {
+            entry.grab_focus();
+        } else {
+            entry.grab_focus_without_selecting();
+        }
 
         if *self.get_query() != entry.text() {
             entry.set_text(&self.get_query());
@@ -225,6 +236,9 @@ impl Component for Launcher {
                     }
                 }
             },
+            LauncherCmd::Focus => {
+                self.grab_full_focus = true;
+            }
         }
     }
 }

@@ -6,7 +6,10 @@ use wasmtime::Store;
 
 use crate::{config::PluginConfig, PLUGINS_DIR};
 
-use super::{bindings, PluginActivationAction};
+use super::{
+    bindings::{self, DeferredResult, QueryResult},
+    PluginActivationAction,
+};
 
 #[derive(Clone)]
 pub struct ListItem {
@@ -62,26 +65,42 @@ impl From<ListItem> for bindings::ListItem {
 pub struct Plugin(&'static Mutex<PluginInner>);
 
 impl Plugin {
-    pub async fn from_config(config: PluginConfig) -> color_eyre::Result<Self> {
+    pub async fn from_config(config: PluginConfig) -> Result<Self> {
         let boxed = Box::new(Mutex::new(PluginInner::from_config(config).await?));
         Ok(Self(Box::leak(boxed)))
     }
 
-    pub async fn try_call_input(&self, query: &str) -> Option<color_eyre::Result<Vec<ListItem>>> {
-        Some(
-            self.0
-                .lock()
-                .await
-                .try_call_input(query)
-                .await?
-                .map(|item| ListItem::from_many_and_plugin(item, *self)),
-        )
+    pub async fn prefix(&self) -> String {
+        self.0.lock().await.config.prefix.clone()
     }
 
-    pub async fn activate(
-        &self,
-        item: ListItem,
-    ) -> color_eyre::Result<Vec<PluginActivationAction>> {
+    /// Runs the plugin until the query is fully completed.
+    ///
+    /// Returns `Ok(None)` if any of the results are `QueryResult::Nothing`.
+    pub async fn complete_query(&self, query: &str) -> Result<Option<Vec<ListItem>>> {
+        let mut result = self.0.lock().await.call_query(query).await?;
+        loop {
+            match result {
+                QueryResult::SetList(vec) => {
+                    return Ok(Some(ListItem::from_many_and_plugin(vec, *self)))
+                }
+                QueryResult::Defer(deferred_action) => {
+                    eprintln!("running {deferred_action:?}");
+                    let deferred_result = deferred_action.run().await;
+                    result = self
+                        .0
+                        .lock()
+                        .await
+                        .call_handle_deferred(query, &deferred_result)
+                        .await
+                        .unwrap();
+                }
+                QueryResult::Nothing => return Ok(None),
+            }
+        }
+    }
+
+    pub async fn activate(&self, item: ListItem) -> Result<Vec<PluginActivationAction>> {
         self.0
             .lock()
             .await
@@ -105,7 +124,7 @@ impl fmt::Debug for PluginInner {
 }
 
 impl PluginInner {
-    async fn from_config(config: PluginConfig) -> color_eyre::Result<Self> {
+    async fn from_config(config: PluginConfig) -> Result<Self> {
         // wasmtime error is weird, need to do this match
         let (plugin, store) = match wasm::initialise_plugin(
             PLUGINS_DIR.join(format!("{}.wasm", config.name.replace('-', "_"))),
@@ -123,32 +142,35 @@ impl PluginInner {
         })
     }
 
-    /// Calls the input function if the query matches the prefix.
-    async fn try_call_input(&mut self, query: &str) -> Option<Result<Vec<bindings::ListItem>>> {
-        match query
-            .strip_prefix(&self.config.prefix)
-            .map(|q| self.call_input(q))
-        {
-            Some(output) => Some(output.await),
-            None => None,
-        }
+    async fn call_query(&mut self, input: &str) -> Result<QueryResult> {
+        self.plugin
+            .call_query(&mut self.store, input)
+            .await
+            .unwrap()
+            .map_err(|e| eyre!(e))
     }
 
-    async fn call_input(&mut self, input: &str) -> color_eyre::Result<Vec<bindings::ListItem>> {
+    async fn call_handle_deferred(
+        &mut self,
+        query: &str,
+        result: &DeferredResult,
+    ) -> Result<QueryResult> {
         self.plugin
-            .call_input(&mut self.store, input)
+            .call_handle_deferred(&mut self.store, query, result)
             .await
-            .map_err(|e| eyre!(Box::new(e)))
+            .unwrap()
+            .map_err(|e| eyre!(e))
     }
 
     async fn call_activate(
         &mut self,
         item: &bindings::ListItem,
-    ) -> color_eyre::Result<Vec<PluginActivationAction>> {
+    ) -> Result<Vec<PluginActivationAction>> {
         self.plugin
             .call_activate(&mut self.store, item)
             .await
-            .map_err(|e| eyre!(Box::new(e)))
+            .unwrap()
+            .map_err(|e| eyre!(e))
     }
 }
 

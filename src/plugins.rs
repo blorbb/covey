@@ -1,6 +1,6 @@
 pub mod bindings {
     use qpmu::plugin::host;
-    use std::io;
+    use std::{io, process::Stdio};
 
     wasmtime::component::bindgen!({
         world: "plugin",
@@ -38,6 +38,29 @@ pub mod bindings {
                 stdout: value.stdout,
                 stderr: value.stderr,
             }
+        }
+    }
+
+    impl DeferredAction {
+        /// Completes this deferred action.
+        pub(super) async fn run(&self) -> DeferredResult {
+            match self {
+                DeferredAction::Spawn((cmd, args)) => {
+                    DeferredResult::ProcessOutput(Self::spawn(cmd, args).await)
+                }
+            }
+        }
+
+        async fn spawn(cmd: &str, args: &[String]) -> Result<host::Output, host::SpawnError> {
+            Ok(tokio::process::Command::new(cmd)
+                .args(args)
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()?
+                .wait_with_output()
+                .await?
+                .into())
         }
     }
 }
@@ -78,7 +101,7 @@ pub async fn process_ui_event(ev: UiEvent) -> Result<PluginEvent> {
             .map(|p| async move {
                 Plugin::from_config(p.clone())
                     .await
-                    .inspect_err(|e| eprintln!("what {e}"))
+                    .inspect_err(|e| eprintln!("{e}"))
                     .ok()
             })
             .collect::<FuturesOrdered<_>>()
@@ -87,18 +110,20 @@ pub async fn process_ui_event(ev: UiEvent) -> Result<PluginEvent> {
             .await
     }
 
-    Ok(match ev {
+    match ev {
         UiEvent::InputChanged { query } => {
             for plugin in CELL.get_or_init(cell_init).await {
-                if let Some(result) = plugin.try_call_input(&query).await {
-                    return Ok(PluginEvent::SetList(result?));
+                if let Some(stripped) = query.strip_prefix(&plugin.prefix().await) {
+                    if let Some(list) = plugin.complete_query(stripped).await? {
+                        return Ok(PluginEvent::SetList(list));
+                    }
                 }
             }
-            PluginEvent::SetList(vec![])
+            Ok(PluginEvent::SetList(vec![]))
         }
 
-        UiEvent::Activate { item } => PluginEvent::Activate(item.activate().await?),
-    })
+        UiEvent::Activate { item } => Ok(PluginEvent::Activate(item.activate().await?)),
+    }
 }
 
 mod wrappers;

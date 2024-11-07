@@ -32,13 +32,16 @@ interface host {
 
 world plugin {
     import host;
+    use host.{output, spawn-error};
 
+    /// A single row to display.
     record list-item {
         title: string,
         description: string,
         metadata: string,
     }
 
+    /// An action to perform on plugin activation.
     variant plugin-action {
         close,
         run-command(tuple<string, list<string>>),
@@ -46,8 +49,32 @@ world plugin {
         copy(string),
     }
 
-    export input: func(query: string) -> list<list-item>;
-    export activate: func(selected: list-item) -> list<plugin-action>;
+    /// An action to run on the host.
+    ///
+    /// The result of this action will be passed to the plugin 
+    /// by calling `handle-deferred`.
+    variant deferred-action {
+        /// Runs a command, returning the process output later.
+        spawn(tuple<string, list<string>>)
+    }
+
+    variant deferred-result {
+        process-output(result<output, spawn-error>),
+    }
+
+    variant query-result {
+        /// Set the displayed list.
+        set-list(list<list-item>),
+        /// Defer an action to perform and retrieve the result again later.
+        defer(deferred-action),
+        /// Do nothing. This makes the plugin get skipped, passing the
+        /// query to the next plugins.
+        nothing,
+    }
+
+    export query: func(query: string) -> result<query-result, string>;
+    export handle-deferred: func(query: string, %result: deferred-result) -> result<query-result, string>;
+    export activate: func(selected: list-item) -> result<list<plugin-action>, string>;
 
     include wasi:cli/command@0.2.2;
 }

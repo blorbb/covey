@@ -28,6 +28,21 @@ interface host {
     }
 
     spawn: func(cmd: string, args: list<string>, capture: capture) -> result<output, spawn-error>;
+
+    config-dir: func() -> string;
+    data-dir: func() -> string;
+
+    type bytes = list<u8>;
+
+    /// Reads a directory, returning a list of all full file paths.
+    ///
+    /// Symlinks of the directory will be resolved. 
+    /// Symlinks of the files within the directory may not.
+    read-dir: func(path: bytes) -> result<list<bytes>, spawn-error>;
+    /// Reads a file, returning the contents in bytes.
+    ///
+    /// Symlinks will be resolved.
+    read-file: func(path: bytes) -> result<bytes, spawn-error>;
 }
 
 world plugin {

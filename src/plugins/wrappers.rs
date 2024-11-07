@@ -174,7 +174,14 @@ impl PluginInner {
 }
 
 pub mod wasm {
-    use std::{path::Path, process::Stdio, sync::LazyLock};
+    use std::{
+        ffi::OsStr,
+        fs, io,
+        os::unix::ffi::OsStrExt,
+        path::{Path, PathBuf},
+        process::Stdio,
+        sync::LazyLock,
+    };
 
     use wasmtime::{
         component::{Component, Linker},
@@ -263,5 +270,35 @@ pub mod wasm {
 
             Ok(Output::from(command.spawn()?.wait_with_output()?))
         }
+
+        async fn config_dir(&mut self) -> String {
+            static CONFIG_DIR: LazyLock<String> =
+                LazyLock::new(|| dirs::config_dir().unwrap().to_str().unwrap().to_string());
+            CONFIG_DIR.to_string()
+        }
+
+        async fn data_dir(&mut self) -> String {
+            static DATA_DIR: LazyLock<String> =
+                LazyLock::new(|| dirs::data_dir().unwrap().to_str().unwrap().to_string());
+            DATA_DIR.to_string()
+        }
+
+        async fn read_dir(&mut self, path: Vec<u8>) -> Result<Vec<Vec<u8>>, SpawnError> {
+            let results: Vec<_> = fs::read_dir(canonicalize(&path)?)?
+                .filter_map(|path| {
+                    path.ok()
+                        .and_then(|dir| Some(dir.path().into_os_string().into_encoded_bytes()))
+                })
+                .collect();
+            Ok(results)
+        }
+
+        async fn read_file(&mut self, path: Vec<u8>) -> Result<Vec<u8>, SpawnError> {
+            Ok(fs::read(canonicalize(&path)?)?)
+        }
+    }
+
+    fn canonicalize(path: &[u8]) -> io::Result<PathBuf> {
+        fs::canonicalize(Path::new(OsStr::from_bytes(&path)))
     }
 }

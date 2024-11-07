@@ -10,6 +10,8 @@ pub mod __raw_bindings {
 }
 
 pub mod host {
+    use std::path::{Path, PathBuf};
+
     pub use super::__raw_bindings::qpmu::plugin::host::{self, Capture, Output, SpawnError};
 
     pub fn spawn(
@@ -25,6 +27,22 @@ pub mod host {
                 .collect::<Vec<_>>(),
             capture,
         )
+    }
+
+    pub fn config_dir() -> PathBuf {
+        PathBuf::from(host::config_dir())
+    }
+
+    pub fn data_dir() -> PathBuf {
+        PathBuf::from(host::config_dir())
+    }
+
+    pub fn read_dir(dir: impl AsRef<Path>) -> Result<Vec<host::Bytes>, SpawnError> {
+        host::read_dir(&dir.as_ref().as_os_str().as_encoded_bytes().to_vec())
+    }
+
+    pub fn read_file(file: impl AsRef<Path>) -> Result<host::Bytes, SpawnError> {
+        host::read_file(&file.as_ref().as_os_str().as_encoded_bytes().to_vec())
     }
 }
 
@@ -69,11 +87,21 @@ where
     T: Plugin,
 {
     fn query(query: String) -> Result<QueryResult, String> {
-        Self::query(query).map_err(|e| e.to_string())
+        Self::query(query).map_err(|e| {
+            e.chain()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
     }
 
     fn handle_deferred(query: String, result: DeferredResult) -> Result<QueryResult, String> {
-        Self::handle_deferred(query, result).map_err(|e| e.to_string())
+        Self::handle_deferred(query, result).map_err(|e| {
+            e.chain()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
     }
 
     fn activate(selected: ListItem) -> Result<Vec<PluginAction>, String> {

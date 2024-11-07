@@ -34,6 +34,7 @@ enum Command {
 }
 
 fn main() -> Result<()> {
+    relm4::RELM_THREADS.set(20).unwrap();
     color_eyre::install()?;
     let args = Args::parse();
 

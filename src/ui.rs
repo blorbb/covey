@@ -133,9 +133,11 @@ impl Component for Launcher {
         match message {
             LauncherMsg::Query(query) => {
                 self.set_query(query.clone());
+                let i = self.next_action();
 
-                sender.oneshot_command(async {
+                sender.oneshot_command(async move {
                     LauncherCmd::PluginEvent(
+                        i,
                         plugins::process_ui_event(plugins::UiEvent::InputChanged { query })
                             .await
                             .unwrap(),
@@ -155,8 +157,10 @@ impl Component for Launcher {
             }
             LauncherMsg::Activate => {
                 if let Some(plugin) = self.results.get(self.selection).cloned() {
-                    sender.oneshot_command(async {
+                    let i = self.next_action();
+                    sender.oneshot_command(async move {
                         LauncherCmd::PluginEvent(
+                            i,
                             plugins::process_ui_event(plugins::UiEvent::Activate { item: plugin })
                                 .await
                                 .unwrap(),
@@ -183,9 +187,9 @@ impl Component for Launcher {
             entry.grab_focus_without_selecting();
         }
 
-        if *self.get_query() != entry.text() {
-            entry.set_text(&self.get_query());
-        }
+        // if *self.get_query() != entry.text() {
+        //     entry.set_text(&self.get_query());
+        // }
 
         scroller.set_visible(!self.results.is_empty());
 
@@ -238,8 +242,12 @@ impl Component for Launcher {
         _root: &Self::Root,
     ) {
         match message {
-            LauncherCmd::PluginEvent(e) => match e {
-                PluginEvent::SetList(vec) => sender.input(LauncherMsg::SetList(vec)),
+            LauncherCmd::PluginEvent(index, e) => match e {
+                PluginEvent::SetList(vec) => {
+                    if self.should_perform(index) {
+                        sender.input(LauncherMsg::SetList(vec))
+                    }
+                }
                 PluginEvent::Activate(vec) => {
                     use std::process::{Command, Stdio};
                     // TODO: remove unwraps

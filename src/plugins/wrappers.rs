@@ -85,7 +85,6 @@ impl Plugin {
                     return Ok(Some(ListItem::from_many_and_plugin(vec, *self)))
                 }
                 QueryResult::Defer(deferred_action) => {
-                    eprintln!("running {deferred_action:?}");
                     let deferred_result = deferred_action.run().await;
                     result = self
                         .0

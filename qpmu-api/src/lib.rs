@@ -27,5 +27,26 @@ pub mod host {
     }
 }
 
+pub use bindings::ListItem;
+impl bindings::ListItem {
+    pub fn new(title: impl Into<String>) -> Self {
+        Self {
+            title: title.into(),
+            description: String::new(),
+            metadata: String::new(),
+        }
+    }
+
+    pub fn with_description(mut self, desc: impl Into<String>) -> Self {
+        self.description = desc.into();
+        self
+    }
+
+    pub fn with_metadata(mut self, meta: impl Into<String>) -> Self {
+        self.metadata = meta.into();
+        self
+    }
+}
+
 pub use bindings::wasi;
-pub use bindings::{export, Guest as Plugin, ListItem, PluginAction};
+pub use bindings::{export, Guest as Plugin, PluginAction};

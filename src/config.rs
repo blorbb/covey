@@ -1,7 +1,6 @@
-use std::{fs, io::Read};
-
 use color_eyre::eyre::Result;
 use serde::{Deserialize, Serialize};
+use tokio::{fs, io::AsyncReadExt as _};
 
 use crate::CONFIG_DIR;
 
@@ -17,16 +16,17 @@ pub struct PluginConfig {
 }
 
 impl Config {
-    pub fn read() -> Result<Self> {
+    pub async fn read() -> Result<Self> {
         let mut file = fs::OpenOptions::new()
             .write(true)
             .read(true)
             .create(true)
             .truncate(false)
-            .open(CONFIG_DIR.join("config.toml"))?;
+            .open(CONFIG_DIR.join("config.toml"))
+            .await?;
 
         let mut c = String::new();
-        file.read_to_string(&mut c)?;
+        file.read_to_string(&mut c).await?;
         Ok(toml::from_str(&c)?)
     }
 }

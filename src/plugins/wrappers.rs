@@ -1,15 +1,12 @@
 use std::fmt;
 
 use color_eyre::eyre::{bail, eyre, Result};
-use parking_lot::Mutex;
+use tokio::sync::Mutex;
 use wasmtime::Store;
 
 use crate::{config::PluginConfig, PLUGINS_DIR};
 
-use super::{
-    bindings::{self, Qpmu},
-    PluginActivationAction,
-};
+use super::{bindings, PluginActivationAction};
 
 #[derive(Clone)]
 pub struct ListItem {
@@ -46,8 +43,8 @@ impl ListItem {
             .collect()
     }
 
-    pub fn activate(self) -> Result<Vec<PluginActivationAction>> {
-        self.plugin.clone().activate(self)
+    pub async fn activate(self) -> Result<Vec<PluginActivationAction>> {
+        self.plugin.clone().activate(self).await
     }
 }
 
@@ -65,27 +62,36 @@ impl From<ListItem> for bindings::ListItem {
 pub struct Plugin(&'static Mutex<PluginInner>);
 
 impl Plugin {
-    pub fn from_config(config: PluginConfig) -> color_eyre::Result<Self> {
-        let boxed = Box::new(Mutex::new(PluginInner::from_config(config)?));
+    pub async fn from_config(config: PluginConfig) -> color_eyre::Result<Self> {
+        let boxed = Box::new(Mutex::new(PluginInner::from_config(config).await?));
         Ok(Self(Box::leak(boxed)))
     }
 
-    pub fn try_call_input(&self, query: &str) -> Option<color_eyre::Result<Vec<ListItem>>> {
+    pub async fn try_call_input(&self, query: &str) -> Option<color_eyre::Result<Vec<ListItem>>> {
         Some(
             self.0
                 .lock()
-                .try_call_input(query)?
+                .await
+                .try_call_input(query)
+                .await?
                 .map(|item| ListItem::from_many_and_plugin(item, *self)),
         )
     }
 
-    pub fn activate(&self, item: ListItem) -> color_eyre::Result<Vec<PluginActivationAction>> {
-        self.0.lock().call_activate(&bindings::ListItem::from(item))
+    pub async fn activate(
+        &self,
+        item: ListItem,
+    ) -> color_eyre::Result<Vec<PluginActivationAction>> {
+        self.0
+            .lock()
+            .await
+            .call_activate(&bindings::ListItem::from(item))
+            .await
     }
 }
 
 pub struct PluginInner {
-    plugin: Qpmu,
+    plugin: bindings::Plugin,
     store: Store<wasm::State>,
     config: PluginConfig,
 }
@@ -99,11 +105,13 @@ impl fmt::Debug for PluginInner {
 }
 
 impl PluginInner {
-    fn from_config(config: PluginConfig) -> color_eyre::Result<Self> {
+    async fn from_config(config: PluginConfig) -> color_eyre::Result<Self> {
         // wasmtime error is weird, need to do this match
         let (plugin, store) = match wasm::initialise_plugin(
             PLUGINS_DIR.join(format!("{}.wasm", config.name.replace('-', "_"))),
-        ) {
+        )
+        .await
+        {
             Ok((p, s)) => (p, s),
             Err(e) => bail!("failed to load plugin: {e}"),
         };
@@ -116,53 +124,67 @@ impl PluginInner {
     }
 
     /// Calls the input function if the query matches the prefix.
-    fn try_call_input(&mut self, query: &str) -> Option<Result<Vec<bindings::ListItem>>> {
-        query
+    async fn try_call_input(&mut self, query: &str) -> Option<Result<Vec<bindings::ListItem>>> {
+        match query
             .strip_prefix(&self.config.prefix)
             .map(|q| self.call_input(q))
+        {
+            Some(output) => Some(output.await),
+            None => None,
+        }
     }
 
-    fn call_input(&mut self, input: &str) -> color_eyre::Result<Vec<bindings::ListItem>> {
+    async fn call_input(&mut self, input: &str) -> color_eyre::Result<Vec<bindings::ListItem>> {
         self.plugin
             .call_input(&mut self.store, input)
+            .await
             .map_err(|e| eyre!(Box::new(e)))
     }
 
-    fn call_activate(
+    async fn call_activate(
         &mut self,
         item: &bindings::ListItem,
     ) -> color_eyre::Result<Vec<PluginActivationAction>> {
         self.plugin
             .call_activate(&mut self.store, item)
+            .await
             .map_err(|e| eyre!(Box::new(e)))
     }
 }
 
 pub mod wasm {
-    use std::{path::Path, process::Stdio};
+    use std::{path::Path, process::Stdio, sync::LazyLock};
 
     use wasmtime::{
         component::{Component, Linker},
         Config, Engine, Store,
     };
-    use wasmtime_wasi::{DirPerms, FilePerms, ResourceTable, WasiCtx, WasiCtxBuilder, WasiView};
+    use wasmtime_wasi::{
+        async_trait, DirPerms, FilePerms, ResourceTable, WasiCtx, WasiCtxBuilder, WasiView,
+    };
 
     use crate::plugins::bindings::{
         self,
-        host::{Capture, Output, SpawnError},
-        Qpmu,
+        qpmu::plugin::host::{Capture, Output, SpawnError},
     };
 
-    pub(super) fn initialise_plugin(
+    pub(super) async fn initialise_plugin(
         file: impl AsRef<Path>,
-    ) -> Result<(Qpmu, Store<State>), wasmtime::Error> {
-        let mut config = Config::new();
-        config.wasm_component_model(true).debug_info(true);
-        let engine = Engine::new(&config)?;
+    ) -> Result<(bindings::Plugin, Store<State>), wasmtime::Error> {
+        static ENGINE: LazyLock<Engine> = LazyLock::new(|| {
+            let mut config = Config::new();
+            config
+                .wasm_component_model(true)
+                .async_support(true)
+                .debug_info(true);
+            Engine::new(&config).unwrap()
+        });
 
-        let mut linker = Linker::new(&engine);
-        wasmtime_wasi::add_to_linker_sync(&mut linker)?;
-        Qpmu::add_to_linker(&mut linker, |s| s)?;
+        let mut linker = Linker::<State>::new(&ENGINE);
+        wasmtime_wasi::add_to_linker_async(&mut linker)?;
+
+        // this is only needed if there are imports of a host!
+        bindings::qpmu::plugin::host::add_to_linker(&mut linker, |s| s).unwrap();
 
         let builder = WasiCtxBuilder::new()
             .inherit_stdio()
@@ -171,15 +193,15 @@ pub mod wasm {
             .preopened_dir(Path::new("/"), "/", DirPerms::READ, FilePerms::READ)?
             .build();
         let mut store = Store::new(
-            &engine,
+            &ENGINE,
             State {
                 ctx: builder,
                 table: ResourceTable::new(),
             },
         );
 
-        let component = Component::from_file(&engine, file)?;
-        let instance = Qpmu::instantiate(&mut store, &component, &linker)?;
+        let component = Component::from_file(&ENGINE, file)?;
+        let instance = bindings::Plugin::instantiate_async(&mut store, &component, &linker).await?;
         Ok((instance, store))
     }
 
@@ -198,8 +220,9 @@ pub mod wasm {
         }
     }
 
-    impl bindings::host::Host for State {
-        fn spawn(
+    #[async_trait]
+    impl bindings::qpmu::plugin::host::Host for State {
+        async fn spawn(
             &mut self,
             cmd: String,
             args: Vec<String>,

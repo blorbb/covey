@@ -15,13 +15,13 @@ wasmtime-wasi = "26.0.0"
 dirs = "5.0.1"
 color-eyre = "0.6.3"
 clap = { version = "4.5.20", features = ["derive"] }
-tokio = { version = "1.41.0", features = ["rt-multi-thread"] }
+tokio = { version = "1.41.0", features = ["full", "rt-multi-thread"] }
 toml = "0.8.19"
 serde = { version = "1.0.214", features = ["derive"] }
 arboard = { version = "3.4.1", features = ["wayland-data-control"] }
 relm4 = "0.9.1"
-parking_lot = "0.12.3"
 tracker = "0.2.2"
+futures = "0.3.31"
 
 
 [workspace]

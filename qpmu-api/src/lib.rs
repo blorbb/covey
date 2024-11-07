@@ -1,16 +1,15 @@
 pub mod bindings {
     wit_bindgen::generate!({
-        path: "./wit/world.wit",
-        world: "qpmu",
+        // path: "./wit",
+        world: "plugin",
         pub_export_macro: true,
         export_macro_name: "export",
+        generate_all,
     });
 }
 
 pub mod host {
-    use crate::bindings::host;
-
-    pub use host::{Capture, Output, SpawnError};
+    pub use super::bindings::qpmu::plugin::host::{self, Capture, Output, SpawnError};
 
     pub fn spawn(
         cmd: &str,
@@ -28,4 +27,5 @@ pub mod host {
     }
 }
 
+pub use bindings::wasi;
 pub use bindings::{export, Guest as Plugin, ListItem, PluginAction};

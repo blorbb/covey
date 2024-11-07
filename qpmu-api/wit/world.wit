@@ -1,35 +1,37 @@
-package blorbb:qpmu;
+package qpmu:plugin;
 
-world qpmu {
-    import host: interface {
-        variant spawn-error {
-            not-found,
-            permission-denied,
-            broken-pipe,
-            would-block,
-            invalid-input,
-            timed-out,
-            write-zero,
-            interrupted,
-            unsupported,
-            unexpected-eof,
-            out-of-memory,
-            other(string),
-        }
-
-        record output {
-            exit-code: option<s32>,
-            stdout: list<u8>,
-            stderr: list<u8>,
-        }
-
-        flags capture {
-            stdout,
-            stderr,
-        }
-
-        spawn: func(cmd: string, args: list<string>, capture: capture) -> result<output, spawn-error>;
+interface host {
+    variant spawn-error {
+        not-found,
+        permission-denied,
+        broken-pipe,
+        would-block,
+        invalid-input,
+        timed-out,
+        write-zero,
+        interrupted,
+        unsupported,
+        unexpected-eof,
+        out-of-memory,
+        other(string),
     }
+
+    record output {
+        exit-code: option<s32>,
+        stdout: list<u8>,
+        stderr: list<u8>,
+    }
+
+    flags capture {
+        stdout,
+        stderr,
+    }
+
+    spawn: func(cmd: string, args: list<string>, capture: capture) -> result<output, spawn-error>;
+}
+
+world plugin {
+    import host;
 
     record list-item {
         title: string,
@@ -46,4 +48,6 @@ world qpmu {
 
     export input: func(query: string) -> list<list-item>;
     export activate: func(selected: list-item) -> list<plugin-action>;
+
+    include wasi:cli/command@0.2.2;
 }

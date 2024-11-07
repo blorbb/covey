@@ -134,9 +134,10 @@ impl Component for Launcher {
             LauncherMsg::Query(query) => {
                 self.set_query(query.clone());
 
-                sender.spawn_oneshot_command(|| {
+                sender.oneshot_command(async {
                     LauncherCmd::PluginEvent(
                         plugins::process_ui_event(plugins::UiEvent::InputChanged { query })
+                            .await
                             .unwrap(),
                     )
                 });
@@ -154,9 +155,10 @@ impl Component for Launcher {
             }
             LauncherMsg::Activate => {
                 if let Some(plugin) = self.results.get(self.selection).cloned() {
-                    sender.spawn_oneshot_command(|| {
+                    sender.oneshot_command(async {
                         LauncherCmd::PluginEvent(
                             plugins::process_ui_event(plugins::UiEvent::Activate { item: plugin })
+                                .await
                                 .unwrap(),
                         )
                     });

@@ -5,13 +5,16 @@ pub mod __raw_bindings {
         world: "plugin",
         pub_export_macro: true,
         export_macro_name: "export",
+        // so that everything `use`d in `plugin` is exported,
+        // instead of going through `types`.
+        generate_unused_types: true,
     });
 }
 
 pub mod host {
     use std::path::{Path, PathBuf};
 
-    pub use super::__raw_bindings::qpmu::plugin::host::{self, Capture, ProcessOutput, IoError};
+    use super::__raw_bindings::qpmu::plugin::{host, types::*};
 
     pub fn spawn(
         cmd: &str,
@@ -43,6 +46,10 @@ pub mod host {
     pub fn read_file(file: impl AsRef<Path>) -> Result<Vec<u8>, IoError> {
         host::read_file(file.as_ref().to_str().ok_or(IoError::InvalidPath)?)
     }
+
+    pub fn rank(query: &str, items: &[ListItem], weights: Weights) -> Vec<host::ListItem> {
+        host::rank(query, items, weights)
+    }
 }
 
 pub use __raw_bindings::ListItem;
@@ -66,7 +73,21 @@ impl ListItem {
     }
 }
 
-pub use __raw_bindings::{DeferredAction, DeferredResult, PluginAction, QueryResult};
+pub use __raw_bindings::Weights;
+impl Default for Weights {
+    fn default() -> Self {
+        Self {
+            title: 1.0,
+            description: 0.0,
+            metadata: 0.0,
+            frequency: 3.0,
+        }
+    }
+}
+
+pub use __raw_bindings::{
+    Capture, DeferredAction, DeferredResult, IoError, PluginAction, ProcessOutput, QueryResult,
+};
 pub use anyhow;
 use anyhow::{bail, Result};
 

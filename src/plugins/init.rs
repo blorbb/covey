@@ -115,4 +115,43 @@ impl bindings::qpmu::plugin::host::Host for State {
     async fn read_file(&mut self, path: String) -> Result<Vec<u8>, IoError> {
         Ok(fs::read(fs::canonicalize(&path)?)?)
     }
+
+    async fn rank(
+        &mut self,
+        query: String,
+        items: Vec<bindings::ListItem>,
+        weights: bindings::Weights,
+    ) -> Vec<bindings::ListItem> {
+        // TODO: frequency weighting
+        if query.is_empty() {
+            return items;
+        }
+
+        let mut scored: Vec<_> = items
+            .into_iter()
+            .filter_map(|item| {
+                macro_rules! score {
+                    ($field:ident) => {
+                        (weights.$field != 0.0)
+                            .then(|| sublime_fuzzy::best_match(&query, &item.$field))
+                            .flatten()
+                            .map(|m| m.score() as f32 * weights.$field)
+                            .unwrap_or(0.0)
+                    };
+                }
+
+                let title_score = score!(title);
+                let desc_score = score!(description);
+                let meta_score = score!(metadata);
+                let total_score = title_score + desc_score + meta_score;
+
+                (total_score != 0.0).then_some((total_score, item))
+            })
+            .collect();
+
+        // sort reversed
+        scored.sort_by(|(s1, _), (s2, _)| s2.total_cmp(s1));
+
+        scored.into_iter().map(|(_, item)| item).collect()
+    }
 }

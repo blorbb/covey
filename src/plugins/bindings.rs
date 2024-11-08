@@ -1,6 +1,7 @@
 //! Generated WIT bindings and conversion trait implementations.
 
 use qpmu::plugin::host;
+pub use qpmu::plugin::types::*;
 use std::{io, process::Stdio};
 
 wasmtime::component::bindgen!({

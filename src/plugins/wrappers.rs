@@ -142,7 +142,7 @@ impl PluginInner {
         .await
         {
             Ok((p, s)) => (p, s),
-            Err(e) => bail!("failed to load plugin: {e}"),
+            Err(e) => bail!("failed to load plugin {name}: {e}", name = config.name),
         };
 
         Ok(Self { plugin, store })

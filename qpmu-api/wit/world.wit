@@ -1,6 +1,112 @@
 package qpmu:plugin;
 
 interface host {
+    use types.{
+        io-error,
+        process-output,
+        capture,
+        weights,
+        list-item,
+        query-result,
+    };
+
+    /// Spawn a process, capturing some of stdout/stderr.
+    ///
+    /// This will block until the process finishes. Avoid calling this in `query`,
+    /// as spawning processes can take a long time and prevents other keypresses
+    /// from being registered.
+    ///
+    /// If you want to spawn a process in `query`, return a
+    /// `deferred-action.spawn` instead, and make the `handle-deferred` function.
+    spawn: func(cmd: string, args: list<string>, capture: capture) -> result<process-output, io-error>;
+
+    /// Returns the path of the user's config directory.
+    ///
+    /// This will always return a string, as there is usually nothing that
+    /// can be done if the directory doesn't exist.
+    ///
+    /// Linux: `$XDG_CONFIG_HOME` or `$HOME/.config`, e.g. `/home/alice/.config`
+    /// macOS: `$HOME/Library/Application Support`, e.g. `/Users/Alice/Library/Application Support`
+    /// Windows: `{FOLDERID_RoamingAppData}`, e.g. `C:\Users\Alice\AppData\Roaming`
+    config-dir: func() -> string;
+    /// Returns the path of the user's data directory.
+    ///
+    /// This will always return a string, as there is usually nothing that
+    /// can be done if the directory doesn't exist.
+    ///
+    /// Linux: `$XDG_DATA_HOME` or `$HOME/.local/share`, e.g. `/home/alice/.local/share`
+    /// macOS: `$HOME/Library/Application Support`, e.g. `/Users/Alice/Library/Application Support`
+    /// Windows: `{FOLDERID_RoamingAppData}`, e.g. `C:\Users\Alice\AppData\Roaming`
+    data-dir: func() -> string;
+
+    /// Reads a directory, returning a list of all full file paths.
+    ///
+    /// Symlinks of the directory will be resolved.
+    /// Symlinks of the files within the directory may not.
+    read-dir: func(path: string) -> result<list<string>, io-error>;
+    /// Reads a file, returning the contents in bytes.
+    ///
+    /// Symlinks will be resolved.
+    read-file: func(path: string) -> result<list<u8>, io-error>;
+
+    /// Sorts and filters a list based on the query.
+    ///
+    /// If the query is empty, the returned list is based solely on the
+    /// frequency of use.
+    rank: func(query: string, items: list<list-item>, weights: weights) -> list<list-item>;
+}
+
+
+world plugin {
+    import host;
+    use types.{
+        io-error,
+        process-output,
+        capture,
+        weights,
+        list-item,
+        plugin-action,
+        deferred-action,
+        deferred-result,
+        query-result,
+    };
+
+    /// Function to be called on every change to the input.
+    ///
+    /// Avoid creating noticable side-effects, as the output may be ignored
+    /// in cases of long-running functions.
+    ///
+    /// While running blocking code will not block the UI, it blocks newer
+    /// queries from being processed by this plugin. Any code that takes a
+    /// long time to resolve should be done through `deferred-action`s instead.
+    ///
+    /// Return a `query-result.defer(deferred-action.*)` for actions that take
+    /// some time to resolve, such as spawning processes or network requests.
+    export query: func(query: string) -> result<query-result, string>;
+
+    /// Handle a previously deferred action.
+    ///
+    /// This can either complete (return `query-result.set-list` or 
+    /// `query-result.skip`) or run another deferred action.
+    export handle-deferred: func(query: string, %result: deferred-result) -> result<query-result, string>;
+
+    /// Function to be called when a list item is activated.
+    ///
+    /// Usually when `Enter` is pressed, but it could be configured to 
+    /// something else.
+    ///
+    /// This function isn't called as often, so *slightly* blocking code is fine,
+    /// such as spawning quick processes. It is fine to run noticable side effects
+    /// as well.
+    ///
+    /// Long-running or UI effects should be done through `plugin-action`s though.
+    export activate: func(selected: list-item) -> result<list<plugin-action>, string>;
+}
+
+
+interface types {
+    // ---------- host related types ---------- //
+
     // TODO: update with new stable errorkinds from 1.83.
 
     /// A Rust [`io::ErrorKind`](https://doc.rust-lang.org/std/io/enum.ErrorKind.html).
@@ -113,49 +219,20 @@ interface host {
         stderr,
     }
 
-    /// Spawn a process, capturing some of stdout/stderr.
+    /// Weights to use when ranking a list item.
     ///
-    /// This will block until the process finishes. Avoid calling this in `query`,
-    /// as spawning processes can take a long time and prevents other keypresses
-    /// from being registered.
-    ///
-    /// If you want to spawn a process in `query`, return a
-    /// `deferred-action.spawn` instead, and make the `handle-deferred` function.
-    spawn: func(cmd: string, args: list<string>, capture: capture) -> result<process-output, io-error>;
+    /// Each of these weights are multiplied by the matching score given
+    /// to each section, and added up.
+    record weights {
+        title: f32,
+        description: f32,
+        metadata: f32,
+        // Weight based on the number of times this list item has been activated.
+        // TODO
+        frequency: f32,
+    }
 
-    /// Returns the path of the user's config directory.
-    ///
-    /// This will always return a string, as there is usually nothing that
-    /// can be done if the directory doesn't exist.
-    ///
-    /// Linux: `$XDG_CONFIG_HOME` or `$HOME/.config`, e.g. `/home/alice/.config`
-    /// macOS: `$HOME/Library/Application Support`, e.g. `/Users/Alice/Library/Application Support`
-    /// Windows: `{FOLDERID_RoamingAppData}`, e.g. `C:\Users\Alice\AppData\Roaming`
-    config-dir: func() -> string;
-    /// Returns the path of the user's data directory.
-    ///
-    /// This will always return a string, as there is usually nothing that
-    /// can be done if the directory doesn't exist.
-    ///
-    /// Linux: `$XDG_DATA_HOME` or `$HOME/.local/share`, e.g. `/home/alice/.local/share`
-    /// macOS: `$HOME/Library/Application Support`, e.g. `/Users/Alice/Library/Application Support`
-    /// Windows: `{FOLDERID_RoamingAppData}`, e.g. `C:\Users\Alice\AppData\Roaming`
-    data-dir: func() -> string;
-
-    /// Reads a directory, returning a list of all full file paths.
-    ///
-    /// Symlinks of the directory will be resolved.
-    /// Symlinks of the files within the directory may not.
-    read-dir: func(path: string) -> result<list<string>, io-error>;
-    /// Reads a file, returning the contents in bytes.
-    ///
-    /// Symlinks will be resolved.
-    read-file: func(path: string) -> result<list<u8>, io-error>;
-}
-
-world plugin {
-    import host;
-    use host.{process-output, io-error};
+    // ---------- plugin related types ---------- //
 
     /// A single row to display.
     record list-item {
@@ -208,34 +285,4 @@ world plugin {
         skip,
     }
 
-    /// Function to be called on every change to the input.
-    ///
-    /// Avoid creating noticable side-effects, as the output may be ignored
-    /// in cases of long-running functions.
-    ///
-    /// While running blocking code will not block the UI, it blocks newer
-    /// queries from being processed by this plugin. Any code that takes a
-    /// long time to resolve should be done through `deferred-action`s instead.
-    ///
-    /// Return a `query-result.defer(deferred-action.*)` for actions that take
-    /// some time to resolve, such as spawning processes or network requests.
-    export query: func(query: string) -> result<query-result, string>;
-
-    /// Handle a previously deferred action.
-    ///
-    /// This can either complete (return `query-result.set-list` or 
-    /// `query-result.skip`) or run another deferred action.
-    export handle-deferred: func(query: string, %result: deferred-result) -> result<query-result, string>;
-
-    /// Function to be called when a list item is activated.
-    ///
-    /// Usually when `Enter` is pressed, but it could be configured to 
-    /// something else.
-    ///
-    /// This function isn't called as often, so *slightly* blocking code is fine,
-    /// such as spawning quick processes. It is fine to run noticable side effects
-    /// as well.
-    ///
-    /// Long-running or UI effects should be done through `plugin-action`s though.
-    export activate: func(selected: list-item) -> result<list<plugin-action>, string>;
 }

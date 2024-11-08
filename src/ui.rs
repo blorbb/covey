@@ -65,7 +65,7 @@ impl Component for Launcher {
                     sender.spawn_oneshot_command(|| {
                         // needs a short delay before focusing, otherwise
                         // it doesn't focus properly
-                        std::thread::sleep(std::time::Duration::from_millis(10));
+                        std::thread::sleep(std::time::Duration::from_millis(50));
                         LauncherCmd::Focus
                     })
                 }

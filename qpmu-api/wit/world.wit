@@ -238,6 +238,4 @@ world plugin {
     ///
     /// Long-running or UI effects should be done through `plugin-action`s though.
     export activate: func(selected: list-item) -> result<list<plugin-action>, string>;
-
-    include wasi:cli/command@0.2.2;
 }

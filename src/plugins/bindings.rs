@@ -6,9 +6,6 @@ use std::{io, process::Stdio};
 wasmtime::component::bindgen!({
     world: "plugin",
     path: "./qpmu-api/wit",
-    with: {
-        "wasi": wasmtime_wasi::bindings
-    },
     async: true,
 });
 

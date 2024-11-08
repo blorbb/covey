@@ -5,7 +5,6 @@ pub mod __raw_bindings {
         world: "plugin",
         pub_export_macro: true,
         export_macro_name: "export",
-        generate_all,
     });
 }
 
@@ -111,8 +110,6 @@ where
         }
     }
 }
-
-pub use __raw_bindings::wasi;
 
 #[macro_export]
 macro_rules! register {

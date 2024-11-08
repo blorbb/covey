@@ -19,6 +19,7 @@ use super::{
 #[derive(Clone)]
 pub struct ListItem {
     pub title: String,
+    pub icon: Option<String>,
     pub description: String,
     pub metadata: String,
     plugin: Plugin,
@@ -38,6 +39,7 @@ impl ListItem {
     fn from_item_and_plugin(item: bindings::ListItem, plugin: Plugin) -> Self {
         Self {
             title: item.title,
+            icon: item.icon,
             description: item.description,
             metadata: item.metadata,
             plugin,
@@ -60,6 +62,7 @@ impl From<ListItem> for bindings::ListItem {
     fn from(value: ListItem) -> Self {
         Self {
             title: value.title,
+            icon: value.icon,
             description: value.description,
             metadata: value.metadata,
         }

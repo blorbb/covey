@@ -174,67 +174,6 @@ impl Component for Launcher {
         }
     }
 
-    fn update_view(&self, widgets: &mut Self::Widgets, _sender: ComponentSender<Self>) {
-        let Self::Widgets {
-            entry,
-            scroller,
-            results_list,
-        } = widgets;
-
-        if self.grab_full_focus {
-            entry.grab_focus();
-        } else {
-            entry.grab_focus_without_selecting();
-        }
-
-        // if *self.get_query() != entry.text() {
-        //     entry.set_text(&self.get_query());
-        // }
-
-        scroller.set_visible(!self.results.is_empty());
-
-        if self.changed_results() {
-            results_list.remove_all();
-            // recreate list of results
-            for item in &self.results {
-                let vbox = gtk::Box::builder()
-                    .orientation(gtk::Orientation::Vertical)
-                    .spacing(4)
-                    .build();
-                let title = gtk::Label::builder()
-                    .label(&item.title)
-                    .halign(gtk::Align::Start)
-                    .css_classes(["list-item-title"])
-                    .build();
-                vbox.container_add(&title);
-
-                if !item.description.is_empty() {
-                    let description = gtk::Label::builder()
-                        .label(&item.description)
-                        .halign(gtk::Align::Start)
-                        .css_classes(["list-item-description"])
-                        .build();
-                    vbox.container_add(&description);
-                }
-
-                results_list.container_add(
-                    &gtk::ListBoxRow::builder()
-                        .css_classes(["list-item"])
-                        .child(&vbox)
-                        .build(),
-                );
-            }
-        }
-
-        if self.changed_selection() {
-            results_list.select_row(
-                results_list
-                    .row_at_index(*self.get_selection() as i32)
-                    .as_ref(),
-            );
-        }
-    }
-
     fn update_cmd(
         &mut self,
         message: Self::CommandOutput,
@@ -281,6 +220,83 @@ impl Component for Launcher {
             LauncherCmd::Focus => {
                 self.grab_full_focus = true;
             }
+        }
+    }
+
+    fn update_view(&self, widgets: &mut Self::Widgets, _sender: ComponentSender<Self>) {
+        let Self::Widgets {
+            entry,
+            scroller,
+            results_list,
+        } = widgets;
+
+        if self.grab_full_focus {
+            entry.grab_focus();
+        } else {
+            entry.grab_focus_without_selecting();
+        }
+
+        // if *self.get_query() != entry.text() {
+        //     entry.set_text(&self.get_query());
+        // }
+
+        scroller.set_visible(!self.results.is_empty());
+
+        if self.changed_results() {
+            results_list.remove_all();
+            // recreate list of results
+            for item in &self.results {
+                // item format:
+                // icon | title
+                //      | description
+
+                let hbox = gtk::Box::builder()
+                    .orientation(gtk::Orientation::Horizontal)
+                    .spacing(16)
+                    .build();
+                if let Some(icon_name) = &item.icon {
+                    let icon = gtk::Image::from_icon_name(&icon_name);
+                    icon.set_size_request(32, 32);
+                    icon.set_icon_size(gtk::IconSize::Large);
+                    hbox.container_add(&icon);
+                }
+
+                let vbox = gtk::Box::builder()
+                    .orientation(gtk::Orientation::Vertical)
+                    .spacing(4)
+                    .build();
+                let title = gtk::Label::builder()
+                    .label(&item.title)
+                    .halign(gtk::Align::Start)
+                    .css_classes(["list-item-title"])
+                    .build();
+                vbox.container_add(&title);
+
+                if !item.description.is_empty() {
+                    let description = gtk::Label::builder()
+                        .label(&item.description)
+                        .halign(gtk::Align::Start)
+                        .css_classes(["list-item-description"])
+                        .build();
+                    vbox.container_add(&description);
+                }
+                hbox.container_add(&vbox);
+
+                results_list.container_add(
+                    &gtk::ListBoxRow::builder()
+                        .css_classes(["list-item"])
+                        .child(&hbox)
+                        .build(),
+                );
+            }
+        }
+
+        if self.changed_selection() {
+            results_list.select_row(
+                results_list
+                    .row_at_index(*self.get_selection() as i32)
+                    .as_ref(),
+            );
         }
     }
 }

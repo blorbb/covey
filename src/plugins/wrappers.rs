@@ -76,7 +76,7 @@ impl Plugin {
 
     /// Runs the plugin until the query is fully completed.
     ///
-    /// Returns `Ok(None)` if any of the results are `QueryResult::Nothing`.
+    /// Returns `Ok(None)` if any of the results are `QueryResult::Skip`.
     pub async fn complete_query(&self, query: &str) -> Result<Option<Vec<ListItem>>> {
         let mut result = self.0.lock().await.call_query(query).await?;
         loop {
@@ -94,7 +94,7 @@ impl Plugin {
                         .await
                         .unwrap();
                 }
-                QueryResult::Nothing => return Ok(None),
+                QueryResult::Skip => return Ok(None),
             }
         }
     }
@@ -174,14 +174,7 @@ impl PluginInner {
 }
 
 pub mod wasm {
-    use std::{
-        ffi::OsStr,
-        fs, io,
-        os::unix::ffi::OsStrExt,
-        path::{Path, PathBuf},
-        process::Stdio,
-        sync::LazyLock,
-    };
+    use std::{fs, path::Path, process::Stdio, sync::LazyLock};
 
     use wasmtime::{
         component::{Component, Linker},
@@ -193,7 +186,7 @@ pub mod wasm {
 
     use crate::plugins::bindings::{
         self,
-        qpmu::plugin::host::{Capture, Output, SpawnError},
+        qpmu::plugin::host::{Capture, IoError, ProcessOutput},
     };
 
     pub(super) async fn initialise_plugin(
@@ -255,7 +248,7 @@ pub mod wasm {
             cmd: String,
             args: Vec<String>,
             capture: Capture,
-        ) -> Result<Output, SpawnError> {
+        ) -> Result<ProcessOutput, IoError> {
             eprintln!("calling command {cmd} {args:?}, capturing {capture:?}");
             let mut command = std::process::Command::new(cmd);
             command.args(args);
@@ -268,7 +261,7 @@ pub mod wasm {
                 command.stderr(Stdio::piped());
             }
 
-            Ok(Output::from(command.spawn()?.wait_with_output()?))
+            Ok(ProcessOutput::from(command.spawn()?.wait_with_output()?))
         }
 
         async fn config_dir(&mut self) -> String {
@@ -283,22 +276,18 @@ pub mod wasm {
             DATA_DIR.to_string()
         }
 
-        async fn read_dir(&mut self, path: Vec<u8>) -> Result<Vec<Vec<u8>>, SpawnError> {
-            let results: Vec<_> = fs::read_dir(canonicalize(&path)?)?
+        async fn read_dir(&mut self, path: String) -> Result<Vec<String>, IoError> {
+            let results: Vec<_> = fs::read_dir(fs::canonicalize(&path)?)?
                 .filter_map(|path| {
                     path.ok()
-                        .and_then(|dir| Some(dir.path().into_os_string().into_encoded_bytes()))
+                        .and_then(|dir| Some(dir.path().to_str()?.to_string()))
                 })
                 .collect();
             Ok(results)
         }
 
-        async fn read_file(&mut self, path: Vec<u8>) -> Result<Vec<u8>, SpawnError> {
-            Ok(fs::read(canonicalize(&path)?)?)
+        async fn read_file(&mut self, path: String) -> Result<Vec<u8>, IoError> {
+            Ok(fs::read(fs::canonicalize(&path)?)?)
         }
-    }
-
-    fn canonicalize(path: &[u8]) -> io::Result<PathBuf> {
-        fs::canonicalize(Path::new(OsStr::from_bytes(&path)))
     }
 }

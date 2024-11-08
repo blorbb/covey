@@ -12,13 +12,13 @@ pub mod __raw_bindings {
 pub mod host {
     use std::path::{Path, PathBuf};
 
-    pub use super::__raw_bindings::qpmu::plugin::host::{self, Capture, Output, SpawnError};
+    pub use super::__raw_bindings::qpmu::plugin::host::{self, Capture, ProcessOutput, IoError};
 
     pub fn spawn(
         cmd: &str,
         args: impl IntoIterator<Item: AsRef<str>>,
         capture: Capture,
-    ) -> Result<Output, SpawnError> {
+    ) -> Result<ProcessOutput, IoError> {
         host::spawn(
             cmd,
             &args
@@ -37,12 +37,12 @@ pub mod host {
         PathBuf::from(host::config_dir())
     }
 
-    pub fn read_dir(dir: impl AsRef<Path>) -> Result<Vec<host::Bytes>, SpawnError> {
-        host::read_dir(&dir.as_ref().as_os_str().as_encoded_bytes().to_vec())
+    pub fn read_dir(dir: impl AsRef<Path>) -> Result<Vec<String>, IoError> {
+        host::read_dir(dir.as_ref().to_str().ok_or(IoError::InvalidPath)?)
     }
 
-    pub fn read_file(file: impl AsRef<Path>) -> Result<host::Bytes, SpawnError> {
-        host::read_file(&file.as_ref().as_os_str().as_encoded_bytes().to_vec())
+    pub fn read_file(file: impl AsRef<Path>) -> Result<Vec<u8>, IoError> {
+        host::read_file(file.as_ref().to_str().ok_or(IoError::InvalidPath)?)
     }
 }
 
@@ -69,14 +69,14 @@ impl ListItem {
 
 pub use __raw_bindings::{DeferredAction, DeferredResult, PluginAction, QueryResult};
 pub use anyhow;
-use anyhow::Result;
+use anyhow::{bail, Result};
 
 pub trait Plugin {
     fn query(query: String) -> Result<QueryResult>;
 
     #[allow(unused_variables)]
     fn handle_deferred(query: String, result: DeferredResult) -> Result<QueryResult> {
-        Ok(QueryResult::Nothing)
+        bail!("plugin has no deferred action handler")
     }
 
     fn activate(selected: ListItem) -> Result<impl IntoIterator<Item = PluginAction>>;

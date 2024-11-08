@@ -11,27 +11,35 @@ pub mod bindings {
         async: true,
     });
 
-    impl From<io::Error> for host::SpawnError {
+    impl From<io::Error> for host::IoError {
         fn from(value: io::Error) -> Self {
-            use host::SpawnError;
+            use host::IoError as E2;
             use io::ErrorKind as E;
             match value.kind() {
-                E::NotFound => SpawnError::NotFound,
-                E::PermissionDenied => SpawnError::PermissionDenied,
-                E::BrokenPipe => SpawnError::BrokenPipe,
-                E::WouldBlock => SpawnError::WouldBlock,
-                E::InvalidInput => SpawnError::InvalidInput,
-                E::TimedOut => SpawnError::TimedOut,
-                E::Interrupted => SpawnError::Interrupted,
-                E::Unsupported => SpawnError::Unsupported,
-                E::UnexpectedEof => SpawnError::UnexpectedEof,
-                E::OutOfMemory => SpawnError::OutOfMemory,
-                _ => SpawnError::Other(value.to_string()),
+                E::NotFound => E2::NotFound,
+                E::PermissionDenied => E2::PermissionDenied,
+                E::ConnectionRefused => E2::ConnectionRefused,
+                E::ConnectionReset => E2::ConnectionReset,
+                E::ConnectionAborted => E2::ConnectionAborted,
+                E::NotConnected => E2::NotConnected,
+                E::AddrInUse => E2::AddrInUse,
+                E::AddrNotAvailable => E2::AddrNotAvailable,
+                E::BrokenPipe => E2::BrokenPipe,
+                E::AlreadyExists => E2::AlreadyExists,
+                E::WouldBlock => E2::WouldBlock,
+                E::InvalidInput => E2::InvalidInput,
+                E::TimedOut => E2::TimedOut,
+                E::WriteZero => E2::WriteZero,
+                E::Interrupted => E2::Interrupted,
+                E::Unsupported => E2::Unsupported,
+                E::UnexpectedEof => E2::UnexpectedEof,
+                E::OutOfMemory => E2::OutOfMemory,
+                _ => E2::Other(value.to_string()),
             }
         }
     }
 
-    impl From<std::process::Output> for host::Output {
+    impl From<std::process::Output> for host::ProcessOutput {
         fn from(value: std::process::Output) -> Self {
             Self {
                 exit_code: value.status.code(),
@@ -51,7 +59,7 @@ pub mod bindings {
             }
         }
 
-        async fn spawn(cmd: &str, args: &[String]) -> Result<host::Output, host::SpawnError> {
+        async fn spawn(cmd: &str, args: &[String]) -> Result<host::ProcessOutput, host::IoError> {
             Ok(tokio::process::Command::new(cmd)
                 .args(args)
                 .stdin(Stdio::null())

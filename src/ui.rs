@@ -262,7 +262,7 @@ impl Component for Launcher {
                                     .spawn()
                                     .unwrap();
                             }
-                            PluginActivationAction::RunCommandString(str) => {
+                            PluginActivationAction::RunShell(str) => {
                                 Command::new("sh")
                                     .arg("-c")
                                     .arg(str)

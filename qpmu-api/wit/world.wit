@@ -1,53 +1,161 @@
 package qpmu:plugin;
 
 interface host {
-    variant spawn-error {
+    // TODO: update with new stable errorkinds from 1.83.
+
+    /// A Rust [`io::ErrorKind`](https://doc.rust-lang.org/std/io/enum.ErrorKind.html).
+    ///
+    /// This only includes currently stable error kinds, as well as `invalid-path`,
+    /// as current filesystem APIs exposed by the host use a `string` instead of
+    /// bytes for simpler usage.
+    variant io-error {
+        /// A path could not be encoded as a UTF-8 string.
+        invalid-path,
+        /// An entity was not found, often a file.
         not-found,
+        /// The operation lacked the necessary privileges to complete.
         permission-denied,
+        /// The connection was refused by the remote server.
+        connection-refused,
+        /// The connection was reset by the remote server.
+        connection-reset,
+        /// The connection was aborted (terminated) by the remote server.
+        connection-aborted,
+        /// The network operation failed because it was not connected yet.
+        not-connected,
+        /// A socket address could not be bound because the address is already in
+        /// use elsewhere.
+        addr-in-use,
+        /// A nonexistent interface was requested or the requested address was not
+        /// local.
+        addr-not-available,
+        /// The operation failed because a pipe was closed.
         broken-pipe,
+        /// An entity already exists, often a file.
+        already-exists,
+        /// The operation needs to block to complete, but the blocking operation was
+        /// requested to not occur.
         would-block,
+        /// A parameter was incorrect.
         invalid-input,
+        /// The I/O operation's timeout expired, causing it to be canceled.
         timed-out,
+        /// An error returned when an operation could not be completed because a
+        /// call to `write` returned `Ok(0)`.
+        ///
+        /// This typically means that an operation could only succeed if it wrote a
+        /// particular number of bytes but only a smaller number of bytes could be
+        /// written.
         write-zero,
+        /// This operation was interrupted.
+        ///
+        /// Interrupted operations can typically be retried.
         interrupted,
+        /// This operation is unsupported on this platform.
+        ///
+        /// This means that the operation can never succeed.
         unsupported,
+        /// An error returned when an operation could not be completed because an
+        /// "end of file" was reached prematurely.
+        ///
+        /// This typically means that an operation could only succeed if it read a
+        /// particular number of bytes but only a smaller number of bytes could be
+        /// read.
         unexpected-eof,
+        /// An operation could not be completed, because it failed
+        /// to allocate enough memory.
         out-of-memory,
+        /// A custom error that does not fall under any other I/O error kind.
+        ///
+        /// This can be used to construct your own [`Error`]s that do not match any
+        /// [`ErrorKind`].
+        ///
+        /// This [`ErrorKind`] is not used by the standard library.
+        ///
+        /// Errors from the standard library that do not fall under any of the I/O
+        /// error kinds cannot be `match`ed on, and will only match a wildcard (`_`) pattern.
+        /// New [`ErrorKind`]s might be added in the future for some of those.
         other(string),
     }
 
-    record output {
+    /// The output of a finished process.
+    record process-output {
+        /// The status (exit code) of a process.
+        ///
+        /// In Unix terms the return value is the exit status: the value passed
+        /// to `exit`, if the process finished by calling `exit`. Note that on
+        /// Unix the exit status is truncated to 8 bits, and that values that
+        /// didn’t come from a program’s call to exit may be invented by the
+        /// runtime system (often, for example, 255, 254, 127 or 126).
+        ///
+        /// On Unix, this will return `None` if the process was terminated by a
+        /// signal.
         exit-code: option<s32>,
+        /// The data that the process wrote to stdout.
+        ///
+        /// Empty if the process did not have it's output captured.
         stdout: list<u8>,
+        /// The data that the process wrote to stderr.
+        ///
+        /// Empty if the process did not have it's output captured.
         stderr: list<u8>,
     }
 
+    /// What streams to capture from the process.
     flags capture {
+        /// Capture stdout.
+        ///
+        /// `process-output.stdout` will be empty if this is not set.
         stdout,
+        /// Capture stderr.
+        ///
+        /// `process-output.stderr` will be empty if this is not set.
         stderr,
     }
 
-    spawn: func(cmd: string, args: list<string>, capture: capture) -> result<output, spawn-error>;
+    /// Spawn a process, capturing some of stdout/stderr.
+    ///
+    /// This will block until the process finishes. Avoid calling this in `query`,
+    /// as spawning processes can take a long time and prevents other keypresses
+    /// from being registered.
+    ///
+    /// If you want to spawn a process in `query`, return a
+    /// `deferred-action.spawn` instead, and make the `handle-deferred` function.
+    spawn: func(cmd: string, args: list<string>, capture: capture) -> result<process-output, io-error>;
 
+    /// Returns the path of the user's config directory.
+    ///
+    /// This will always return a string, as there is usually nothing that
+    /// can be done if the directory doesn't exist.
+    ///
+    /// Linux: `$XDG_CONFIG_HOME` or `$HOME/.config`, e.g. `/home/alice/.config`
+    /// macOS: `$HOME/Library/Application Support`, e.g. `/Users/Alice/Library/Application Support`
+    /// Windows: `{FOLDERID_RoamingAppData}`, e.g. `C:\Users\Alice\AppData\Roaming`
     config-dir: func() -> string;
+    /// Returns the path of the user's data directory.
+    ///
+    /// This will always return a string, as there is usually nothing that
+    /// can be done if the directory doesn't exist.
+    ///
+    /// Linux: `$XDG_DATA_HOME` or `$HOME/.local/share`, e.g. `/home/alice/.local/share`
+    /// macOS: `$HOME/Library/Application Support`, e.g. `/Users/Alice/Library/Application Support`
+    /// Windows: `{FOLDERID_RoamingAppData}`, e.g. `C:\Users\Alice\AppData\Roaming`
     data-dir: func() -> string;
-
-    type bytes = list<u8>;
 
     /// Reads a directory, returning a list of all full file paths.
     ///
-    /// Symlinks of the directory will be resolved. 
+    /// Symlinks of the directory will be resolved.
     /// Symlinks of the files within the directory may not.
-    read-dir: func(path: bytes) -> result<list<bytes>, spawn-error>;
+    read-dir: func(path: string) -> result<list<string>, io-error>;
     /// Reads a file, returning the contents in bytes.
     ///
     /// Symlinks will be resolved.
-    read-file: func(path: bytes) -> result<bytes, spawn-error>;
+    read-file: func(path: string) -> result<list<u8>, io-error>;
 }
 
 world plugin {
     import host;
-    use host.{output, spawn-error};
+    use host.{process-output, io-error};
 
     /// A single row to display.
     record list-item {
@@ -58,9 +166,14 @@ world plugin {
 
     /// An action to perform on plugin activation.
     variant plugin-action {
+        /// Close the launcher.
         close,
+        /// Run a command, ignoring it's output.
         run-command(tuple<string, list<string>>),
-        run-command-string(string),
+        // TODO: make this `source ~/.*rc`?
+        /// Run a command as a shell string.
+        run-shell(string),
+        /// Copies a string to the clipboard.
         copy(string),
     }
 
@@ -70,25 +183,60 @@ world plugin {
     /// by calling `handle-deferred`.
     variant deferred-action {
         /// Runs a command, returning the process output later.
+        ///
+        /// stdout and stderr will be captured.
+        ///
+        /// Creates `deferred-result.process-output`.
         spawn(tuple<string, list<string>>)
     }
 
+    /// The result of a `deferred-action`.
     variant deferred-result {
-        process-output(result<output, spawn-error>),
+        /// The output of a process.
+        ///
+        /// Created by `deferred-action.process-output`.
+        process-output(result<process-output, io-error>),
     }
 
+    /// What to do with a query.
     variant query-result {
         /// Set the displayed list.
         set-list(list<list-item>),
         /// Defer an action to perform and retrieve the result again later.
         defer(deferred-action),
-        /// Do nothing. This makes the plugin get skipped, passing the
-        /// query to the next plugins.
-        nothing,
+        /// Ignores the input and passes it to the next plugin in line.
+        skip,
     }
 
+    /// Function to be called on every change to the input.
+    ///
+    /// Avoid creating noticable side-effects, as the output may be ignored
+    /// in cases of long-running functions.
+    ///
+    /// While running blocking code will not block the UI, it blocks newer
+    /// queries from being processed by this plugin. Any code that takes a
+    /// long time to resolve should be done through `deferred-action`s instead.
+    ///
+    /// Return a `query-result.defer(deferred-action.*)` for actions that take
+    /// some time to resolve, such as spawning processes or network requests.
     export query: func(query: string) -> result<query-result, string>;
+
+    /// Handle a previously deferred action.
+    ///
+    /// This can either complete (return `query-result.set-list` or 
+    /// `query-result.skip`) or run another deferred action.
     export handle-deferred: func(query: string, %result: deferred-result) -> result<query-result, string>;
+
+    /// Function to be called when a list item is activated.
+    ///
+    /// Usually when `Enter` is pressed, but it could be configured to 
+    /// something else.
+    ///
+    /// This function isn't called as often, so *slightly* blocking code is fine,
+    /// such as spawning quick processes. It is fine to run noticable side effects
+    /// as well.
+    ///
+    /// Long-running or UI effects should be done through `plugin-action`s though.
     export activate: func(selected: list-item) -> result<list<plugin-action>, string>;
 
     include wasi:cli/command@0.2.2;

@@ -68,6 +68,10 @@ pub enum LauncherMsg {
 
 #[derive(Debug)]
 pub enum LauncherCmd {
+    /// Contains the index of the plugin event, should be strictly increasing
+    /// over time.
+    ///
+    /// Index is used to avoid applying old events.
     PluginEvent(u64, PluginEvent),
     /// Focus the window and select the existing query
     Focus,

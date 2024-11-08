@@ -1,3 +1,5 @@
+//! Wrapper structs for the raw WIT bindings.
+
 use std::fmt;
 
 use color_eyre::eyre::{bail, eyre, Result};
@@ -8,15 +10,18 @@ use crate::{config::PluginConfig, PLUGINS_DIR};
 
 use super::{
     bindings::{self, DeferredResult, QueryResult},
-    PluginActivationAction,
+    init, PluginActivationAction,
 };
 
+/// A row in the results list.
+///
+/// Contains an associated plugin.
 #[derive(Clone)]
 pub struct ListItem {
     pub title: String,
     pub description: String,
     pub metadata: String,
-    pub plugin: Plugin,
+    plugin: Plugin,
 }
 
 impl fmt::Debug for ListItem {
@@ -61,24 +66,35 @@ impl From<ListItem> for bindings::ListItem {
     }
 }
 
+/// A static reference to a plugin wasm instance.
 #[derive(Clone, Copy)]
-pub struct Plugin(&'static Mutex<PluginInner>);
+pub struct Plugin {
+    plugin: &'static Mutex<PluginInner>,
+    config: &'static PluginConfig,
+}
 
 impl Plugin {
+    /// Initialises a plugin from it's configuration.
+    ///
+    /// Note that this will leak the plugin and configuration, as they should
+    /// be active for the entire program.
     pub async fn from_config(config: PluginConfig) -> Result<Self> {
-        let boxed = Box::new(Mutex::new(PluginInner::from_config(config).await?));
-        Ok(Self(Box::leak(boxed)))
+        let boxed = Box::new(Mutex::new(PluginInner::from_config(&config).await?));
+        Ok(Self {
+            plugin: Box::leak(boxed),
+            config: Box::leak(Box::new(config)),
+        })
     }
 
-    pub async fn prefix(&self) -> String {
-        self.0.lock().await.config.prefix.clone()
+    pub fn prefix(&self) -> &'static str {
+        &self.config.prefix
     }
 
     /// Runs the plugin until the query is fully completed.
     ///
     /// Returns `Ok(None)` if any of the results are `QueryResult::Skip`.
     pub async fn complete_query(&self, query: &str) -> Result<Option<Vec<ListItem>>> {
-        let mut result = self.0.lock().await.call_query(query).await?;
+        let mut result = self.plugin.lock().await.call_query(query).await?;
         loop {
             match result {
                 QueryResult::SetList(vec) => {
@@ -87,7 +103,7 @@ impl Plugin {
                 QueryResult::Defer(deferred_action) => {
                     let deferred_result = deferred_action.run().await;
                     result = self
-                        .0
+                        .plugin
                         .lock()
                         .await
                         .call_handle_deferred(query, &deferred_result)
@@ -99,8 +115,8 @@ impl Plugin {
         }
     }
 
-    pub async fn activate(&self, item: ListItem) -> Result<Vec<PluginActivationAction>> {
-        self.0
+    async fn activate(&self, item: ListItem) -> Result<Vec<PluginActivationAction>> {
+        self.plugin
             .lock()
             .await
             .call_activate(&bindings::ListItem::from(item))
@@ -108,24 +124,19 @@ impl Plugin {
     }
 }
 
-pub struct PluginInner {
+/// Internals of a plugin.
+///
+/// Simple wrapper around `bindings::Plugin` so that calling functions doesn't
+/// need to pass in a `Store`.
+struct PluginInner {
     plugin: bindings::Plugin,
-    store: Store<wasm::State>,
-    config: PluginConfig,
-}
-
-impl fmt::Debug for PluginInner {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PluginInner")
-            .field("config", &self.config)
-            .finish()
-    }
+    store: Store<init::State>,
 }
 
 impl PluginInner {
-    async fn from_config(config: PluginConfig) -> Result<Self> {
+    async fn from_config(config: &PluginConfig) -> Result<Self> {
         // wasmtime error is weird, need to do this match
-        let (plugin, store) = match wasm::initialise_plugin(
+        let (plugin, store) = match init::initialise_plugin(
             PLUGINS_DIR.join(format!("{}.wasm", config.name.replace('-', "_"))),
         )
         .await
@@ -134,11 +145,7 @@ impl PluginInner {
             Err(e) => bail!("failed to load plugin: {e}"),
         };
 
-        Ok(Self {
-            plugin,
-            store,
-            config,
-        })
+        Ok(Self { plugin, store })
     }
 
     async fn call_query(&mut self, input: &str) -> Result<QueryResult> {
@@ -170,124 +177,5 @@ impl PluginInner {
             .await
             .unwrap()
             .map_err(|e| eyre!(e))
-    }
-}
-
-pub mod wasm {
-    use std::{fs, path::Path, process::Stdio, sync::LazyLock};
-
-    use wasmtime::{
-        component::{Component, Linker},
-        Config, Engine, Store,
-    };
-    use wasmtime_wasi::{
-        async_trait, DirPerms, FilePerms, ResourceTable, WasiCtx, WasiCtxBuilder, WasiView,
-    };
-
-    use crate::plugins::bindings::{
-        self,
-        qpmu::plugin::host::{Capture, IoError, ProcessOutput},
-    };
-
-    pub(super) async fn initialise_plugin(
-        file: impl AsRef<Path>,
-    ) -> Result<(bindings::Plugin, Store<State>), wasmtime::Error> {
-        static ENGINE: LazyLock<Engine> = LazyLock::new(|| {
-            let mut config = Config::new();
-            config
-                .wasm_component_model(true)
-                .async_support(true)
-                .debug_info(true);
-            Engine::new(&config).unwrap()
-        });
-
-        let mut linker = Linker::<State>::new(&ENGINE);
-        wasmtime_wasi::add_to_linker_async(&mut linker)?;
-
-        // this is only needed if there are imports of a host!
-        bindings::qpmu::plugin::host::add_to_linker(&mut linker, |s| s).unwrap();
-
-        let builder = WasiCtxBuilder::new()
-            .inherit_stdio()
-            .inherit_env()
-            .inherit_network()
-            .preopened_dir(Path::new("/"), "/", DirPerms::READ, FilePerms::READ)?
-            .build();
-        let mut store = Store::new(
-            &ENGINE,
-            State {
-                ctx: builder,
-                table: ResourceTable::new(),
-            },
-        );
-
-        let component = Component::from_file(&ENGINE, file)?;
-        let instance = bindings::Plugin::instantiate_async(&mut store, &component, &linker).await?;
-        Ok((instance, store))
-    }
-
-    pub struct State {
-        ctx: WasiCtx,
-        table: ResourceTable,
-    }
-
-    impl WasiView for State {
-        fn table(&mut self) -> &mut ResourceTable {
-            &mut self.table
-        }
-
-        fn ctx(&mut self) -> &mut WasiCtx {
-            &mut self.ctx
-        }
-    }
-
-    #[async_trait]
-    impl bindings::qpmu::plugin::host::Host for State {
-        async fn spawn(
-            &mut self,
-            cmd: String,
-            args: Vec<String>,
-            capture: Capture,
-        ) -> Result<ProcessOutput, IoError> {
-            eprintln!("calling command {cmd} {args:?}, capturing {capture:?}");
-            let mut command = std::process::Command::new(cmd);
-            command.args(args);
-            // disallow stdin
-            command.stdin(Stdio::null());
-            if capture.contains(Capture::STDOUT) {
-                command.stdout(Stdio::piped());
-            }
-            if capture.contains(Capture::STDERR) {
-                command.stderr(Stdio::piped());
-            }
-
-            Ok(ProcessOutput::from(command.spawn()?.wait_with_output()?))
-        }
-
-        async fn config_dir(&mut self) -> String {
-            static CONFIG_DIR: LazyLock<String> =
-                LazyLock::new(|| dirs::config_dir().unwrap().to_str().unwrap().to_string());
-            CONFIG_DIR.to_string()
-        }
-
-        async fn data_dir(&mut self) -> String {
-            static DATA_DIR: LazyLock<String> =
-                LazyLock::new(|| dirs::data_dir().unwrap().to_str().unwrap().to_string());
-            DATA_DIR.to_string()
-        }
-
-        async fn read_dir(&mut self, path: String) -> Result<Vec<String>, IoError> {
-            let results: Vec<_> = fs::read_dir(fs::canonicalize(&path)?)?
-                .filter_map(|path| {
-                    path.ok()
-                        .and_then(|dir| Some(dir.path().to_str()?.to_string()))
-                })
-                .collect();
-            Ok(results)
-        }
-
-        async fn read_file(&mut self, path: String) -> Result<Vec<u8>, IoError> {
-            Ok(fs::read(fs::canonicalize(&path)?)?)
-        }
     }
 }

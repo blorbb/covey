@@ -24,6 +24,9 @@ pub struct LauncherWidgets {
     entry: gtk::Entry,
     scroller: gtk::ScrolledWindow,
     results_list: gtk::ListBox,
+    // to use later when the plugin sends input change events
+    #[allow(dead_code)]
+    entry_changed_handler: gtk::glib::SignalHandlerId,
 }
 
 // not using the macro because the app has a lot of custom behaviour
@@ -79,13 +82,15 @@ impl Component for Launcher {
         let entry = gtk::Entry::builder()
             .placeholder_text("Search...")
             .css_classes(["main-entry"])
+            // must guarantee that there are no new lines
+            .truncate_multiline(true)
             .build();
-        {
+        let entry_changed_handler = {
             let sender = sender.clone();
             entry.connect_changed(move |entry| {
-                sender.input(LauncherMsg::Query(entry.text().to_string()));
-            });
-        }
+                sender.input(LauncherMsg::Query(entry.text().replace('\n', "")));
+            })
+        };
 
         // results list
         let list_scroller = gtk::ScrolledWindow::builder()
@@ -120,6 +125,7 @@ impl Component for Launcher {
             entry,
             scroller: list_scroller,
             results_list: list,
+            entry_changed_handler,
         };
         ComponentParts { model, widgets }
     }
@@ -132,7 +138,7 @@ impl Component for Launcher {
 
         match message {
             LauncherMsg::Query(query) => {
-                self.set_query(query.clone());
+                self.query = query.clone();
                 let i = self.next_action();
 
                 sender.oneshot_command(async move {
@@ -228,6 +234,7 @@ impl Component for Launcher {
             entry,
             scroller,
             results_list,
+            entry_changed_handler: _,
         } = widgets;
 
         if self.grab_full_focus {
@@ -236,8 +243,10 @@ impl Component for Launcher {
             entry.grab_focus_without_selecting();
         }
 
-        // if *self.get_query() != entry.text() {
+        // if /* explicit change */ {
+        //     entry.block_signal(&entry_changed_handler);
         //     entry.set_text(&self.get_query());
+        //     entry.unblock_signal(&entry_changed_handler);
         // }
 
         scroller.set_visible(!self.results.is_empty());

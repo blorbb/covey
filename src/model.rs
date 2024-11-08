@@ -3,6 +3,7 @@ use crate::plugins::{ListItem, PluginEvent};
 #[derive(Debug)]
 #[tracker::track]
 pub struct Launcher {
+    #[do_not_track]
     pub query: String,
     #[no_eq]
     pub results: Vec<ListItem>,

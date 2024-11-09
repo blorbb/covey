@@ -1,8 +1,8 @@
+use std::path::Path;
+
 use color_eyre::eyre::Result;
 use serde::{Deserialize, Serialize};
 use tokio::{fs, io::AsyncReadExt as _};
-
-use crate::CONFIG_DIR;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
@@ -16,13 +16,14 @@ pub struct PluginConfig {
 }
 
 impl Config {
-    pub async fn read() -> Result<Self> {
+    // TODO: make this sans-io
+    pub async fn read(path: impl AsRef<Path>) -> Result<Self> {
         let mut file = fs::OpenOptions::new()
             .write(true)
             .read(true)
             .create(true)
             .truncate(false)
-            .open(CONFIG_DIR.join("config.toml"))
+            .open(path)
             .await?;
 
         let mut c = String::new();

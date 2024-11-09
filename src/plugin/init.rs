@@ -2,7 +2,6 @@
 
 use std::{path::Path, sync::LazyLock};
 
-use tracing::instrument;
 use wasmtime::{
     component::{Component, Linker},
     Config, Engine, Store,
@@ -27,11 +26,10 @@ static LINKER: LazyLock<Linker<State>> = LazyLock::new(|| {
     linker
 });
 
-#[instrument(fields(file=file.as_ref().to_str()), level="info")]
 pub async fn initialise_plugin(
-    file: impl AsRef<Path>,
+    binary: &[u8],
 ) -> Result<(bindings::Plugin, Store<State>), wasmtime::Error> {
-    let component = Component::from_file(&ENGINE, file)?;
+    let component = Component::from_binary(&ENGINE, binary)?;
 
     let ctx = WasiCtxBuilder::new()
         .inherit_stdio()

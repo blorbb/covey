@@ -1,0 +1,236 @@
+use std::{ffi::OsStr, future::Future};
+
+use color_eyre::eyre::{bail, Result};
+use plugin::{event::PluginEvent, Action, ListItem, Plugin};
+
+pub mod config;
+pub mod plugin;
+
+#[derive(Debug, Clone, Default)]
+pub struct Input {
+    pub contents: String,
+    /// Range in terms of chars, not bytes
+    pub selection: (u16, u16),
+}
+
+impl Input {
+    pub fn new(contents: String, selection: (u16, u16)) -> Self {
+        Self {
+            contents,
+            selection,
+        }
+    }
+
+    pub(crate) fn prefix_with(&mut self, prefix: &str) {
+        self.contents.insert_str(0, prefix);
+        let prefix_len =
+            u16::try_from(prefix.chars().count()).expect("prefix should not be insanely long");
+
+        let (a, b) = self.selection;
+        self.selection = (a.saturating_add(prefix_len), b.saturating_add(prefix_len));
+    }
+
+    pub(crate) fn from_wit_input(plugin: Plugin, il: plugin::bindings::InputLine) -> Self {
+        let mut input = Self {
+            contents: il.query,
+            selection: (il.range.lower_bound, il.range.upper_bound),
+        };
+        input.prefix_with(&plugin.prefix());
+        input
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct ResultList {
+    list: Vec<ListItem>,
+    selection: usize,
+}
+
+impl ResultList {
+    pub fn reset(&mut self, list: Vec<ListItem>) {
+        self.list = list;
+        self.selection = 0;
+    }
+
+    pub fn list(&self) -> &[ListItem] {
+        &self.list
+    }
+
+    pub fn len(&self) -> usize {
+        self.list.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.list.is_empty()
+    }
+
+    pub fn selection(&self) -> usize {
+        self.selection
+    }
+
+    pub fn selected_item(&self) -> Option<&ListItem> {
+        self.list.get(self.selection)
+    }
+}
+
+/// Main public API for interacting with qpmu.
+///
+/// The input string and results list may be out of sync.
+#[derive(Debug)]
+pub struct Model {
+    input: Input,
+    results: ResultList,
+    plugins: &'static [Plugin],
+    dispatched_actions: u64,
+    activated_actions: u64,
+}
+
+impl Model {
+    pub fn new(plugins: &'static [Plugin]) -> Self {
+        Self {
+            input: Input::default(),
+            results: ResultList::default(),
+            plugins,
+            dispatched_actions: 0,
+            activated_actions: 0,
+        }
+    }
+
+    pub fn input(&self) -> &Input {
+        &self.input
+    }
+
+    pub fn results(&self) -> &ResultList {
+        &self.results
+    }
+
+    pub fn set_list_selection(&mut self, selection: usize) {
+        self.results.selection = selection;
+    }
+
+    pub fn move_list_selection(&mut self, delta: isize) {
+        self.results.selection = self.results.selection.saturating_add_signed(delta);
+    }
+
+    pub fn activate(&mut self) -> impl Future<Output = Result<PluginEvent>> + use<> {
+        let Some(item) = self.results.selected_item().cloned() else {
+            todo!()
+        };
+
+        async move { Ok(PluginEvent::Run(item.activate().await?)) }
+    }
+
+    pub fn complete(&mut self) -> impl Future<Output = Result<PluginEvent>> + use<> {
+        let Some(item) = self.results.selected_item().cloned() else {
+            todo!()
+        };
+
+        let query = self.input.contents.clone();
+
+        async move {
+            if let Some(new) = item.complete(&query).await? {
+                Ok(PluginEvent::Run(vec![Action::SetInputLine(new)]))
+            } else {
+                Ok(PluginEvent::Run(vec![]))
+            }
+        }
+    }
+
+    /// Sets the input string and returns a future that should be passed back
+    /// into the model later.
+    ///
+    /// This function should generally **not** be awaited.
+    pub fn set_input(&mut self, input: Input) -> impl Future<Output = Result<PluginEvent>> + use<> {
+        self.input = input.clone();
+        self.dispatched_actions += 1;
+
+        let plugins = self.plugins;
+        let actioni = self.dispatched_actions;
+        async move {
+            for plugin in plugins {
+                let Some(stripped) = input.contents.strip_prefix(plugin.prefix()) else {
+                    continue;
+                };
+                let Some(list) = plugin.complete_query(stripped).await? else {
+                    continue;
+                };
+
+                return Ok(PluginEvent::SetList {
+                    list,
+                    index: actioni,
+                });
+            }
+
+            bail!("no plugin activated")
+        }
+    }
+
+    /// All of these should run very quickly, so it's fine to run on the main thread.
+    pub async fn handle_event(&mut self, event: Result<PluginEvent>, fe: &mut impl Frontend) {
+        let Ok(event) = event else {
+            todo!("set first item to an error message")
+        };
+
+        match event {
+            PluginEvent::SetList { list, index } => {
+                if index <= self.activated_actions {
+                    return;
+                }
+                self.activated_actions = index;
+                self.results.reset(list);
+                fe.set_list(&self.results).await;
+            }
+            PluginEvent::Run(actions) => {
+                for action in actions {
+                    self.handle_action(action, fe).await;
+                }
+            }
+        }
+    }
+
+    async fn handle_action(&mut self, event: Action, fe: &mut impl Frontend) {
+        match event {
+            Action::Close => fe.close().await,
+            Action::RunCommand(cmd, args) => {
+                fe.spawn_nulled(cmd, args).await;
+            }
+            Action::RunShell(str) => {
+                fe.spawn_nulled("sh", ["-c", &str]).await;
+            }
+            Action::Copy(str) => {
+                fe.copy(str).await;
+            }
+            Action::SetInputLine(input) => {
+                fe.set_input(input).await;
+            }
+        }
+    }
+}
+
+#[allow(async_fn_in_trait)]
+pub trait Frontend {
+    /// Close the window.
+    async fn close(&mut self);
+
+    /// Spawn a process with `Stdio::null()` for stdin/out/err.
+    async fn spawn_nulled(
+        &mut self,
+        cmd: impl AsRef<OsStr>,
+        args: impl IntoIterator<Item: AsRef<OsStr>>,
+    );
+
+    /// Copy a string to the clipboard.
+    async fn copy(&mut self, str: String);
+
+    /// Set the UI input to the provided input.
+    ///
+    /// The model will already have an updated input, so do not try to change
+    /// the model here. Only modify the front end.
+    async fn set_input(&mut self, input: Input);
+
+    /// Set the UI results list to the provided list.
+    ///
+    /// The model will already have an updated list, so do not try to change
+    /// the model here. Only modify the front end.
+    async fn set_list(&mut self, list: &ResultList);
+}

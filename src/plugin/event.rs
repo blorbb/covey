@@ -1,26 +1,15 @@
 use std::process::Stdio;
 
-use super::{Action, ListItem, Plugin};
+use super::{Action, ListItem};
 use crate::plugin::bindings::{DeferredResult, IoError, ProcessOutput};
 
 /// Event returned by a plugin.
 #[derive(Debug)]
 pub enum PluginEvent {
     /// Set the displayed list.
-    SetList(Vec<ListItem>),
+    SetList { list: Vec<ListItem>, index: u64 },
     /// Run a sequence of actions.
-    Run {
-        plugin: Plugin,
-        actions: Vec<Action>,
-    },
-}
-
-/// Events emitted by the UI to a plugin.
-#[derive(Debug)]
-pub enum UiEvent {
-    InputChanged { query: String },
-    Activate { item: ListItem },
-    Complete { query: String, item: ListItem },
+    Run(Vec<Action>),
 }
 
 pub use super::bindings::DeferredAction;

@@ -1,23 +1,18 @@
+use qpmu::{plugin::Plugin, Input};
 use relm4::{
     gtk::{
         self,
         gdk::Key,
-        prelude::{
-            EditableExt as _, EntryExt as _, GtkWindowExt as _, ListBoxRowExt, WidgetExt as _,
-        },
+        prelude::{EditableExt as _, GtkWindowExt as _, ListBoxRowExt, WidgetExt as _},
         EventControllerKey, ListBox,
     },
-    Component, ComponentParts, ComponentSender, RelmContainerExt as _, RelmRemoveAllExt,
+    prelude::{AsyncComponent, AsyncComponentParts},
+    AsyncComponentSender, RelmContainerExt as _,
 };
 use tracing::{info, instrument};
 
 use crate::{
-    model::{Launcher, LauncherCmd, LauncherMsg},
-    plugin::{
-        self,
-        event::{PluginEvent, UiEvent},
-        Action, ListItem,
-    },
+    model::{Frontend, Launcher, LauncherMsg},
     styles::load_css,
 };
 
@@ -26,36 +21,37 @@ const HEIGHT_MAX: i32 = 600;
 
 #[derive(Debug)]
 pub struct LauncherWidgets {
-    entry: gtk::Entry,
-    scroller: gtk::ScrolledWindow,
-    results_list: gtk::ListBox,
+    pub entry: gtk::Entry,
+    pub scroller: gtk::ScrolledWindow,
+    pub results_list: gtk::ListBox,
 }
 
 // not using the macro because the app has a lot of custom behaviour
 // and the list of items is not static.
-impl Component for Launcher {
+impl AsyncComponent for Launcher {
     type Input = LauncherMsg;
     type Output = ();
-    type Init = ();
+    type Init = &'static [Plugin];
     type Widgets = LauncherWidgets;
     type Root = gtk::Window;
-    type CommandOutput = LauncherCmd;
+    type CommandOutput = LauncherMsg;
 
     fn init_root() -> Self::Root {
         gtk::Window::default()
     }
 
     #[instrument(skip_all)]
-    fn init(
-        _init: Self::Init,
+    async fn init(
+        init: Self::Init,
         root: Self::Root,
-        sender: relm4::ComponentSender<Self>,
-    ) -> ComponentParts<Self> {
+        sender: AsyncComponentSender<Self>,
+    ) -> AsyncComponentParts<Self> {
         info!("initialising new application instance");
+        // FIXME: weird window size ?????
 
+        let model = Launcher::new(init);
         load_css();
 
-        let model = Launcher::new();
         let window = root.clone();
         window.set_title(Some("qpmu"));
         window.set_default_width(WIDTH);
@@ -69,11 +65,12 @@ impl Component for Launcher {
             let sender = sender.clone();
             move |window| {
                 if window.is_visible() {
+                    info!("is visible");
                     sender.spawn_oneshot_command(|| {
                         // needs a short delay before focusing, otherwise
                         // it doesn't focus properly
                         std::thread::sleep(std::time::Duration::from_millis(50));
-                        LauncherCmd::Focus
+                        LauncherMsg::Focus
                     })
                 }
             }
@@ -106,7 +103,12 @@ impl Component for Launcher {
         entry.connect_changed({
             let sender = sender.clone();
             move |entry| {
-                sender.input(LauncherMsg::Query(entry.text().replace('\n', "")));
+                sender.input(LauncherMsg::SetInput(Input::new(
+                    entry.text().replace('\n', ""),
+                    entry
+                        .selection_bounds()
+                        .map_or((0, 0), |(a, b)| (a as u16, b as u16)),
+                )));
             }
         });
 
@@ -118,13 +120,13 @@ impl Component for Launcher {
             .hscrollbar_policy(gtk::PolicyType::Never)
             .css_classes(["main-scroller"])
             .build();
-        list_scroller.set_visible(!model.results.is_empty());
+        list_scroller.set_visible(false);
 
         let list = ListBox::builder()
             .selection_mode(gtk::SelectionMode::Browse)
             .css_classes(["main-list"])
             .build();
-        list.select_row(list.row_at_index(model.selection as i32).as_ref());
+        list.select_row(list.row_at_index(0).as_ref());
 
         list.connect_row_selected({
             let sender = sender.clone();
@@ -142,264 +144,90 @@ impl Component for Launcher {
         });
 
         window.container_add(&vbox);
-        window.add_controller(model.key_controller(sender));
         vbox.container_add(&entry);
         vbox.container_add(&list_scroller);
         list_scroller.container_add(&list);
+        window.add_controller(key_controller(sender));
 
         let widgets = Self::Widgets {
             entry,
             scroller: list_scroller,
             results_list: list,
         };
-        ComponentParts { model, widgets }
+        AsyncComponentParts { model, widgets }
     }
 
     #[instrument(skip_all, fields(message))]
-    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>, root: &Self::Root) {
-        self.reset();
+    async fn update_with_view(
+        &mut self,
+        widgets: &mut Self::Widgets,
+        message: Self::Input,
+        sender: AsyncComponentSender<Self>,
+        root: &Self::Root,
+    ) {
         // should be here to ensure it is always false when update_view is run.
-        self.grab_full_focus = false;
         // FIXME: after tab completion the window becomes full height for some reason.
         root.set_default_height(-1);
 
         match message {
-            LauncherMsg::SetList(list) => {
-                info!("set list");
-                self.set_results(list);
-                // always mark as changed
-                self.update_selection(|x| *x = 0);
+            LauncherMsg::SetInput(input) => {
+                let fut = self.model.set_input(input);
+                sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) })
             }
-            LauncherMsg::Select(index) => {
-                info!("select {index}");
-                self.set_selection(index);
+            LauncherMsg::PluginEvent(plugin_event) => {
+                self.model
+                    .handle_event(plugin_event, &mut Frontend { widgets, root })
+                    .await;
             }
-            LauncherMsg::SelectDelta(delta) => {
-                info!("change selection by {delta}");
-                self.update_selection(|sel| *sel = sel.saturating_add_signed(delta));
-            }
-            LauncherMsg::Query(query) => {
-                info!("query {query}");
-                self.query = query.clone();
-                self.perform(sender, UiEvent::InputChanged { query });
-            }
+            LauncherMsg::Select(index) => self.model.set_list_selection(index),
+            LauncherMsg::SelectDelta(delta) => self.model.move_list_selection(delta),
             LauncherMsg::Activate => {
-                info!("activating selected");
-                self.perform_with_selection(sender, |_query, item| UiEvent::Activate { item });
+                let fut = self.model.activate();
+                sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) });
             }
             LauncherMsg::Complete => {
-                info!("completion of selected");
-                self.perform_with_selection(sender, |query, item| UiEvent::Complete {
-                    query,
-                    item,
-                });
+                let fut = self.model.complete();
+                sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) });
+            }
+            LauncherMsg::Focus => {
+                root.present();
+                widgets.entry.grab_focus();
             }
             LauncherMsg::Close => {
-                info!("closing app");
                 root.close();
             }
         }
     }
 
     #[instrument(skip_all, fields(message))]
-    fn update_cmd(
+    async fn update_cmd_with_view(
         &mut self,
+        widgets: &mut Self::Widgets,
         message: Self::CommandOutput,
-        sender: ComponentSender<Self>,
+        sender: AsyncComponentSender<Self>,
         root: &Self::Root,
     ) {
         info!("received command {message:?}");
-        root.set_default_height(-1);
-
-        match message {
-            LauncherCmd::PluginEvent(index, e) => match e {
-                PluginEvent::SetList(vec) => {
-                    info!("set list");
-                    if self.should_perform(index) {
-                        info!("performing set list {index}");
-                        sender.input(LauncherMsg::SetList(vec))
-                    }
-                }
-                PluginEvent::Run { plugin, actions } => {
-                    info!("activated by {plugin:?}");
-
-                    use std::process::{Command, Stdio};
-                    // TODO: remove unwraps
-                    for ev in actions {
-                        match ev {
-                            Action::Close => sender.input(LauncherMsg::Close),
-                            Action::RunCommand((cmd, args)) => {
-                                Command::new(cmd)
-                                    .args(args)
-                                    .stdout(Stdio::null())
-                                    .stderr(Stdio::null())
-                                    .spawn()
-                                    .unwrap();
-                            }
-                            Action::RunShell(str) => {
-                                Command::new("sh")
-                                    .arg("-c")
-                                    .arg(str)
-                                    .stdout(Stdio::null())
-                                    .stderr(Stdio::null())
-                                    .spawn()
-                                    .unwrap();
-                            }
-                            Action::Copy(string) => {
-                                arboard::Clipboard::new().unwrap().set_text(string).unwrap();
-                            }
-                            Action::SetInputLine(input_line) => {
-                                self.set_line_by_plugin(plugin, input_line);
-                            }
-                        }
-                    }
-                }
-            },
-            LauncherCmd::Focus => {
-                info!("focus");
-                self.grab_full_focus = true;
-            }
-        }
-    }
-
-    fn update_view(&self, widgets: &mut Self::Widgets, _sender: ComponentSender<Self>) {
-        let Self::Widgets {
-            entry,
-            scroller,
-            results_list,
-        } = widgets;
-
-        if self.grab_full_focus {
-            entry.grab_focus();
-        } else {
-            entry.grab_focus_without_selecting();
-        }
-
-        // let bounds = entry.selection_bounds().map_or((0, 0), |(a, b)| {
-        //     (
-        //         u32::try_from(a).expect("selection should not be negative"),
-        //         u32::try_from(b).expect("selection should not be negative"),
-        //     )
-        // });
-
-        // set the entry field
-        if let Some((plugin, mut line)) = self.line_set_by_plugin() {
-            let prefix_len = i32::try_from(plugin.prefix().chars().count())
-                .expect("plugin prefix is way too long");
-            line.query.insert_str(0, plugin.prefix());
-            entry.set_text(&line.query);
-
-            entry.select_region(
-                prefix_len + i32::from(line.range.lower_bound),
-                prefix_len + i32::from(line.range.upper_bound),
-            );
-        }
-
-        scroller.set_visible(!self.results.is_empty());
-
-        if self.changed_results() {
-            results_list.remove_all();
-            // recreate list of results
-            for item in &self.results {
-                // item format:
-                // icon | title
-                //      | description
-
-                let hbox = gtk::Box::builder()
-                    .orientation(gtk::Orientation::Horizontal)
-                    .css_classes(["list-item-hbox"])
-                    .spacing(16)
-                    .build();
-                if let Some(icon_name) = item.icon() {
-                    let icon = gtk::Image::from_icon_name(&icon_name);
-                    icon.set_css_classes(&["list-item-icon"]);
-                    icon.set_size_request(32, 32);
-                    icon.set_icon_size(gtk::IconSize::Large);
-                    hbox.container_add(&icon);
-                }
-
-                let vbox = gtk::Box::builder()
-                    .orientation(gtk::Orientation::Vertical)
-                    .css_classes(["list-item-vbox"])
-                    .spacing(4)
-                    .build();
-                let title = gtk::Label::builder()
-                    .label(item.title())
-                    .halign(gtk::Align::Start)
-                    .css_classes(["list-item-title"])
-                    .wrap(true)
-                    .build();
-                vbox.container_add(&title);
-
-                if !item.description().is_empty() {
-                    let description = gtk::Label::builder()
-                        .label(item.description())
-                        .halign(gtk::Align::Start)
-                        .css_classes(["list-item-description"])
-                        .wrap(true)
-                        .build();
-                    vbox.container_add(&description);
-                }
-                hbox.container_add(&vbox);
-
-                results_list.container_add(
-                    &gtk::ListBoxRow::builder()
-                        .css_classes(["list-item"])
-                        .child(&hbox)
-                        .build(),
-                );
-            }
-        }
-
-        if self.changed_selection() {
-            results_list.select_row(
-                results_list
-                    .row_at_index(*self.get_selection() as i32)
-                    .as_ref(),
-            );
-        }
+        self.update_with_view(widgets, message, sender, root).await
     }
 }
 
-impl Launcher {
-    fn key_controller(&self, sender: ComponentSender<Self>) -> EventControllerKey {
-        let key_events = EventControllerKey::builder()
-            .propagation_phase(gtk::PropagationPhase::Capture)
-            .build();
+fn key_controller(sender: AsyncComponentSender<Launcher>) -> EventControllerKey {
+    let key_events = EventControllerKey::builder()
+        .propagation_phase(gtk::PropagationPhase::Capture)
+        .build();
 
-        key_events.connect_key_pressed(move |_self, key, _keycode, _modifiers| {
-            match key {
-                Key::Escape => sender.input(LauncherMsg::Close),
-                Key::Down => sender.input(LauncherMsg::SelectDelta(1)),
-                Key::Up => sender.input(LauncherMsg::SelectDelta(-1)),
-                Key::Return => sender.input(LauncherMsg::Activate),
-                Key::Tab => sender.input(LauncherMsg::Complete),
-                _ => return gtk::glib::Propagation::Proceed,
-            }
-            gtk::glib::Propagation::Stop
-        });
-
-        key_events
-    }
-
-    fn perform(&mut self, sender: ComponentSender<Self>, e: UiEvent) {
-        let i = self.next_action();
-        sender.oneshot_command(async move {
-            LauncherCmd::PluginEvent(i, plugin::process_ui_event(e).await.unwrap())
-        });
-    }
-
-    fn perform_with_selection(
-        &mut self,
-        sender: ComponentSender<Self>,
-        f: impl FnOnce(String, ListItem) -> UiEvent + Send + 'static,
-    ) {
-        if let Some(item) = self.results.get(self.selection).cloned() {
-            let i = self.next_action();
-            let query = self.query.clone();
-            sender.oneshot_command(async move {
-                LauncherCmd::PluginEvent(i, plugin::process_ui_event(f(query, item)).await.unwrap())
-            });
+    key_events.connect_key_pressed(move |_self, key, _keycode, _modifiers| {
+        match key {
+            Key::Escape => sender.input(LauncherMsg::Close),
+            Key::Down => sender.input(LauncherMsg::SelectDelta(1)),
+            Key::Up => sender.input(LauncherMsg::SelectDelta(-1)),
+            Key::Return => sender.input(LauncherMsg::Activate),
+            Key::Tab => sender.input(LauncherMsg::Complete),
+            _ => return gtk::glib::Propagation::Proceed,
         }
-    }
+        gtk::glib::Propagation::Stop
+    });
+
+    key_events
 }

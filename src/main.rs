@@ -1,11 +1,17 @@
-use std::{path::PathBuf, process, sync::LazyLock};
+use std::{fs, path::PathBuf, process, sync::LazyLock};
 
 use clap::{Parser, Subcommand};
 use color_eyre::eyre::Result;
 use install::install_plugin;
 use model::Launcher;
+use qpmu::{config::Config, plugin::Plugin};
 use relm4::RelmApp;
 use tracing::{info, instrument, Level};
+
+mod install;
+mod model;
+mod styles;
+mod ui;
 
 static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     dirs::config_dir()
@@ -13,14 +19,6 @@ static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
         .join("qpmu")
 });
 static PLUGINS_DIR: LazyLock<PathBuf> = LazyLock::new(|| CONFIG_DIR.join("plugins"));
-
-mod config;
-mod install;
-mod model;
-mod plugin;
-mod styles;
-mod ui;
-pub mod utils;
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -54,8 +52,28 @@ fn main() -> Result<()> {
 #[instrument]
 fn new_instance() -> Result<()> {
     info!("starting up app");
+    let plugins = tokio::runtime::Runtime::new().unwrap().block_on(load_plugins());
+
     let app = RelmApp::new("r4.qpmu");
-    app.run::<Launcher>(());
+    app.run_async::<Launcher>(plugins);
 
     Ok(())
+}
+
+pub async fn load_plugins() -> &'static [Plugin] {
+    let config_path = CONFIG_DIR.join("config.toml");
+    let config = Config::read(config_path).await.unwrap();
+
+    let mut v = vec![];
+    for plugin in config.plugins {
+        let name = plugin.name.replace('-', "_");
+        info!("initialising plugin {name}");
+        let path = format!("{name}.wasm");
+        let plugin = Plugin::new(plugin, fs::read(PLUGINS_DIR.join(path)).unwrap())
+            .await
+            .unwrap();
+        v.push(plugin);
+    }
+
+    v.leak()
 }

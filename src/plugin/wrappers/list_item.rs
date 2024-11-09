@@ -3,7 +3,10 @@ use core::fmt;
 use color_eyre::eyre::Result;
 
 use super::Plugin;
-use crate::plugin::{bindings, Action, InputLine};
+use crate::{
+    plugin::{bindings, Action},
+    Input,
+};
 
 /// A row in the results list.
 ///
@@ -49,8 +52,13 @@ impl ListItem {
         self.plugin.clone().activate(self.as_ref()).await
     }
 
-    pub async fn complete(self, query: &str) -> Result<Option<InputLine>> {
-        self.plugin.clone().complete(query, self.as_ref()).await
+    pub async fn complete(self, query: &str) -> Result<Option<Input>> {
+        Ok(self
+            .plugin
+            .clone()
+            .complete(query, self.as_ref())
+            .await?
+            .map(|il| Input::from_wit_input(self.plugin, il)))
     }
 }
 

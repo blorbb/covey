@@ -1,6 +1,6 @@
 use core::fmt;
 
-use color_eyre::eyre::{bail, eyre, Result};
+use color_eyre::eyre::{eyre, Result};
 use tokio::sync::Mutex;
 use wasmtime::Store;
 
@@ -11,7 +11,6 @@ use super::{
 use crate::{
     config::PluginConfig,
     plugin::{bindings, host, init, Action},
-    PLUGINS_DIR,
 };
 
 /// A static reference to a plugin wasm instance.
@@ -26,8 +25,11 @@ impl Plugin {
     ///
     /// Note that this will leak the plugin and configuration, as they should
     /// be active for the entire program.
-    pub async fn from_config(config: PluginConfig) -> Result<Self> {
-        let boxed = Box::new(Mutex::new(PluginInner::from_config(&config).await?));
+    pub async fn new(config: PluginConfig, binary: Vec<u8>) -> Result<Self> {
+        let boxed =
+            Box::new(Mutex::new(PluginInner::new(&binary).await.map_err(
+                |e| eyre!("failed to initialise {}: {e}", config.name),
+            )?));
         Ok(Self {
             plugin: Box::leak(boxed),
             config: Box::leak(Box::new(config)),
@@ -64,7 +66,15 @@ impl Plugin {
     }
 
     pub(super) async fn activate(&self, item: &bindings::ListItem) -> Result<Vec<Action>> {
-        self.plugin.lock().await.call_activate(item).await
+        Ok(self
+            .plugin
+            .lock()
+            .await
+            .call_activate(item)
+            .await?
+            .into_iter()
+            .map(|action| Action::from_wit_action(*self, action))
+            .collect())
     }
 
     pub(super) async fn complete(
@@ -94,17 +104,11 @@ struct PluginInner {
 }
 
 impl PluginInner {
-    async fn from_config(config: &PluginConfig) -> Result<Self> {
+    async fn new(binary: &[u8]) -> Result<Self> {
         // wasmtime error is weird, need to do this match
-        let (plugin, store) = match init::initialise_plugin(
-            PLUGINS_DIR.join(format!("{}.wasm", config.name.replace('-', "_"))),
-        )
-        .await
-        {
-            Ok((p, s)) => (p, s),
-            Err(e) => bail!("failed to load plugin {name}: {e}", name = config.name),
-        };
-
+        let (plugin, store) = init::initialise_plugin(binary)
+            .await
+            .map_err(|e| eyre!(e))?;
         Ok(Self { plugin, store })
     }
 
@@ -128,7 +132,7 @@ impl PluginInner {
             .map_err(|e| eyre!(e))
     }
 
-    async fn call_activate(&mut self, item: &bindings::ListItem) -> Result<Vec<Action>> {
+    async fn call_activate(&mut self, item: &bindings::ListItem) -> Result<Vec<bindings::Action>> {
         self.plugin
             .call_activate(&mut self.store, item)
             .await
@@ -140,7 +144,7 @@ impl PluginInner {
         &mut self,
         query: &str,
         item: &bindings::ListItem,
-    ) -> Result<Option<InputLine>> {
+    ) -> Result<Option<bindings::InputLine>> {
         self.plugin
             .call_complete(&mut self.store, query, item)
             .await

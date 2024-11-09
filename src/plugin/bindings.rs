@@ -1,19 +1,27 @@
 //! Generated WIT bindings and conversion trait implementations.
 
-use qpmu::plugin::host;
-pub use qpmu::plugin::types::*;
-use std::{io, process::Stdio};
+use std::io;
 
-wasmtime::component::bindgen!({
-    world: "plugin",
-    path: "./qpmu-api/wit",
-    async: true,
-});
+pub use bindgen::{
+    qpmu::plugin::{
+        host::{add_to_linker as add_host_to_linker, Host},
+        types::*,
+    },
+    Plugin,
+};
 
-impl From<io::Error> for host::IoError {
+mod bindgen {
+    wasmtime::component::bindgen!({
+        world: "plugin",
+        path: "./qpmu-api/wit",
+        async: true,
+    });
+}
+
+impl From<io::Error> for IoError {
     fn from(value: io::Error) -> Self {
-        use host::IoError as E2;
         use io::ErrorKind as E;
+        use IoError as E2;
         match value.kind() {
             E::NotFound => E2::NotFound,
             E::PermissionDenied => E2::PermissionDenied,
@@ -38,35 +46,12 @@ impl From<io::Error> for host::IoError {
     }
 }
 
-impl From<std::process::Output> for host::ProcessOutput {
+impl From<std::process::Output> for ProcessOutput {
     fn from(value: std::process::Output) -> Self {
         Self {
             exit_code: value.status.code(),
             stdout: value.stdout,
             stderr: value.stderr,
         }
-    }
-}
-
-impl DeferredAction {
-    /// Completes this deferred action.
-    pub(super) async fn run(&self) -> DeferredResult {
-        match self {
-            DeferredAction::Spawn((cmd, args)) => {
-                DeferredResult::ProcessOutput(Self::spawn(cmd, args).await)
-            }
-        }
-    }
-
-    async fn spawn(cmd: &str, args: &[String]) -> Result<host::ProcessOutput, host::IoError> {
-        Ok(tokio::process::Command::new(cmd)
-            .args(args)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?
-            .wait_with_output()
-            .await?
-            .into())
     }
 }

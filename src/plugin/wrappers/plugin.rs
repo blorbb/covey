@@ -1,81 +1,18 @@
-//! Wrapper structs for the raw WIT bindings.
-
-use std::fmt;
+use core::fmt;
 
 use color_eyre::eyre::{bail, eyre, Result};
 use tokio::sync::Mutex;
 use wasmtime::Store;
 
-use crate::{config::PluginConfig, PLUGINS_DIR};
-
 use super::{
-    bindings::{self, DeferredResult, InputLine, QueryResult},
-    init, PluginActivationAction,
+    super::bindings::{DeferredResult, InputLine, QueryResult},
+    ListItem,
 };
-
-/// A row in the results list.
-///
-/// Contains an associated plugin.
-#[derive(Clone)]
-pub struct ListItem {
-    pub title: String,
-    pub icon: Option<String>,
-    pub description: String,
-    pub metadata: String,
-    plugin: Plugin,
-}
-
-impl fmt::Debug for ListItem {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ListItem")
-            .field("title", &self.title)
-            .field("description", &self.description)
-            .field("metadata", &self.metadata)
-            .finish()
-    }
-}
-
-impl ListItem {
-    fn from_item_and_plugin(item: bindings::ListItem, plugin: Plugin) -> Self {
-        Self {
-            title: item.title,
-            icon: item.icon,
-            description: item.description,
-            metadata: item.metadata,
-            plugin,
-        }
-    }
-
-    fn from_many_and_plugin(items: Vec<bindings::ListItem>, plugin: Plugin) -> Vec<Self> {
-        items
-            .into_iter()
-            .map(|item| Self::from_item_and_plugin(item, plugin))
-            .collect()
-    }
-
-    pub fn plugin(&self) -> Plugin {
-        self.plugin
-    }
-
-    pub async fn activate(self) -> Result<Vec<PluginActivationAction>> {
-        self.plugin.clone().activate(self).await
-    }
-
-    pub async fn complete(self, query: &str) -> Result<Option<InputLine>> {
-        self.plugin.clone().complete(query, self).await
-    }
-}
-
-impl From<ListItem> for bindings::ListItem {
-    fn from(value: ListItem) -> Self {
-        Self {
-            title: value.title,
-            icon: value.icon,
-            description: value.description,
-            metadata: value.metadata,
-        }
-    }
-}
+use crate::{
+    config::PluginConfig,
+    plugin::{bindings, host, init, Action},
+    PLUGINS_DIR,
+};
 
 /// A static reference to a plugin wasm instance.
 #[derive(Clone, Copy)]
@@ -126,20 +63,16 @@ impl Plugin {
         }
     }
 
-    async fn activate(&self, item: ListItem) -> Result<Vec<PluginActivationAction>> {
-        self.plugin
-            .lock()
-            .await
-            .call_activate(&bindings::ListItem::from(item))
-            .await
+    pub(super) async fn activate(&self, item: &bindings::ListItem) -> Result<Vec<Action>> {
+        self.plugin.lock().await.call_activate(item).await
     }
 
-    async fn complete(&self, query: &str, item: ListItem) -> Result<Option<InputLine>> {
-        self.plugin
-            .lock()
-            .await
-            .call_complete(query, &bindings::ListItem::from(item))
-            .await
+    pub(super) async fn complete(
+        &self,
+        query: &str,
+        item: &bindings::ListItem,
+    ) -> Result<Option<InputLine>> {
+        self.plugin.lock().await.call_complete(query, item).await
     }
 }
 
@@ -157,7 +90,7 @@ impl fmt::Debug for Plugin {
 /// need to pass in a `Store`.
 struct PluginInner {
     plugin: bindings::Plugin,
-    store: Store<init::State>,
+    store: Store<host::State>,
 }
 
 impl PluginInner {
@@ -195,10 +128,7 @@ impl PluginInner {
             .map_err(|e| eyre!(e))
     }
 
-    async fn call_activate(
-        &mut self,
-        item: &bindings::ListItem,
-    ) -> Result<Vec<PluginActivationAction>> {
+    async fn call_activate(&mut self, item: &bindings::ListItem) -> Result<Vec<Action>> {
         self.plugin
             .call_activate(&mut self.store, item)
             .await

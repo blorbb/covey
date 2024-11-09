@@ -3,17 +3,21 @@ use relm4::{
         self,
         gdk::Key,
         prelude::{
-            EditableExt as _, EntryExt as _, GtkWindowExt as _, ListBoxRowExt, ObjectExt as _,
-            WidgetExt as _,
+            EditableExt as _, EntryExt as _, GtkWindowExt as _, ListBoxRowExt, WidgetExt as _,
         },
         EventControllerKey, ListBox,
     },
     Component, ComponentParts, ComponentSender, RelmContainerExt as _, RelmRemoveAllExt,
 };
+use tracing::{info, instrument};
 
 use crate::{
     model::{Launcher, LauncherCmd, LauncherMsg},
-    plugins::{self, ListItem, PluginActivationAction, PluginEvent, UiEvent, WithPlugin},
+    plugin::{
+        self,
+        event::{PluginEvent, UiEvent},
+        Action, ListItem,
+    },
     styles::load_css,
 };
 
@@ -25,8 +29,6 @@ pub struct LauncherWidgets {
     entry: gtk::Entry,
     scroller: gtk::ScrolledWindow,
     results_list: gtk::ListBox,
-    #[allow(dead_code)]
-    root: gtk::Window,
 }
 
 // not using the macro because the app has a lot of custom behaviour
@@ -43,12 +45,16 @@ impl Component for Launcher {
         gtk::Window::default()
     }
 
+    #[instrument(skip_all)]
     fn init(
         _init: Self::Init,
         root: Self::Root,
         sender: relm4::ComponentSender<Self>,
     ) -> ComponentParts<Self> {
+        info!("initialising new application instance");
+
         load_css();
+
         let model = Launcher::new();
         let window = root.clone();
         window.set_title(Some("qpmu"));
@@ -145,11 +151,11 @@ impl Component for Launcher {
             entry,
             scroller: list_scroller,
             results_list: list,
-            root: window,
         };
         ComponentParts { model, widgets }
     }
 
+    #[instrument(skip_all, fields(message))]
     fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>, root: &Self::Root) {
         self.reset();
         // should be here to ensure it is always false when update_view is run.
@@ -159,56 +165,70 @@ impl Component for Launcher {
 
         match message {
             LauncherMsg::SetList(list) => {
+                info!("set list");
                 self.set_results(list);
                 // always mark as changed
                 self.update_selection(|x| *x = 0);
             }
             LauncherMsg::Select(index) => {
+                info!("select {index}");
                 self.set_selection(index);
             }
             LauncherMsg::SelectDelta(delta) => {
+                info!("change selection by {delta}");
                 self.update_selection(|sel| *sel = sel.saturating_add_signed(delta));
             }
             LauncherMsg::Query(query) => {
+                info!("query {query}");
+                self.query = query.clone();
                 self.perform(sender, UiEvent::InputChanged { query });
             }
             LauncherMsg::Activate => {
+                info!("activating selected");
                 self.perform_with_selection(sender, |_query, item| UiEvent::Activate { item });
             }
             LauncherMsg::Complete => {
+                info!("completion of selected");
                 self.perform_with_selection(sender, |query, item| UiEvent::Complete {
                     query,
                     item,
                 });
             }
             LauncherMsg::Close => {
+                info!("closing app");
                 root.close();
             }
         }
     }
 
+    #[instrument(skip_all, fields(message))]
     fn update_cmd(
         &mut self,
         message: Self::CommandOutput,
         sender: ComponentSender<Self>,
         root: &Self::Root,
     ) {
+        info!("received command {message:?}");
         root.set_default_height(-1);
 
         match message {
             LauncherCmd::PluginEvent(index, e) => match e {
                 PluginEvent::SetList(vec) => {
+                    info!("set list");
                     if self.should_perform(index) {
+                        info!("performing set list {index}");
                         sender.input(LauncherMsg::SetList(vec))
                     }
                 }
-                PluginEvent::Activate(plugin, vec) => {
+                PluginEvent::Run { plugin, actions } => {
+                    info!("activated by {plugin:?}");
+
                     use std::process::{Command, Stdio};
                     // TODO: remove unwraps
-                    for ev in vec {
+                    for ev in actions {
                         match ev {
-                            PluginActivationAction::Close => sender.input(LauncherMsg::Close),
-                            PluginActivationAction::RunCommand((cmd, args)) => {
+                            Action::Close => sender.input(LauncherMsg::Close),
+                            Action::RunCommand((cmd, args)) => {
                                 Command::new(cmd)
                                     .args(args)
                                     .stdout(Stdio::null())
@@ -216,7 +236,7 @@ impl Component for Launcher {
                                     .spawn()
                                     .unwrap();
                             }
-                            PluginActivationAction::RunShell(str) => {
+                            Action::RunShell(str) => {
                                 Command::new("sh")
                                     .arg("-c")
                                     .arg(str)
@@ -225,17 +245,18 @@ impl Component for Launcher {
                                     .spawn()
                                     .unwrap();
                             }
-                            PluginActivationAction::Copy(string) => {
+                            Action::Copy(string) => {
                                 arboard::Clipboard::new().unwrap().set_text(string).unwrap();
                             }
-                            PluginActivationAction::SetInputLine(input_line) => {
-                                self.set_line_by_plugin(WithPlugin::new(plugin, input_line));
+                            Action::SetInputLine(input_line) => {
+                                self.set_line_by_plugin(plugin, input_line);
                             }
                         }
                     }
                 }
             },
             LauncherCmd::Focus => {
+                info!("focus");
                 self.grab_full_focus = true;
             }
         }
@@ -246,7 +267,6 @@ impl Component for Launcher {
             entry,
             scroller,
             results_list,
-            root,
         } = widgets;
 
         if self.grab_full_focus {
@@ -255,16 +275,23 @@ impl Component for Launcher {
             entry.grab_focus_without_selecting();
         }
 
+        // let bounds = entry.selection_bounds().map_or((0, 0), |(a, b)| {
+        //     (
+        //         u32::try_from(a).expect("selection should not be negative"),
+        //         u32::try_from(b).expect("selection should not be negative"),
+        //     )
+        // });
+
         // set the entry field
-        if let Some(WithPlugin { plugin, mut value }) = self.line_set_by_plugin() {
+        if let Some((plugin, mut line)) = self.line_set_by_plugin() {
             let prefix_len = i32::try_from(plugin.prefix().chars().count())
                 .expect("plugin prefix is way too long");
-            value.query.insert_str(0, plugin.prefix());
-            entry.set_text(&value.query);
+            line.query.insert_str(0, plugin.prefix());
+            entry.set_text(&line.query);
 
             entry.select_region(
-                prefix_len + i32::from(value.range.lower_bound),
-                prefix_len + i32::from(value.range.upper_bound),
+                prefix_len + i32::from(line.range.lower_bound),
+                prefix_len + i32::from(line.range.upper_bound),
             );
         }
 
@@ -283,7 +310,7 @@ impl Component for Launcher {
                     .css_classes(["list-item-hbox"])
                     .spacing(16)
                     .build();
-                if let Some(icon_name) = &item.icon {
+                if let Some(icon_name) = item.icon() {
                     let icon = gtk::Image::from_icon_name(&icon_name);
                     icon.set_css_classes(&["list-item-icon"]);
                     icon.set_size_request(32, 32);
@@ -297,16 +324,16 @@ impl Component for Launcher {
                     .spacing(4)
                     .build();
                 let title = gtk::Label::builder()
-                    .label(&item.title)
+                    .label(item.title())
                     .halign(gtk::Align::Start)
                     .css_classes(["list-item-title"])
                     .wrap(true)
                     .build();
                 vbox.container_add(&title);
 
-                if !item.description.is_empty() {
+                if !item.description().is_empty() {
                     let description = gtk::Label::builder()
-                        .label(&item.description)
+                        .label(item.description())
                         .halign(gtk::Align::Start)
                         .css_classes(["list-item-description"])
                         .wrap(true)
@@ -331,8 +358,6 @@ impl Component for Launcher {
                     .as_ref(),
             );
         }
-
-        root.set_default_height(-1);
     }
 }
 
@@ -360,7 +385,7 @@ impl Launcher {
     fn perform(&mut self, sender: ComponentSender<Self>, e: UiEvent) {
         let i = self.next_action();
         sender.oneshot_command(async move {
-            LauncherCmd::PluginEvent(i, plugins::process_ui_event(e).await.unwrap())
+            LauncherCmd::PluginEvent(i, plugin::process_ui_event(e).await.unwrap())
         });
     }
 
@@ -373,10 +398,7 @@ impl Launcher {
             let i = self.next_action();
             let query = self.query.clone();
             sender.oneshot_command(async move {
-                LauncherCmd::PluginEvent(
-                    i,
-                    plugins::process_ui_event(f(query, item)).await.unwrap(),
-                )
+                LauncherCmd::PluginEvent(i, plugin::process_ui_event(f(query, item)).await.unwrap())
             });
         }
     }

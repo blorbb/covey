@@ -137,7 +137,7 @@ impl InputLine {
 }
 
 pub use __raw_bindings::{
-    Capture, DeferredAction, DeferredResult, IoError, PluginAction, ProcessOutput, QueryResult,
+    Action, Capture, DeferredAction, DeferredResult, IoError, ProcessOutput, QueryResult,
 };
 pub use anyhow;
 use anyhow::{bail, Result};
@@ -150,7 +150,7 @@ pub trait Plugin {
         bail!("plugin has no deferred action handler")
     }
 
-    fn activate(selected: ListItem) -> Result<impl IntoIterator<Item = PluginAction>>;
+    fn activate(selected: ListItem) -> Result<impl IntoIterator<Item = Action>>;
 
     #[allow(unused_variables)]
     fn complete(query: String, selected: ListItem) -> Result<Option<InputLine>> {
@@ -170,7 +170,7 @@ where
         Self::handle_deferred(query, result).map_err(stringify_error)
     }
 
-    fn activate(selected: ListItem) -> Result<Vec<PluginAction>, String> {
+    fn activate(selected: ListItem) -> Result<Vec<Action>, String> {
         match Self::activate(selected) {
             Ok(list) => Ok(list.into_iter().collect()),
             Err(e) => Err(stringify_error(e)),

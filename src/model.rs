@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use crate::{
-    plugins::{self, ListItem, PluginEvent, SelectionRange, WithPlugin},
+    plugin::{self, event::PluginEvent, InputLine, ListItem, Plugin},
     utils::ReadOnce,
 };
 
@@ -25,7 +25,7 @@ pub struct Launcher {
     ///
     /// If so, contains a selection range to set the input line to.
     #[do_not_track]
-    plugin_line_set: RefCell<ReadOnce<WithPlugin<SelectionRange>>>,
+    plugin_line_set: RefCell<ReadOnce<(Plugin, InputLine)>>,
 }
 
 impl Launcher {
@@ -61,25 +61,18 @@ impl Launcher {
         res
     }
 
-    pub fn set_line_by_plugin(&mut self, line: WithPlugin<plugins::InputLine>) {
-        self.query = line.value.query;
-        self.plugin_line_set
-            .get_mut()
-            .replace(WithPlugin::new(line.plugin, line.value.range));
+    pub fn set_line_by_plugin(&mut self, plugin: Plugin, line: InputLine) {
+        self.query = line.query.clone();
+        self.plugin_line_set.get_mut().replace((plugin, line));
     }
 
     /// Returns the current query if it was set by a plugin.
     ///
     /// This will only return [`Some`] once each time
-    /// [`Self::set_query_by_plugin`] is run. This will return [`None`]
-    /// on subsequent calls until [`Self::set_query_by_plugin`] is called again.
-    pub fn line_set_by_plugin(&self) -> Option<WithPlugin<plugins::InputLine>> {
-        self.plugin_line_set.borrow_mut().take().map(|i| {
-            i.map(|range| plugins::InputLine {
-                query: self.query.clone(),
-                range,
-            })
-        })
+    /// [`Self::set_line_by_plugin`] is run. This will return [`None`]
+    /// on subsequent calls until [`Self::set_line_by_plugin`] is called again.
+    pub fn line_set_by_plugin(&self) -> Option<(Plugin, plugin::InputLine)> {
+        self.plugin_line_set.borrow_mut().take()
     }
 }
 

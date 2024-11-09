@@ -1,60 +1,15 @@
-//! Initialises plugins using the wasmtime runtime.
+//! WIT host implementation.
 
-use std::{fs, path::Path, process::Stdio, sync::LazyLock};
+use std::{fs, process::Stdio, sync::LazyLock};
 
-use wasmtime::{
-    component::{Component, Linker},
-    Config, Engine, Store,
-};
-use wasmtime_wasi::{
-    async_trait, DirPerms, FilePerms, ResourceTable, WasiCtx, WasiCtxBuilder, WasiView,
-};
+use wasmtime_wasi::{async_trait, ResourceTable, WasiCtx, WasiView};
 
-use crate::plugins::bindings::{
-    self,
-    qpmu::plugin::host::{Capture, IoError, ProcessOutput},
-};
-
-pub(super) async fn initialise_plugin(
-    file: impl AsRef<Path>,
-) -> Result<(bindings::Plugin, Store<State>), wasmtime::Error> {
-    static ENGINE: LazyLock<Engine> = LazyLock::new(|| {
-        let mut config = Config::new();
-        config
-            .wasm_component_model(true)
-            .async_support(true)
-            .debug_info(true);
-        Engine::new(&config).unwrap()
-    });
-
-    let mut linker = Linker::<State>::new(&ENGINE);
-    wasmtime_wasi::add_to_linker_async(&mut linker)?;
-
-    // this is only needed if there are imports of a host!
-    bindings::qpmu::plugin::host::add_to_linker(&mut linker, |s| s).unwrap();
-
-    let builder = WasiCtxBuilder::new()
-        .inherit_stdio()
-        .inherit_env()
-        .inherit_network()
-        .preopened_dir(Path::new("/"), "/", DirPerms::READ, FilePerms::READ)?
-        .build();
-    let mut store = Store::new(
-        &ENGINE,
-        State {
-            ctx: builder,
-            table: ResourceTable::new(),
-        },
-    );
-
-    let component = Component::from_file(&ENGINE, file)?;
-    let instance = bindings::Plugin::instantiate_async(&mut store, &component, &linker).await?;
-    Ok((instance, store))
-}
+use super::bindings::{self, IoError};
+use crate::plugin::bindings::{Capture, ProcessOutput};
 
 pub(super) struct State {
-    ctx: WasiCtx,
-    table: ResourceTable,
+    pub(super) ctx: WasiCtx,
+    pub(super) table: ResourceTable,
 }
 
 impl WasiView for State {
@@ -68,7 +23,7 @@ impl WasiView for State {
 }
 
 #[async_trait]
-impl bindings::qpmu::plugin::host::Host for State {
+impl bindings::Host for State {
     async fn spawn(
         &mut self,
         cmd: String,

@@ -60,17 +60,17 @@ interface host {
 world plugin {
     import host;
     use types.{
+        list-item,
+        query-result,
+        action,
+        input-line,
+        selection-range,
+        deferred-action,
+        deferred-result,
         io-error,
         process-output,
         capture,
         weights,
-        list-item,
-        plugin-action,
-        deferred-action,
-        deferred-result,
-        query-result,
-        input-line,
-        selection-range,
     };
 
     /// Function to be called on every change to the input.
@@ -101,8 +101,8 @@ world plugin {
     /// such as spawning quick processes. It is fine to run noticeable side effects
     /// as well.
     ///
-    /// Long-running or UI effects should be done through `plugin-action`s though.
-    export activate: func(selected: list-item) -> result<list<plugin-action>, string>;
+    /// Long-running or UI effects should be done through `action`s though.
+    export activate: func(selected: list-item) -> result<list<action>, string>;
 
     /// Perform a (tab) completion.
     ///
@@ -114,6 +114,82 @@ world plugin {
 
 
 interface types {
+    // ---------- plugin related types ---------- //
+
+    /// A single row to display.
+    record list-item {
+        title: string,
+        icon: option<string>,
+        description: string,
+        metadata: string,
+    }
+
+    /// What to do with a query.
+    variant query-result {
+        /// Set the displayed list.
+        set-list(list<list-item>),
+        /// Defer an action to perform and retrieve the result again later.
+        defer(deferred-action),
+        /// Ignores the input and passes it to the next plugin in line.
+        skip,
+    }
+
+    /// An action to perform on plugin activation.
+    variant action {
+        /// Close the launcher.
+        close,
+        /// Run a command, ignoring it's output.
+        run-command(tuple<string, list<string>>),
+        // TODO: make this `source ~/.*rc`?
+        /// Run a command as a shell string.
+        run-shell(string),
+        /// Copies a string to the clipboard.
+        copy(string),
+        /// Sets the input query to a string, as well as a selection range.
+        ///
+        /// This does not affect the prefix of the plugin.
+        set-input-line(input-line),
+    }
+
+    /// Something to set the input line to.
+    record input-line {
+        query: string,
+        range: selection-range,
+    }
+
+    /// A range of text for selection.
+    ///
+    /// Upper bound is **exclusive**. The indices are specified in characters,
+    /// (Unicode codepoints) not bytes.
+    ///
+    /// If the upper or lower bound is past the end of the query, the cursor
+    /// will just be set to the end of the query.
+    record selection-range {
+        lower-bound: u16,
+        upper-bound: u16,
+    }
+
+    /// An action to run on the host.
+    ///
+    /// The result of this action will be passed to the plugin 
+    /// by calling `handle-deferred`.
+    variant deferred-action {
+        /// Runs a command, returning the process output later.
+        ///
+        /// stdout and stderr will be captured.
+        ///
+        /// Creates `deferred-result.process-output`.
+        spawn(tuple<string, list<string>>)
+    }
+
+    /// The result of a `deferred-action`.
+    variant deferred-result {
+        /// The output of a process.
+        ///
+        /// Created by `deferred-action.process-output`.
+        process-output(result<process-output, io-error>),
+    }
+
     // ---------- host related types ---------- //
 
     // TODO: update with new stable errorkinds from 1.83.
@@ -240,81 +316,4 @@ interface types {
         // TODO
         frequency: f32,
     }
-
-    // ---------- plugin related types ---------- //
-
-    /// A single row to display.
-    record list-item {
-        title: string,
-        icon: option<string>,
-        description: string,
-        metadata: string,
-    }
-
-    /// An action to perform on plugin activation.
-    variant plugin-action {
-        /// Close the launcher.
-        close,
-        /// Run a command, ignoring it's output.
-        run-command(tuple<string, list<string>>),
-        // TODO: make this `source ~/.*rc`?
-        /// Run a command as a shell string.
-        run-shell(string),
-        /// Copies a string to the clipboard.
-        copy(string),
-        /// Sets the input query to a string, as well as a selection range.
-        ///
-        /// This does not affect the prefix of the plugin.
-        set-input-line(input-line),
-    }
-
-    /// Something to set the input line to.
-    record input-line {
-        query: string,
-        range: selection-range,
-    }
-
-    /// A range of text for selection.
-    ///
-    /// Upper bound is **exclusive**. The indices are specified in characters,
-    /// (Unicode codepoints) not bytes.
-    ///
-    /// If the upper or lower bound is past the end of the query, the cursor
-    /// will just be set to the end of the query.
-    record selection-range {
-        lower-bound: u16,
-        upper-bound: u16,
-    }
-
-    /// An action to run on the host.
-    ///
-    /// The result of this action will be passed to the plugin 
-    /// by calling `handle-deferred`.
-    variant deferred-action {
-        /// Runs a command, returning the process output later.
-        ///
-        /// stdout and stderr will be captured.
-        ///
-        /// Creates `deferred-result.process-output`.
-        spawn(tuple<string, list<string>>)
-    }
-
-    /// The result of a `deferred-action`.
-    variant deferred-result {
-        /// The output of a process.
-        ///
-        /// Created by `deferred-action.process-output`.
-        process-output(result<process-output, io-error>),
-    }
-
-    /// What to do with a query.
-    variant query-result {
-        /// Set the displayed list.
-        set-list(list<list-item>),
-        /// Defer an action to perform and retrieve the result again later.
-        defer(deferred-action),
-        /// Ignores the input and passes it to the next plugin in line.
-        skip,
-    }
-
 }

@@ -58,9 +58,10 @@ impl Component for Launcher {
         window.set_decorated(false);
         window.set_vexpand(true);
         window.set_css_classes(&["window"]);
-        {
+
+        window.connect_visible_notify({
             let sender = sender.clone();
-            window.connect_visible_notify(move |window| {
+            move |window| {
                 if window.is_visible() {
                     sender.spawn_oneshot_command(|| {
                         // needs a short delay before focusing, otherwise
@@ -69,7 +70,17 @@ impl Component for Launcher {
                         LauncherCmd::Focus
                     })
                 }
+            }
+        });
+
+        {
+            // close on focus leave
+            let leave_controller = gtk::EventControllerFocus::new();
+            leave_controller.connect_leave({
+                let window = window.clone();
+                move |_| window.close()
             });
+            window.add_controller(leave_controller);
         }
 
         // main box layout
@@ -86,9 +97,11 @@ impl Component for Launcher {
             .truncate_multiline(true)
             .build();
         let entry_changed_handler = {
-            let sender = sender.clone();
-            entry.connect_changed(move |entry| {
-                sender.input(LauncherMsg::Query(entry.text().replace('\n', "")));
+            entry.connect_changed({
+                let sender = sender.clone();
+                move |entry| {
+                    sender.input(LauncherMsg::Query(entry.text().replace('\n', "")));
+                }
             })
         };
 
@@ -106,14 +119,21 @@ impl Component for Launcher {
             .css_classes(["main-list"])
             .build();
         list.select_row(list.row_at_index(model.selection as i32).as_ref());
-        {
+
+        list.connect_row_selected({
             let sender = sender.clone();
-            list.connect_row_selected(move |_, row| {
+            move |_, row| {
                 if let Some(row) = row {
                     sender.input(LauncherMsg::Select(row.index() as usize));
                 }
-            });
-        }
+            }
+        });
+        // selection will happen first, so activating the current selection works
+        // even if clicking on a row that isn't currently selected.
+        list.connect_row_activated({
+            let sender = sender.clone();
+            move |_, _| sender.input(LauncherMsg::Activate)
+        });
 
         window.container_add(&vbox);
         window.add_controller(model.key_controller(sender));

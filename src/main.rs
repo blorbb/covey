@@ -53,9 +53,10 @@ fn main() -> Result<()> {
 fn new_instance() -> Result<()> {
     info!("starting up app");
     let plugins = tokio::runtime::Runtime::new().unwrap().block_on(load_plugins());
+    info!("finished setting up plugins");
 
     let app = RelmApp::new("r4.qpmu");
-    app.run_async::<Launcher>(plugins);
+    app.run::<Launcher>(plugins);
 
     Ok(())
 }

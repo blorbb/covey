@@ -166,7 +166,12 @@ impl Model {
     }
 
     /// All of these should run very quickly, so it's fine to run on the main thread.
-    pub async fn handle_event(&mut self, event: Result<PluginEvent>, fe: &mut impl Frontend) {
+    #[must_use = "if this returns true you must call `set_input`"]
+    pub fn handle_event(
+        &mut self,
+        event: Result<PluginEvent>,
+        fe: &mut impl Frontend,
+    ) -> bool {
         let Ok(event) = event else {
             todo!("set first item to an error message")
         };
@@ -174,63 +179,69 @@ impl Model {
         match event {
             PluginEvent::SetList { list, index } => {
                 if index <= self.activated_actions {
-                    return;
+                    return false;
                 }
                 self.activated_actions = index;
                 self.results.reset(list);
-                fe.set_list(&self.results).await;
+                fe.set_list(&self.results);
+                false
             }
             PluginEvent::Run(actions) => {
+                let mut should_reset_input = false;
                 for action in actions {
-                    self.handle_action(action, fe).await;
+                    should_reset_input = self.handle_action(action, fe);
                 }
+                should_reset_input
             }
         }
     }
 
-    async fn handle_action(&mut self, event: Action, fe: &mut impl Frontend) {
+    /// Returns whether a [`set_input`] future should be made after this.
+    fn handle_action(&mut self, event: Action, fe: &mut impl Frontend) -> bool {
         match event {
-            Action::Close => fe.close().await,
+            Action::Close => fe.close(),
             Action::RunCommand(cmd, args) => {
-                fe.spawn_nulled(cmd, args).await;
+                fe.spawn_nulled(cmd, args);
             }
             Action::RunShell(str) => {
-                fe.spawn_nulled("sh", ["-c", &str]).await;
+                fe.spawn_nulled("sh", ["-c", &str]);
             }
             Action::Copy(str) => {
-                fe.copy(str).await;
+                fe.copy(str);
             }
             Action::SetInputLine(input) => {
-                fe.set_input(input).await;
+                self.input = input.clone();
+                fe.set_input(input);
+                return true;
             }
         }
+        false
     }
 }
 
-#[allow(async_fn_in_trait)]
 pub trait Frontend {
     /// Close the window.
-    async fn close(&mut self);
+    fn close(&mut self);
 
     /// Spawn a process with `Stdio::null()` for stdin/out/err.
-    async fn spawn_nulled(
+    fn spawn_nulled(
         &mut self,
         cmd: impl AsRef<OsStr>,
         args: impl IntoIterator<Item: AsRef<OsStr>>,
     );
 
     /// Copy a string to the clipboard.
-    async fn copy(&mut self, str: String);
+    fn copy(&mut self, str: String);
 
     /// Set the UI input to the provided input.
     ///
     /// The model will already have an updated input, so do not try to change
     /// the model here. Only modify the front end.
-    async fn set_input(&mut self, input: Input);
+    fn set_input(&mut self, input: Input);
 
     /// Set the UI results list to the provided list.
     ///
     /// The model will already have an updated list, so do not try to change
     /// the model here. Only modify the front end.
-    async fn set_list(&mut self, list: &ResultList);
+    fn set_list(&mut self, list: &ResultList);
 }

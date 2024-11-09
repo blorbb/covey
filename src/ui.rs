@@ -3,13 +3,14 @@ use relm4::{
     gtk::{
         self,
         gdk::Key,
+        glib::SignalHandlerId,
         prelude::{EditableExt as _, GtkWindowExt as _, ListBoxRowExt, WidgetExt as _},
         EventControllerKey, ListBox,
     },
-    prelude::{AsyncComponent, AsyncComponentParts},
-    AsyncComponentSender, RelmContainerExt as _,
+    prelude::ComponentParts,
+    Component, ComponentSender, RelmContainerExt as _,
 };
-use tracing::{info, instrument};
+use tracing::{info, instrument, warn};
 
 use crate::{
     model::{Frontend, Launcher, LauncherMsg},
@@ -24,11 +25,13 @@ pub struct LauncherWidgets {
     pub entry: gtk::Entry,
     pub scroller: gtk::ScrolledWindow,
     pub results_list: gtk::ListBox,
+    pub entry_change_handler: SignalHandlerId,
 }
 
 // not using the macro because the app has a lot of custom behaviour
 // and the list of items is not static.
-impl AsyncComponent for Launcher {
+// DO NOT MAKE IT ASYNC! weird window size stuff happens.
+impl Component for Launcher {
     type Input = LauncherMsg;
     type Output = ();
     type Init = &'static [Plugin];
@@ -41,11 +44,11 @@ impl AsyncComponent for Launcher {
     }
 
     #[instrument(skip_all)]
-    async fn init(
+    fn init(
         init: Self::Init,
         root: Self::Root,
-        sender: AsyncComponentSender<Self>,
-    ) -> AsyncComponentParts<Self> {
+        sender: ComponentSender<Self>,
+    ) -> ComponentParts<Self> {
         info!("initialising new application instance");
         // FIXME: weird window size ?????
 
@@ -54,12 +57,12 @@ impl AsyncComponent for Launcher {
 
         let window = root.clone();
         window.set_title(Some("qpmu"));
-        window.set_default_width(WIDTH);
-        window.set_default_height(-1);
         window.set_hide_on_close(true);
         window.set_decorated(false);
         window.set_vexpand(true);
         window.set_css_classes(&["window"]);
+        window.set_width_request(WIDTH);
+        window.set_height_request(-1);
 
         window.connect_visible_notify({
             let sender = sender.clone();
@@ -100,7 +103,7 @@ impl AsyncComponent for Launcher {
             .truncate_multiline(true)
             .build();
 
-        entry.connect_changed({
+        let entry_change_handler = entry.connect_changed({
             let sender = sender.clone();
             move |entry| {
                 sender.input(LauncherMsg::SetInput(Input::new(
@@ -144,40 +147,42 @@ impl AsyncComponent for Launcher {
         });
 
         window.container_add(&vbox);
+        window.add_controller(key_controller(sender.clone()));
         vbox.container_add(&entry);
         vbox.container_add(&list_scroller);
         list_scroller.container_add(&list);
-        window.add_controller(key_controller(sender));
 
         let widgets = Self::Widgets {
             entry,
             scroller: list_scroller,
             results_list: list,
+            entry_change_handler,
         };
-        AsyncComponentParts { model, widgets }
+        ComponentParts { model, widgets }
     }
 
-    #[instrument(skip_all, fields(message))]
-    async fn update_with_view(
+    #[instrument(skip_all)]
+    fn update_with_view(
         &mut self,
         widgets: &mut Self::Widgets,
         message: Self::Input,
-        sender: AsyncComponentSender<Self>,
+        sender: ComponentSender<Self>,
         root: &Self::Root,
     ) {
-        // should be here to ensure it is always false when update_view is run.
-        // FIXME: after tab completion the window becomes full height for some reason.
-        root.set_default_height(-1);
-
         match message {
             LauncherMsg::SetInput(input) => {
                 let fut = self.model.set_input(input);
                 sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) })
             }
             LauncherMsg::PluginEvent(plugin_event) => {
-                self.model
-                    .handle_event(plugin_event, &mut Frontend { widgets, root })
-                    .await;
+                // TODO: fix this hack
+                let reset_input = self
+                    .model
+                    .handle_event(plugin_event, &mut Frontend { widgets, root });
+                if reset_input {
+                    warn!("resetting input");
+                    sender.input(LauncherMsg::SetInput(self.model.input().clone()))
+                }
             }
             LauncherMsg::Select(index) => self.model.set_list_selection(index),
             LauncherMsg::SelectDelta(delta) => self.model.move_list_selection(delta),
@@ -199,20 +204,20 @@ impl AsyncComponent for Launcher {
         }
     }
 
-    #[instrument(skip_all, fields(message))]
-    async fn update_cmd_with_view(
+    #[instrument(skip_all)]
+    fn update_cmd_with_view(
         &mut self,
         widgets: &mut Self::Widgets,
         message: Self::CommandOutput,
-        sender: AsyncComponentSender<Self>,
+        sender: ComponentSender<Self>,
         root: &Self::Root,
     ) {
         info!("received command {message:?}");
-        self.update_with_view(widgets, message, sender, root).await
+        self.update_with_view(widgets, message, sender, root)
     }
 }
 
-fn key_controller(sender: AsyncComponentSender<Launcher>) -> EventControllerKey {
+fn key_controller(sender: ComponentSender<Launcher>) -> EventControllerKey {
     let key_events = EventControllerKey::builder()
         .propagation_phase(gtk::PropagationPhase::Capture)
         .build();

@@ -8,11 +8,11 @@ use qpmu::{
 use relm4::{
     gtk::{
         self,
-        prelude::{EditableExt, GtkWindowExt, WidgetExt as _},
+        prelude::{EditableExt, GtkWindowExt, ObjectExt, WidgetExt as _},
     },
     RelmContainerExt as _, RelmRemoveAllExt as _,
 };
-use tracing::warn;
+use tracing::info;
 
 use crate::ui::LauncherWidgets;
 
@@ -55,11 +55,11 @@ pub struct Frontend<'a> {
 }
 
 impl<'a> qpmu::Frontend for Frontend<'a> {
-    async fn close(&mut self) {
+    fn close(&mut self) {
         self.root.close();
     }
 
-    async fn spawn_nulled(
+    fn spawn_nulled(
         &mut self,
         cmd: impl AsRef<std::ffi::OsStr>,
         args: impl IntoIterator<Item: AsRef<std::ffi::OsStr>>,
@@ -73,19 +73,25 @@ impl<'a> qpmu::Frontend for Frontend<'a> {
             .unwrap();
     }
 
-    async fn copy(&mut self, str: String) {
+    fn copy(&mut self, str: String) {
         arboard::Clipboard::new().unwrap().set_text(str).unwrap();
     }
 
-    async fn set_input(&mut self, input: Input) {
+    fn set_input(&mut self, input: Input) {
+        self.widgets
+            .entry
+            .block_signal(&self.widgets.entry_change_handler);
         self.widgets.entry.set_text(&input.contents);
         self.widgets
             .entry
-            .select_region(i32::from(input.selection.0), i32::from(input.selection.0));
+            .select_region(i32::from(input.selection.0), i32::from(input.selection.1));
+        self.widgets
+            .entry
+            .unblock_signal(&self.widgets.entry_change_handler);
     }
 
-    async fn set_list(&mut self, list: &qpmu::ResultList) {
-        warn!("got to set list");
+    fn set_list(&mut self, list: &qpmu::ResultList) {
+        info!("setting list");
 
         let results_list = &self.widgets.results_list;
 

@@ -1,10 +1,11 @@
-use std::{ffi::OsStr, future::Future};
+use std::future::Future;
 
 use color_eyre::eyre::{bail, Result};
 use plugin::{event::PluginEvent, Action, ListItem, Plugin};
 
 pub mod config;
 pub mod plugin;
+mod spawn;
 
 #[derive(Debug, Clone, Default)]
 pub struct Input {
@@ -167,11 +168,7 @@ impl Model {
 
     /// All of these should run very quickly, so it's fine to run on the main thread.
     #[must_use = "if this returns true you must call `set_input`"]
-    pub fn handle_event(
-        &mut self,
-        event: Result<PluginEvent>,
-        fe: &mut impl Frontend,
-    ) -> bool {
+    pub fn handle_event(&mut self, event: Result<PluginEvent>, fe: &mut impl Frontend) -> bool {
         let Ok(event) = event else {
             todo!("set first item to an error message")
         };
@@ -201,10 +198,10 @@ impl Model {
         match event {
             Action::Close => fe.close(),
             Action::RunCommand(cmd, args) => {
-                fe.spawn_nulled(cmd, args);
+                spawn::free_null(cmd, args).expect("TODO");
             }
             Action::RunShell(str) => {
-                fe.spawn_nulled("sh", ["-c", &str]);
+                spawn::free_null("sh", ["-c", &str]).expect("TODO");
             }
             Action::Copy(str) => {
                 fe.copy(str);
@@ -222,13 +219,6 @@ impl Model {
 pub trait Frontend {
     /// Close the window.
     fn close(&mut self);
-
-    /// Spawn a process with `Stdio::null()` for stdin/out/err.
-    fn spawn_nulled(
-        &mut self,
-        cmd: impl AsRef<OsStr>,
-        args: impl IntoIterator<Item: AsRef<OsStr>>,
-    );
 
     /// Copy a string to the clipboard.
     fn copy(&mut self, str: String);

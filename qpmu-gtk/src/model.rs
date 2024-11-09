@@ -1,5 +1,3 @@
-use std::process::Stdio;
-
 use color_eyre::eyre::Result;
 use qpmu::{
     plugin::{event::PluginEvent, Plugin},
@@ -57,20 +55,6 @@ pub struct Frontend<'a> {
 impl<'a> qpmu::Frontend for Frontend<'a> {
     fn close(&mut self) {
         self.root.close();
-    }
-
-    fn spawn_nulled(
-        &mut self,
-        cmd: impl AsRef<std::ffi::OsStr>,
-        args: impl IntoIterator<Item: AsRef<std::ffi::OsStr>>,
-    ) {
-        tokio::process::Command::new(cmd)
-            .args(args)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
     }
 
     fn copy(&mut self, str: String) {

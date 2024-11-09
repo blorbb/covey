@@ -13,7 +13,7 @@ pub use bindgen::{
 mod bindgen {
     wasmtime::component::bindgen!({
         world: "plugin",
-        path: "./qpmu-api/wit",
+        path: "../qpmu-api/wit",
         async: true,
     });
 }

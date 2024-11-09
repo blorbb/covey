@@ -1,0 +1,21 @@
+[package]
+name = "qpmu"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wasmtime = { version = "26.0.0", features = [
+    "component-model",
+    "cranelift",
+    "std",
+    "runtime",
+] }
+wasmtime-wasi = "26.0.0"
+color-eyre = "0.6.3"
+toml = "0.8.19"
+serde = { version = "1.0.214", features = ["derive"] }
+futures = "0.3.31"
+sublime_fuzzy = "0.7.0"
+tracing = "0.1.40"
+tokio = "1.41.1"
+dirs = "5.0.1"

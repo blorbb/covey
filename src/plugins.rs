@@ -8,9 +8,29 @@ pub use wrappers::{ListItem, Plugin};
 use crate::{config::Config, PLUGINS_DIR};
 
 pub use bindings::PluginAction as PluginActivationAction;
+pub use bindings::{InputLine, SelectionRange};
 use color_eyre::eyre::Result;
 use futures::{stream::FuturesOrdered, StreamExt};
 use tokio::{fs, sync::OnceCell};
+
+#[derive(Debug)]
+pub struct WithPlugin<T> {
+    pub plugin: Plugin,
+    pub value: T,
+}
+
+impl<T> WithPlugin<T> {
+    pub fn new(plugin: Plugin, value: T) -> Self {
+        Self { plugin, value }
+    }
+
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> WithPlugin<U> {
+        WithPlugin {
+            plugin: self.plugin,
+            value: f(self.value),
+        }
+    }
+}
 
 /// Event returned by a plugin.
 #[derive(Debug)]
@@ -18,7 +38,7 @@ pub enum PluginEvent {
     /// Set the displayed list.
     SetList(Vec<ListItem>),
     /// Run a sequence of actions.
-    Activate(Vec<PluginActivationAction>),
+    Activate(Plugin, Vec<PluginActivationAction>),
 }
 
 /// Events emitted by the UI to a plugin.
@@ -26,6 +46,7 @@ pub enum PluginEvent {
 pub enum UiEvent {
     InputChanged { query: String },
     Activate { item: ListItem },
+    Complete { query: String, item: ListItem },
 }
 
 /// Asynchronously processes a UI event and returns the result.
@@ -73,6 +94,16 @@ pub async fn process_ui_event(ev: UiEvent) -> Result<PluginEvent> {
             Ok(PluginEvent::SetList(vec![]))
         }
 
-        UiEvent::Activate { item } => Ok(PluginEvent::Activate(item.activate().await?)),
+        UiEvent::Activate { item } => {
+            Ok(PluginEvent::Activate(item.plugin(), item.activate().await?))
+        }
+        UiEvent::Complete { query, item } => Ok(PluginEvent::Activate(
+            item.plugin(),
+            item.complete(&query)
+                .await?
+                .map(PluginActivationAction::SetInputLine)
+                .into_iter()
+                .collect(),
+        )),
     }
 }

@@ -9,7 +9,7 @@ use wasmtime::Store;
 use crate::{config::PluginConfig, PLUGINS_DIR};
 
 use super::{
-    bindings::{self, DeferredResult, QueryResult},
+    bindings::{self, DeferredResult, InputLine, QueryResult},
     init, PluginActivationAction,
 };
 
@@ -53,8 +53,16 @@ impl ListItem {
             .collect()
     }
 
+    pub fn plugin(&self) -> Plugin {
+        self.plugin
+    }
+
     pub async fn activate(self) -> Result<Vec<PluginActivationAction>> {
         self.plugin.clone().activate(self).await
+    }
+
+    pub async fn complete(self, query: &str) -> Result<Option<InputLine>> {
+        self.plugin.clone().complete(query, self).await
     }
 }
 
@@ -125,6 +133,22 @@ impl Plugin {
             .call_activate(&bindings::ListItem::from(item))
             .await
     }
+
+    async fn complete(&self, query: &str, item: ListItem) -> Result<Option<InputLine>> {
+        self.plugin
+            .lock()
+            .await
+            .call_complete(query, &bindings::ListItem::from(item))
+            .await
+    }
+}
+
+impl fmt::Debug for Plugin {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Plugin")
+            .field("config", &self.config)
+            .finish()
+    }
 }
 
 /// Internals of a plugin.
@@ -177,6 +201,18 @@ impl PluginInner {
     ) -> Result<Vec<PluginActivationAction>> {
         self.plugin
             .call_activate(&mut self.store, item)
+            .await
+            .unwrap()
+            .map_err(|e| eyre!(e))
+    }
+
+    async fn call_complete(
+        &mut self,
+        query: &str,
+        item: &bindings::ListItem,
+    ) -> Result<Option<InputLine>> {
+        self.plugin
+            .call_complete(&mut self.store, query, item)
             .await
             .unwrap()
             .map_err(|e| eyre!(e))

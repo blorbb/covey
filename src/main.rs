@@ -20,6 +20,7 @@ mod model;
 mod plugins;
 mod styles;
 mod ui;
+pub mod utils;
 
 #[derive(Parser, Debug)]
 #[command(version)]

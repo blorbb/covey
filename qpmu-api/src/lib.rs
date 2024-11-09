@@ -91,6 +91,51 @@ impl Default for Weights {
     }
 }
 
+pub use __raw_bindings::SelectionRange;
+impl SelectionRange {
+    /// Sets both the start and end bound to the provided index.
+    pub fn at(index: u16) -> Self {
+        Self {
+            lower_bound: index,
+            upper_bound: index,
+        }
+    }
+
+    /// Selects the entire query.
+    pub fn all() -> Self {
+        Self {
+            lower_bound: 0,
+            upper_bound: u16::MAX,
+        }
+    }
+
+    /// Sets the start and end to `0`.
+    pub fn start() -> Self {
+        Self::at(0)
+    }
+
+    pub fn end() -> Self {
+        Self::at(u16::MAX)
+    }
+}
+
+pub use __raw_bindings::InputLine;
+impl InputLine {
+    /// Sets the input to the provided query and with the cursor placed
+    /// at the end.
+    pub fn new(query: impl Into<String>) -> Self {
+        Self {
+            query: query.into(),
+            range: SelectionRange::end(),
+        }
+    }
+
+    pub fn select(mut self, sel: SelectionRange) -> Self {
+        self.range = sel;
+        self
+    }
+}
+
 pub use __raw_bindings::{
     Capture, DeferredAction, DeferredResult, IoError, PluginAction, ProcessOutput, QueryResult,
 };
@@ -106,6 +151,11 @@ pub trait Plugin {
     }
 
     fn activate(selected: ListItem) -> Result<impl IntoIterator<Item = PluginAction>>;
+
+    #[allow(unused_variables)]
+    fn complete(query: String, selected: ListItem) -> Result<Option<InputLine>> {
+        Ok(None)
+    }
 }
 
 impl<T> __raw_bindings::Guest for T
@@ -113,28 +163,22 @@ where
     T: Plugin,
 {
     fn query(query: String) -> Result<QueryResult, String> {
-        Self::query(query).map_err(|e| {
-            e.chain()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        })
+        Self::query(query).map_err(stringify_error)
     }
 
     fn handle_deferred(query: String, result: DeferredResult) -> Result<QueryResult, String> {
-        Self::handle_deferred(query, result).map_err(|e| {
-            e.chain()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        })
+        Self::handle_deferred(query, result).map_err(stringify_error)
     }
 
     fn activate(selected: ListItem) -> Result<Vec<PluginAction>, String> {
         match Self::activate(selected) {
             Ok(list) => Ok(list.into_iter().collect()),
-            Err(e) => Err(e.to_string()),
+            Err(e) => Err(stringify_error(e)),
         }
+    }
+
+    fn complete(query: String, selected: ListItem) -> Result<Option<InputLine>, String> {
+        Self::complete(query, selected).map_err(stringify_error)
     }
 }
 
@@ -143,4 +187,11 @@ macro_rules! register {
     ($plugin:ident) => {
         $crate::__raw_bindings::export!($plugin with_types_in $crate::__raw_bindings);
     };
+}
+
+fn stringify_error(err: anyhow::Error) -> String {
+    err.chain()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n")
 }

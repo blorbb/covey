@@ -1,4 +1,9 @@
-use crate::plugins::{ListItem, PluginEvent};
+use std::cell::RefCell;
+
+use crate::{
+    plugins::{self, ListItem, PluginEvent, SelectionRange, WithPlugin},
+    utils::ReadOnce,
+};
 
 #[derive(Debug)]
 #[tracker::track]
@@ -16,6 +21,11 @@ pub struct Launcher {
     /// Index of the last action that was completed.
     #[do_not_track]
     completed_action_index: u64,
+    /// Whether the query has been set by a plugin.
+    ///
+    /// If so, contains a selection range to set the input line to.
+    #[do_not_track]
+    plugin_line_set: RefCell<ReadOnce<WithPlugin<SelectionRange>>>,
 }
 
 impl Launcher {
@@ -28,6 +38,7 @@ impl Launcher {
             tracker: 0,
             completed_action_index: 0,
             action_index: 0,
+            plugin_line_set: RefCell::new(ReadOnce::empty()),
         }
     }
 
@@ -49,6 +60,27 @@ impl Launcher {
         self.completed_action_index = self.completed_action_index.max(action_index);
         res
     }
+
+    pub fn set_line_by_plugin(&mut self, line: WithPlugin<plugins::InputLine>) {
+        self.query = line.value.query;
+        self.plugin_line_set
+            .get_mut()
+            .replace(WithPlugin::new(line.plugin, line.value.range));
+    }
+
+    /// Returns the current query if it was set by a plugin.
+    ///
+    /// This will only return [`Some`] once each time
+    /// [`Self::set_query_by_plugin`] is run. This will return [`None`]
+    /// on subsequent calls until [`Self::set_query_by_plugin`] is called again.
+    pub fn line_set_by_plugin(&self) -> Option<WithPlugin<plugins::InputLine>> {
+        self.plugin_line_set.borrow_mut().take().map(|i| {
+            i.map(|range| plugins::InputLine {
+                query: self.query.clone(),
+                range,
+            })
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -63,6 +95,8 @@ pub enum LauncherMsg {
     SelectDelta(isize),
     /// Activate the current selected item
     Activate,
+    /// Perform (tab) completion on the current selected item
+    Complete,
     /// Close (hide) the window
     Close,
 }

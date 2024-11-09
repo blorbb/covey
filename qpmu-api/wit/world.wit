@@ -69,6 +69,8 @@ world plugin {
         deferred-action,
         deferred-result,
         query-result,
+        input-line,
+        selection-range,
     };
 
     /// Function to be called on every change to the input.
@@ -96,11 +98,18 @@ world plugin {
     /// something else.
     ///
     /// This function isn't called as often, so *slightly* blocking code is fine,
-    /// such as spawning quick processes. It is fine to run noticable side effects
+    /// such as spawning quick processes. It is fine to run noticeable side effects
     /// as well.
     ///
     /// Long-running or UI effects should be done through `plugin-action`s though.
     export activate: func(selected: list-item) -> result<list<plugin-action>, string>;
+
+    /// Perform a (tab) completion.
+    ///
+    /// This should return a new `input-line` to set the input to.
+    ///
+    /// Return `Ok(None)` if tab completion is not supported.
+    export complete: func(query: string, selected: list-item) -> result<option<input-line>, string>;
 }
 
 
@@ -253,6 +262,28 @@ interface types {
         run-shell(string),
         /// Copies a string to the clipboard.
         copy(string),
+        /// Sets the input query to a string, as well as a selection range.
+        ///
+        /// This does not affect the prefix of the plugin.
+        set-input-line(input-line),
+    }
+
+    /// Something to set the input line to.
+    record input-line {
+        query: string,
+        range: selection-range,
+    }
+
+    /// A range of text for selection.
+    ///
+    /// Upper bound is **exclusive**. The indices are specified in characters,
+    /// (Unicode codepoints) not bytes.
+    ///
+    /// If the upper or lower bound is past the end of the query, the cursor
+    /// will just be set to the end of the query.
+    record selection-range {
+        lower-bound: u16,
+        upper-bound: u16,
     }
 
     /// An action to run on the host.

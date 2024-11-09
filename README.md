@@ -13,6 +13,43 @@
   - Focus protection: Force, None
 - Click `Apply`.
 
+## Styling
+
+[GTK4 CSS properties](https://docs.gtk.org/gtk4/css-properties.html) can be used to style the launcher. Styles are read from `style.css` in the config directory (`~/.config/qpmu` on Linux).
+
+Class structure:
+```
+┌─.window────────────────────────────────────────────────────────────┐
+│┌─.main-entry──────────────────────────────────────────────────────┐│
+││                                                                  ││
+││                                                                  ││
+││                                                                  ││
+│└──────────────────────────────────────────────────────────────────┘│
+│┌─.main-scroller───────────────────────────────────────────────────┐│
+││┌─.main-list─────────────────────────────────────────────────────┐││
+│││                                                                │││
+│││   ┌─.list-item─────────────────────────────────────────────┐   │││
+│││   │ ┌─.list-item-hbox┬───────────────────────────────────┐ │   │││
+│││   │ │                │                                   │ │   │││
+│││   │ │   ┌─.list──┐   │   ┌─.list-item-vbox───────────┐   │ │   │││
+│││   │ │   │ -item  │   │   │ .list-item-title          │   │ │   │││
+│││   │ │   │ -icon  │   │   ├───────────────────────────┤   │ │   │││
+│││   │ │   │        │   │   │ .list-item-description    │   │ │   │││
+│││   │ │   └────────┘   │   └───────────────────────────┘   │ │   │││
+│││   │ │                │                                   │ │   │││
+│││   │ └────────────────┴───────────────────────────────────┘ │   │││
+│││   └────────────────────────────────────────────────────────┘   │││
+│││                                                                │││
+│││                                                                │││
+│││                                                                │││
+│││                                                                │││
+│││                                                                │││
+│││                                                                │││
+││└────────────────────────────────────────────────────────────────┘││
+│└──────────────────────────────────────────────────────────────────┘│
+└────────────────────────────────────────────────────────────────────┘
+```
+
 ## Plugins
 
 ```sh
@@ -46,19 +83,4 @@ opt-level = "s"
 debug = false
 strip = true
 lto = true
-```
-
-Replace `lib.rs` with the following template:
-```rs
-use qpmu_api::{export, Plugin};
-
-struct PLUGIN_NAME;
-
-impl Plugin for PLUGIN_NAME {
-    fn test(name: String) -> Vec<String> {
-        vec![name]
-    }
-}
-
-export!(PLUGIN_NAME with_types_in qpmu_api::bindings);
 ```

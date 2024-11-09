@@ -1,18 +1,49 @@
-.window {
-    padding: 10px;
-    border-radius: 9px;
-    background: black;
+:root {
+    --background: #101010;
+    --selected: rgba(255 255 255 / 0.1);
+    --text-color: rgba(255 255 255 / 0.9);
+    --padding: 10px;
+    --window-padding: calc(var(--padding) * 1.5);
+    --main-brad: 8px;
+    --entry-brad: var(--main-brad);
+    --list-brad: var(--main-brad);
 }
 
+.window {
+    background: var(--background);
+    color: var(--text-color);
+    padding: var(--window-padding);
+    border-radius: calc(var(--window-padding) + var(--entry-brad) / 2);
+}
+ 
 .main-entry {
-    padding: 10px;
-    border-radius: 4px;
+    border-radius: var(--entry-brad);
+    padding: var(--padding);
+}
+
+.main-list {
+    border-radius: var(--list-brad);
+}
+
+/* for the list itself to be rounded */
+.main-list *:first-child {
+    border-top-left-radius: var(--list-brad);
+    border-top-right-radius: var(--list-brad);
+}
+
+.main-list *:last-child {
+    border-bottom-left-radius: var(--list-brad);
+    border-bottom-right-radius: var(--list-brad);
 }
 
 .list-item {
-    padding: 10px;
+    padding: var(--padding);
 }
 
 .list-item-description {
-    font-size: 0.9em;
+    font-size: 0.8em;
+}
+
+.list-item:selected {
+    background: var(--selected);
 }

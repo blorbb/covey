@@ -110,6 +110,7 @@ impl Component for Launcher {
             .min_content_height(0)
             .max_content_height(HEIGHT_MAX)
             .propagate_natural_height(true)
+            .hscrollbar_policy(gtk::PolicyType::Never)
             .css_classes(["main-scroller"])
             .build();
         list_scroller.set_visible(!model.results.is_empty());
@@ -281,10 +282,12 @@ impl Component for Launcher {
 
                 let hbox = gtk::Box::builder()
                     .orientation(gtk::Orientation::Horizontal)
+                    .css_classes(["list-item-hbox"])
                     .spacing(16)
                     .build();
                 if let Some(icon_name) = &item.icon {
                     let icon = gtk::Image::from_icon_name(&icon_name);
+                    icon.set_css_classes(&["list-item-icon"]);
                     icon.set_size_request(32, 32);
                     icon.set_icon_size(gtk::IconSize::Large);
                     hbox.container_add(&icon);
@@ -292,12 +295,14 @@ impl Component for Launcher {
 
                 let vbox = gtk::Box::builder()
                     .orientation(gtk::Orientation::Vertical)
+                    .css_classes(["list-item-vbox"])
                     .spacing(4)
                     .build();
                 let title = gtk::Label::builder()
                     .label(&item.title)
                     .halign(gtk::Align::Start)
                     .css_classes(["list-item-title"])
+                    .wrap(true)
                     .build();
                 vbox.container_add(&title);
 
@@ -306,6 +311,7 @@ impl Component for Launcher {
                         .label(&item.description)
                         .halign(gtk::Align::Start)
                         .css_classes(["list-item-description"])
+                        .wrap(true)
                         .build();
                     vbox.container_add(&description);
                 }

@@ -36,7 +36,7 @@ pub mod host {
     }
 
     pub fn data_dir() -> PathBuf {
-        PathBuf::from(host::config_dir())
+        PathBuf::from(host::data_dir())
     }
 
     pub fn read_dir(dir: impl AsRef<Path>) -> Result<Vec<String>, IoError> {

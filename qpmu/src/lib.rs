@@ -105,12 +105,14 @@ impl Model {
         &self.results
     }
 
-    pub fn set_list_selection(&mut self, selection: usize) {
+    pub fn set_list_selection(&mut self, selection: usize, fe: &mut impl Frontend) {
         self.results.selection = selection;
+        fe.set_list_selection(self.results.selection);
     }
 
-    pub fn move_list_selection(&mut self, delta: isize) {
+    pub fn move_list_selection(&mut self, delta: isize, fe: &mut impl Frontend) {
         self.results.selection = self.results.selection.saturating_add_signed(delta);
+        fe.set_list_selection(self.results.selection);
     }
 
     pub fn activate(&mut self) -> impl Future<Output = Result<PluginEvent>> + use<> {
@@ -234,4 +236,6 @@ pub trait Frontend {
     /// The model will already have an updated list, so do not try to change
     /// the model here. Only modify the front end.
     fn set_list(&mut self, list: &ResultList);
+
+    fn set_list_selection(&mut self, index: usize);
 }

@@ -132,7 +132,16 @@ impl<'a> qpmu::Frontend for Frontend<'a> {
             );
         }
 
-        results_list.select_row(results_list.row_at_index(list.selection() as i32).as_ref());
+        self.set_list_selection(list.selection());
         self.root.set_default_height(-1);
+    }
+
+    fn set_list_selection(&mut self, index: usize) {
+        self.widgets.results_list.select_row(
+            self.widgets
+                .results_list
+                .row_at_index(index as i32)
+                .as_ref(),
+        );
     }
 }

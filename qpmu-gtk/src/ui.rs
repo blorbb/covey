@@ -184,8 +184,14 @@ impl Component for Launcher {
                     sender.input(LauncherMsg::SetInput(self.model.input().clone()))
                 }
             }
-            LauncherMsg::Select(index) => self.model.set_list_selection(index),
-            LauncherMsg::SelectDelta(delta) => self.model.move_list_selection(delta),
+            LauncherMsg::Select(index) => {
+                self.model
+                    .set_list_selection(index, &mut Frontend { widgets, root });
+            }
+            LauncherMsg::SelectDelta(delta) => {
+                self.model
+                    .move_list_selection(delta, &mut Frontend { widgets, root });
+            }
             LauncherMsg::Activate => {
                 let fut = self.model.activate();
                 sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) });

@@ -7,7 +7,7 @@ use model::Launcher;
 use qpmu::{config::Config, plugin::Plugin};
 use relm4::RelmApp;
 use tokio::{fs, io::AsyncReadExt};
-use tracing::{info, instrument, Level};
+use tracing::{error, info, instrument, Level};
 
 mod install;
 mod model;
@@ -84,10 +84,10 @@ pub async fn load_plugins() -> &'static [Plugin] {
         let name = plugin.name.replace('-', "_");
         info!("initialising plugin {name}");
         let path = format!("{name}.wasm");
-        let plugin = Plugin::new(plugin, fs::read(PLUGINS_DIR.join(path)).await.unwrap())
-            .await
-            .unwrap();
-        v.push(plugin);
+        match Plugin::new(plugin, fs::read(PLUGINS_DIR.join(path)).await.unwrap()).await {
+            Ok(plugin) => v.push(plugin),
+            Err(e) => error!("{e}"),
+        }
     }
 
     v.leak()

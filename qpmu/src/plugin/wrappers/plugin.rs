@@ -2,7 +2,7 @@ use core::fmt;
 
 use color_eyre::eyre::{eyre, Result};
 use tokio::sync::Mutex;
-use wasmtime::Store;
+use wasmtime::{component::ResourceAny, Store};
 
 use super::{
     super::bindings::{DeferredResult, InputLine, QueryResult},
@@ -17,7 +17,8 @@ use crate::{
 #[derive(Clone, Copy)]
 pub struct Plugin {
     plugin: &'static Mutex<PluginInner>,
-    config: &'static PluginConfig,
+    name: &'static str,
+    prefix: &'static str,
 }
 
 impl Plugin {
@@ -26,22 +27,21 @@ impl Plugin {
     /// Note that this will leak the plugin and configuration, as they should
     /// be active for the entire program.
     pub async fn new(config: PluginConfig, binary: Vec<u8>) -> Result<Self> {
-        let mut inner = PluginInner::new(&binary)
+        let inner = PluginInner::new(&binary, &config.options.to_string())
             .await
             .map_err(|e| eyre!("failed to initialise {}: {e}", config.name))?;
-        inner.call_init_config(&config.options.to_string()).await?;
 
-        // inner.call_init_config()
         let boxed = Box::new(Mutex::new(inner));
 
         Ok(Self {
             plugin: Box::leak(boxed),
-            config: Box::leak(Box::new(config)),
+            name: config.name.leak(),
+            prefix: config.prefix.leak(),
         })
     }
 
     pub fn prefix(&self) -> &'static str {
-        &self.config.prefix
+        &self.prefix
     }
 
     /// Runs the plugin until the query is fully completed.
@@ -93,40 +93,47 @@ impl Plugin {
 impl fmt::Debug for Plugin {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Plugin")
-            .field("config", &self.config)
+            .field("name", &self.name)
+            .field("prefix", &self.prefix)
             .finish()
     }
 }
 
 /// Internals of a plugin.
 ///
-/// Simple wrapper around `bindings::Plugin` so that calling functions doesn't
-/// need to pass in a `Store`.
+/// Simple wrapper around `bindings::Plugin` and the plugin handler resource
+/// so that calling functions doesn't need to pass in a `Store` or `ResourceAny`.
 struct PluginInner {
     plugin: bindings::Plugin,
     store: Store<host::State>,
+    resource: ResourceAny,
 }
 
 impl PluginInner {
-    async fn new(binary: &[u8]) -> Result<Self> {
-        // wasmtime error is weird, need to do this match
-        let (plugin, store) = init::initialise_plugin(binary)
+    async fn new(binary: &[u8], toml: &str) -> Result<Self> {
+        let (plugin, mut store) = init::initialise_plugin(binary)
             .await
             .map_err(|e| eyre!(e))?;
-        Ok(Self { plugin, store })
-    }
 
-    async fn call_init_config(&mut self, toml: &str) -> Result<()> {
-        self.plugin
-            .call_init_config(&mut self.store, toml)
+        let resource = plugin
+            .qpmu_plugin_handler()
+            .handler()
+            .call_constructor(&mut store, toml)
             .await
-            .unwrap()
-            .map_err(|e| eyre!(e))
+            .map_err(|e| eyre!(e))?;
+
+        Ok(Self {
+            plugin,
+            store,
+            resource,
+        })
     }
 
     async fn call_query(&mut self, input: &str) -> Result<QueryResult> {
         self.plugin
-            .call_query(&mut self.store, input)
+            .qpmu_plugin_handler()
+            .handler()
+            .call_query(&mut self.store, self.resource, input)
             .await
             .unwrap()
             .map_err(|e| eyre!(e))
@@ -138,7 +145,9 @@ impl PluginInner {
         result: &DeferredResult,
     ) -> Result<QueryResult> {
         self.plugin
-            .call_handle_deferred(&mut self.store, query, result)
+            .qpmu_plugin_handler()
+            .handler()
+            .call_handle_deferred(&mut self.store, self.resource, query, result)
             .await
             .unwrap()
             .map_err(|e| eyre!(e))
@@ -146,7 +155,9 @@ impl PluginInner {
 
     async fn call_activate(&mut self, item: &bindings::ListItem) -> Result<Vec<bindings::Action>> {
         self.plugin
-            .call_activate(&mut self.store, item)
+            .qpmu_plugin_handler()
+            .handler()
+            .call_activate(&mut self.store, self.resource, item)
             .await
             .unwrap()
             .map_err(|e| eyre!(e))
@@ -158,7 +169,9 @@ impl PluginInner {
         item: &bindings::ListItem,
     ) -> Result<Option<bindings::InputLine>> {
         self.plugin
-            .call_complete(&mut self.store, query, item)
+            .qpmu_plugin_handler()
+            .handler()
+            .call_complete(&mut self.store, self.resource, query, item)
             .await
             .unwrap()
             .map_err(|e| eyre!(e))

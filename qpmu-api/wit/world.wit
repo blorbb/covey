@@ -1,8 +1,66 @@
 package qpmu:plugin;
 
+interface handler {
+    use types.{
+        list-item,
+        query-result,
+        action,
+        input-line,
+        deferred-result,
+    };
+
+    resource handler {
+        /// Initialises the configuration.
+        ///
+        /// This will be called before any other function is called. It should
+        /// probably modify some global variable so that other functions
+        /// can read it.
+        constructor(toml: string);
+
+        /// Function to be called on every change to the input.
+        ///
+        /// Avoid creating noticable side-effects, as the output may be ignored
+        /// in cases of long-running functions.
+        ///
+        /// While running blocking code will not block the UI, it blocks newer
+        /// queries from being processed by this plugin. Any code that takes a
+        /// long time to resolve should be done through `deferred-action`s instead.
+        ///
+        /// Return a `query-result.defer(deferred-action.*)` for actions that take
+        /// some time to resolve, such as spawning processes or network requests.
+        query: func(query: string) -> result<query-result, string>;
+
+        /// Handle a previously deferred action.
+        ///
+        /// This can either complete (return `query-result.set-list` or 
+        /// `query-result.skip`) or run another deferred action.
+        handle-deferred: func(query: string, %result: deferred-result) -> result<query-result, string>;
+
+        /// Function to be called when a list item is activated.
+        ///
+        /// Usually when `Enter` is pressed, but it could be configured to 
+        /// something else.
+        ///
+        /// This function isn't called as often, so *slightly* blocking code is fine,
+        /// such as spawning quick processes. It is fine to run noticeable side effects
+        /// as well.
+        ///
+        /// Long-running or UI effects should be done through `action`s though.
+        activate: func(selected: list-item) -> result<list<action>, string>;
+
+        /// Perform a (tab) completion.
+        ///
+        /// This should return a new `input-line` to set the input to.
+        ///
+        /// Return `Ok(None)` if tab completion is not supported.
+        complete: func(query: string, selected: list-item) -> result<option<input-line>, string>;
+    }
+}
 
 world plugin {
     import host;
+    export handler;
+
     use types.{
         list-item,
         query-result,
@@ -16,51 +74,6 @@ world plugin {
         capture,
         weights,
     };
-
-    /// Initialises the configuration.
-    ///
-    /// This will be called before any other function is called. It should
-    /// probably modify some global variable so that other functions
-    /// can read it.
-    export init-config: func(toml: string) -> result<_, string>;
-
-    /// Function to be called on every change to the input.
-    ///
-    /// Avoid creating noticable side-effects, as the output may be ignored
-    /// in cases of long-running functions.
-    ///
-    /// While running blocking code will not block the UI, it blocks newer
-    /// queries from being processed by this plugin. Any code that takes a
-    /// long time to resolve should be done through `deferred-action`s instead.
-    ///
-    /// Return a `query-result.defer(deferred-action.*)` for actions that take
-    /// some time to resolve, such as spawning processes or network requests.
-    export query: func(query: string) -> result<query-result, string>;
-
-    /// Handle a previously deferred action.
-    ///
-    /// This can either complete (return `query-result.set-list` or 
-    /// `query-result.skip`) or run another deferred action.
-    export handle-deferred: func(query: string, %result: deferred-result) -> result<query-result, string>;
-
-    /// Function to be called when a list item is activated.
-    ///
-    /// Usually when `Enter` is pressed, but it could be configured to 
-    /// something else.
-    ///
-    /// This function isn't called as often, so *slightly* blocking code is fine,
-    /// such as spawning quick processes. It is fine to run noticeable side effects
-    /// as well.
-    ///
-    /// Long-running or UI effects should be done through `action`s though.
-    export activate: func(selected: list-item) -> result<list<action>, string>;
-
-    /// Perform a (tab) completion.
-    ///
-    /// This should return a new `input-line` to set the input to.
-    ///
-    /// Return `Ok(None)` if tab completion is not supported.
-    export complete: func(query: string, selected: list-item) -> result<option<input-line>, string>;
 }
 
 

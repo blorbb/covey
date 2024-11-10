@@ -26,10 +26,14 @@ impl Plugin {
     /// Note that this will leak the plugin and configuration, as they should
     /// be active for the entire program.
     pub async fn new(config: PluginConfig, binary: Vec<u8>) -> Result<Self> {
-        let boxed =
-            Box::new(Mutex::new(PluginInner::new(&binary).await.map_err(
-                |e| eyre!("failed to initialise {}: {e}", config.name),
-            )?));
+        let mut inner = PluginInner::new(&binary)
+            .await
+            .map_err(|e| eyre!("failed to initialise {}: {e}", config.name))?;
+        inner.call_init_config(&config.options.to_string()).await?;
+
+        // inner.call_init_config()
+        let boxed = Box::new(Mutex::new(inner));
+
         Ok(Self {
             plugin: Box::leak(boxed),
             config: Box::leak(Box::new(config)),
@@ -110,6 +114,14 @@ impl PluginInner {
             .await
             .map_err(|e| eyre!(e))?;
         Ok(Self { plugin, store })
+    }
+
+    async fn call_init_config(&mut self, toml: &str) -> Result<()> {
+        self.plugin
+            .call_init_config(&mut self.store, toml)
+            .await
+            .unwrap()
+            .map_err(|e| eyre!(e))
     }
 
     async fn call_query(&mut self, input: &str) -> Result<QueryResult> {

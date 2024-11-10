@@ -143,6 +143,10 @@ pub use anyhow;
 use anyhow::{bail, Result};
 
 pub trait Plugin {
+    fn init_config(_config: String) -> Result<()> {
+        Ok(())
+    }
+
     fn query(query: String) -> Result<QueryResult>;
 
     #[allow(unused_variables)]
@@ -162,6 +166,10 @@ impl<T> __raw_bindings::Guest for T
 where
     T: Plugin,
 {
+    fn init_config(config: String) -> Result<(), String> {
+        Self::init_config(config).map_err(stringify_error)
+    }
+
     fn query(query: String) -> Result<QueryResult, String> {
         Self::query(query).map_err(stringify_error)
     }

@@ -10,6 +10,8 @@ pub struct Config {
 pub struct PluginConfig {
     pub name: String,
     pub prefix: String,
+    #[serde(default)] // empty table if missing
+    pub options: toml::Table,
 }
 
 impl Config {

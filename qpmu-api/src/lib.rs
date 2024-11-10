@@ -93,6 +93,28 @@ impl Default for Weights {
     }
 }
 
+impl Weights {
+    pub fn title(mut self, title: f32) -> Self {
+        self.title = title;
+        self
+    }
+
+    pub fn description(mut self, description: f32) -> Self {
+        self.description = description;
+        self
+    }
+
+    pub fn metadata(mut self, metadata: f32) -> Self {
+        self.metadata = metadata;
+        self
+    }
+
+    pub fn frequency(mut self, frequency: f32) -> Self {
+        self.frequency = frequency;
+        self
+    }
+}
+
 pub use __raw_bindings::SelectionRange;
 impl SelectionRange {
     /// Sets both the start and end bound to the provided index.
@@ -193,7 +215,6 @@ where
         T::complete(&mut self.borrow_mut(), query, selected).map_err(stringify_error)
     }
 }
-
 
 #[macro_export]
 macro_rules! register {

@@ -3,6 +3,10 @@
 
 ### KDE Plasma 6
 
+[Rendering on GTK seems to be broken at the moment.](https://reddit.com/r/kde/comments/1gg9kd8) Running with the `GSK_RENDERER=gl` environment variable seems to fix it.
+
+To let the launcher run with proper focusing:
+
 - Go to settings > Window Management > Window Rules
 - Click `Add New...`
 - Description: "qpmu"

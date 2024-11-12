@@ -1,49 +1,109 @@
 :root {
-    --background: #101010;
-    --selected: rgba(255 255 255 / 0.1);
+    --window-background: rgb(0 0 0);
+
+    --primary-background: #191724;
+    --primary: #c4a7e7;
+
+    --pane-background: var(--primary-background);
+    --pane-background: radial-gradient(
+        circle 500px at var(--entry-icon-center) var(--entry-icon-center),
+        color-mix(in hwb, var(--primary-background) 95%, white) 0%,
+        var(--primary-background) 100%
+    );
+
+    --hover: rgba(255 255 255 / 0.05);
+    --selected: var(--primary);
+    --selected-text-color: var(--primary-background);
+    --selected-faded-text-color: rgba(from var(--selected-text-color) r g b calc(alpha * 0.8));
+
     --text-color: rgba(255 255 255 / 0.9);
-    --padding: 10px;
-    --window-padding: calc(var(--padding) * 1.5);
-    --main-brad: 8px;
-    --entry-brad: var(--main-brad);
-    --list-brad: var(--main-brad);
+    --faded-text-color: rgb(from var(--text-color) r g b / calc(alpha * 0.8));
+
+    --text-size: 1.25rem;
+    --entry-text-size: calc(var(--text-size) * 1.3);
+    --description-text-size: calc(var(--text-size) / 1.3);
+
+    --padding: 12px;
+    --window-padding: 0px;
+    --entry-padding: calc(2 * var(--padding));
+
+    --main-brad: 24px;
+    --list-item-brad: calc(var(--main-brad) - var(--padding));
+    --window-brad: calc(var(--main-brad) + var(--window-padding));
+
+    --icon-size: 48px;
+    --entry-icon-size: 48px;
+
+    --border-color: #26233a;
+
+    /* distance to center of the entry icon, relative to the main box top left */
+    --entry-icon-center: calc(var(--entry-padding) + var(--entry-icon-size) / 2);
+
+    font-size: var(--text-size);
+}
+
+* {
+    all: unset;
+}
+
+.main-box {
+    background: var(--pane-background);
+    border-radius: var(--main-brad);
+    border: 4px solid var(--border-color);
 }
 
 .window {
-    background: var(--background);
+    background: var(--window-background);
     color: var(--text-color);
     padding: var(--window-padding);
-    border-radius: calc(var(--window-padding) + var(--entry-brad) / 2);
+    border-radius: var(--window-brad);
 }
- 
+
 .main-entry {
-    border-radius: var(--entry-brad);
-    padding: var(--padding);
+    font-size: var(--entry-text-size);
+    padding: var(--entry-padding);
 }
 
-.main-list {
-    border-radius: var(--list-brad);
+.main-entry placeholder {
+    color: var(--faded-text-color);
 }
 
-/* for the list itself to be rounded */
-.main-list *:first-child {
-    border-top-left-radius: var(--list-brad);
-    border-top-right-radius: var(--list-brad);
+.main-entry image.left {
+    -gtk-icon-size: var(--entry-icon-size);
 }
 
-.main-list *:last-child {
-    border-bottom-left-radius: var(--list-brad);
-    border-bottom-right-radius: var(--list-brad);
+.main-entry image.left + * {
+    /* for some reason adding padding-right to the image makes it wonky */
+    margin-left: var(--padding);
 }
 
 .list-item {
     padding: var(--padding);
+    border-radius: var(--list-item-brad);
+    /* no margin top, even for first child, so there isn't a huge gap to the input */
+    margin: var(--padding);
+    margin-top: 0px;
 }
 
 .list-item-description {
-    font-size: 0.8em;
+    font-size: var(--description-text-size);
+    color: var(--faded-text-color);
+    margin-top: 4px;
+}
+
+.list-item:hover {
+    background: var(--hover);
 }
 
 .list-item:selected {
     background: var(--selected);
+    color: var(--selected-text-color);
+}
+
+.list-item:selected .list-item-description {
+    color: var(--selected-faded-text-color);
+}
+
+.list-item-icon {
+    -gtk-icon-size: var(--icon-size);
 }

@@ -15,7 +15,7 @@ pub struct PluginConfig {
 }
 
 impl Config {
-    pub async fn read(file_contents: &str) -> Result<Self> {
+    pub fn read(file_contents: &str) -> Result<Self> {
         Ok(toml::from_str(file_contents)?)
     }
 }

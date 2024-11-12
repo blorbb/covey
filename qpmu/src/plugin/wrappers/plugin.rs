@@ -1,7 +1,8 @@
 use core::fmt;
 
-use color_eyre::eyre::{eyre, Result};
-use tokio::sync::Mutex;
+use color_eyre::eyre::{bail, eyre, Result};
+use tokio::sync::{Mutex, MutexGuard, OnceCell};
+use tracing::info;
 use wasmtime::{component::ResourceAny, Store};
 
 use super::{
@@ -16,8 +17,7 @@ use crate::{
 /// A static reference to a plugin wasm instance.
 #[derive(Clone, Copy)]
 pub struct Plugin {
-    plugin: &'static Mutex<PluginInner>,
-    name: &'static str,
+    plugin: &'static LazyPlugin,
     prefix: &'static str,
 }
 
@@ -26,21 +26,18 @@ impl Plugin {
     ///
     /// Note that this will leak the plugin and configuration, as they should
     /// be active for the entire program.
-    pub async fn new(config: PluginConfig, binary: Vec<u8>) -> Result<Self> {
-        let inner = PluginInner::new(&binary, &config.options.to_string())
-            .await
-            .map_err(|e| eyre!("failed to initialise {}: {e}", config.name))?;
-
-        let boxed = Box::new(Mutex::new(inner));
-
+    pub fn new(config: PluginConfig, binary: Vec<u8>) -> Result<Self> {
         Ok(Self {
-            plugin: Box::leak(boxed),
-            name: config.name.leak(),
+            plugin: Box::leak(Box::new(LazyPlugin::new(
+                binary,
+                config.name,
+                config.options.to_string(),
+            ))),
             prefix: config.prefix.leak(),
         })
     }
 
-    pub fn prefix(&self) -> &'static str {
+    pub fn prefix(&self) -> &str {
         &self.prefix
     }
 
@@ -48,7 +45,7 @@ impl Plugin {
     ///
     /// Returns `Ok(None)` if any of the results are `QueryResult::Skip`.
     pub async fn complete_query(&self, query: &str) -> Result<Option<Vec<ListItem>>> {
-        let mut result = self.plugin.lock().await.call_query(query).await?;
+        let mut result = self.plugin.get().await?.call_query(query).await?;
         loop {
             match result {
                 QueryResult::SetList(vec) => {
@@ -58,8 +55,8 @@ impl Plugin {
                     let deferred_result = deferred_action.run().await;
                     result = self
                         .plugin
-                        .lock()
-                        .await
+                        .get()
+                        .await?
                         .call_handle_deferred(query, &deferred_result)
                         .await
                         .unwrap();
@@ -72,8 +69,8 @@ impl Plugin {
     pub(super) async fn activate(&self, item: &bindings::ListItem) -> Result<Vec<Action>> {
         Ok(self
             .plugin
-            .lock()
-            .await
+            .get()
+            .await?
             .call_activate(item)
             .await?
             .into_iter()
@@ -86,16 +83,50 @@ impl Plugin {
         query: &str,
         item: &bindings::ListItem,
     ) -> Result<Option<InputLine>> {
-        self.plugin.lock().await.call_complete(query, item).await
+        self.plugin.get().await?.call_complete(query, item).await
     }
 }
 
 impl fmt::Debug for Plugin {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Plugin")
-            .field("name", &self.name)
-            .field("prefix", &self.prefix)
-            .finish()
+        f.debug_tuple("Plugin").field(&self.plugin.name).finish()
+    }
+}
+
+/// A plugin that is not initialised until [`Self::get`] is called.
+struct LazyPlugin {
+    cell: OnceCell<Result<Mutex<PluginInner>>>,
+    name: String,
+    options: String,
+    binary: Vec<u8>,
+}
+
+impl LazyPlugin {
+    pub fn new(binary: Vec<u8>, name: String, options: String) -> Self {
+        Self {
+            cell: OnceCell::new(),
+            binary,
+            name,
+            options,
+        }
+    }
+
+    /// Initialises or gets access to the plugin.
+    pub async fn get(&self) -> Result<MutexGuard<PluginInner>> {
+        let plugin = self
+            .cell
+            .get_or_init(|| async {
+                info!("initialising plugin {}", self.name);
+                Ok(Mutex::new(
+                    PluginInner::new(&self.binary, &self.options).await?,
+                ))
+            })
+            .await;
+
+        match plugin {
+            Ok(a) => Ok(a.lock().await),
+            Err(e) => bail!("failed to initialise plugin {}: {e}", self.name),
+        }
     }
 }
 

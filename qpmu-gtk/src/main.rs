@@ -1,4 +1,4 @@
-use std::{path::PathBuf, process, sync::LazyLock};
+use std::{fs, io::Read, path::PathBuf, process, sync::LazyLock};
 
 use clap::{Parser, Subcommand};
 use color_eyre::eyre::Result;
@@ -6,7 +6,6 @@ use install::install_plugin;
 use model::Launcher;
 use qpmu::{config::Config, plugin::Plugin};
 use relm4::RelmApp;
-use tokio::{fs, io::AsyncReadExt};
 use tracing::{error, info, instrument, Level};
 
 mod install;
@@ -53,18 +52,14 @@ fn main() -> Result<()> {
 #[instrument]
 fn new_instance() -> Result<()> {
     info!("starting up app");
-    let plugins = tokio::runtime::Runtime::new()
-        .unwrap()
-        .block_on(load_plugins());
-    info!("finished setting up plugins");
 
     let app = RelmApp::new("r4.qpmu");
-    app.run::<Launcher>(plugins);
+    app.run::<Launcher>(());
 
     Ok(())
 }
 
-pub async fn load_plugins() -> &'static [Plugin] {
+pub fn load_plugins() -> &'static [Plugin] {
     let config_path = CONFIG_DIR.join("config.toml");
     let mut file = fs::OpenOptions::new()
         .create(true)
@@ -72,19 +67,19 @@ pub async fn load_plugins() -> &'static [Plugin] {
         .read(true)
         .truncate(false)
         .open(config_path)
-        .await
         .unwrap();
 
     let mut s = String::new();
-    file.read_to_string(&mut s).await.unwrap();
-    let config = Config::read(&s).await.unwrap();
+
+    file.read_to_string(&mut s).unwrap();
+    let config = Config::read(&s).unwrap();
 
     let mut v = vec![];
     for plugin in config.plugins {
         let name = plugin.name.replace('-', "_");
-        info!("initialising plugin {name}");
+        info!("found plugin {name}");
         let path = format!("{name}.wasm");
-        match Plugin::new(plugin, fs::read(PLUGINS_DIR.join(path)).await.unwrap()).await {
+        match Plugin::new(plugin, fs::read(PLUGINS_DIR.join(path)).unwrap()) {
             Ok(plugin) => v.push(plugin),
             Err(e) => error!("{e}"),
         }

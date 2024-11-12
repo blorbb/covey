@@ -115,7 +115,7 @@ impl Model {
         fe.set_list_selection(self.results.selection);
     }
 
-    pub fn activate(&mut self) -> impl Future<Output = Result<PluginEvent>> + use<> {
+    pub fn activate(&mut self) -> impl Future<Output = Result<PluginEvent>> + Send + use<> {
         let Some(item) = self.results.selected_item().cloned() else {
             todo!()
         };
@@ -123,7 +123,7 @@ impl Model {
         async move { Ok(PluginEvent::Run(item.activate().await?)) }
     }
 
-    pub fn complete(&mut self) -> impl Future<Output = Result<PluginEvent>> + use<> {
+    pub fn complete(&mut self) -> impl Future<Output = Result<PluginEvent>> + Send + use<> {
         let Some(item) = self.results.selected_item().cloned() else {
             todo!()
         };
@@ -143,7 +143,7 @@ impl Model {
     /// into the model later.
     ///
     /// This function should generally **not** be awaited.
-    pub fn set_input(&mut self, input: Input) -> impl Future<Output = Result<PluginEvent>> + use<> {
+    pub fn set_input(&mut self, input: Input) -> impl Future<Output = Result<PluginEvent>> + Send + use<> {
         self.input = input.clone();
         self.dispatched_actions += 1;
 

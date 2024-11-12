@@ -1,4 +1,4 @@
-use qpmu::{plugin::Plugin, Input};
+use qpmu::Input;
 use relm4::{
     gtk::{
         self,
@@ -15,6 +15,7 @@ use relm4::{
 use tracing::{info, instrument, warn};
 
 use crate::{
+    load_plugins,
     model::{Launcher, LauncherMsg},
     styles::load_css,
 };
@@ -36,7 +37,7 @@ pub struct LauncherWidgets {
 impl Component for Launcher {
     type Input = LauncherMsg;
     type Output = ();
-    type Init = &'static [Plugin];
+    type Init = ();
     type Widgets = LauncherWidgets;
     type Root = gtk::Window;
     type CommandOutput = LauncherMsg;
@@ -47,13 +48,13 @@ impl Component for Launcher {
 
     #[instrument(skip_all)]
     fn init(
-        init: Self::Init,
+        _init: Self::Init,
         root: Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
         info!("initialising new application instance");
 
-        let model = Launcher::new(init);
+        let model = Launcher::new(load_plugins());
         load_css();
 
         let window = root.clone();

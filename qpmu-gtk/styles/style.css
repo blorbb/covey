@@ -1,8 +1,10 @@
 :root {
     --window-background: rgb(0 0 0);
 
+    /* based on the rosepine theme */
     --primary-background: #191724;
     --primary: #c4a7e7;
+    --text-selection: rgba(255 255 255 / 0.1);
 
     --pane-background: var(--primary-background);
     --pane-background: radial-gradient(
@@ -66,6 +68,15 @@
 
 .main-entry placeholder {
     color: var(--faded-text-color);
+}
+
+.main-entry selection {
+    background: var(--text-selection);
+}
+
+.main-entry block-cursor {
+    background: var(--text-color);
+    color: var(--primary-background);
 }
 
 .main-entry image.left {

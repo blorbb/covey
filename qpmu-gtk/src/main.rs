@@ -6,7 +6,8 @@ use install::install_plugin;
 use model::Launcher;
 use qpmu::{config::Config, plugin::Plugin, CONFIG_DIR, PLUGINS_DIR};
 use relm4::RelmApp;
-use tracing::{error, info, instrument, Level};
+use tracing::{error, info, instrument, level_filters::LevelFilter};
+use tracing_subscriber::EnvFilter;
 
 mod install;
 mod model;
@@ -27,7 +28,13 @@ enum Command {
 
 fn main() -> Result<()> {
     color_eyre::install()?;
-    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
+
+    // https://stackoverflow.com/a/77485843
+    let filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::WARN.into())
+        .from_env()?
+        .add_directive("qpmu=info".parse()?);
+    tracing_subscriber::fmt().with_env_filter(filter).init();
 
     relm4::RELM_THREADS
         .set(20)

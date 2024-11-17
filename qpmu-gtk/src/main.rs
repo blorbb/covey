@@ -1,4 +1,4 @@
-use std::{fs, io::Read, path::PathBuf, process, sync::LazyLock};
+use std::{fs, io::Read, process};
 
 use clap::{Parser, Subcommand};
 use color_eyre::eyre::Result;

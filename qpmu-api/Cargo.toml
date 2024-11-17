@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.93"
 prost = "0.13.3"
+sublime_fuzzy = "0.7.0"
 tokio = { version = "1.41.1", features = ["macros", "rt-multi-thread"] }
 tokio-stream = { version = "0.1.16", default-features = false, features = ["net"] }
 tonic = "0.12.3"

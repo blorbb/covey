@@ -8,6 +8,8 @@ use proto::plugin_server::PluginServer;
 use tokio::net::TcpListener;
 use tonic::{transport::Server, Status};
 
+pub mod rank;
+
 mod proto {
     tonic::include_proto!("plugin");
 }
@@ -63,46 +65,6 @@ impl Action {
         proto::Action {
             action: Some(inner_action),
         }
-    }
-}
-
-pub struct Weights {
-    title: f32,
-    description: f32,
-    metadata: f32,
-    frequency: f32,
-}
-
-impl Default for Weights {
-    fn default() -> Self {
-        Self {
-            title: 1.0,
-            description: 0.0,
-            metadata: 0.0,
-            frequency: 3.0,
-        }
-    }
-}
-
-impl Weights {
-    pub fn title(mut self, title: f32) -> Self {
-        self.title = title;
-        self
-    }
-
-    pub fn description(mut self, description: f32) -> Self {
-        self.description = description;
-        self
-    }
-
-    pub fn metadata(mut self, metadata: f32) -> Self {
-        self.metadata = metadata;
-        self
-    }
-
-    pub fn frequency(mut self, frequency: f32) -> Self {
-        self.frequency = frequency;
-        self
     }
 }
 
@@ -244,8 +206,8 @@ pub fn main<T: Plugin>() -> ! {
             rt.block_on(async {
                 let mut args = std::env::args();
                 let toml = args
-                    .next()
-                    .context("missing toml settings as second argument")?;
+                    .nth(1)
+                    .context("missing toml settings as first argument")?;
                 // if port 0 is provided, asks the OS for a port
                 // https://github.com/hyperium/tonic/blob/master/tests/integration_tests/tests/timeout.rs#L77-L89
                 let listener = TcpListener::bind("[::1]:0").await?;

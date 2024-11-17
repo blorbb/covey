@@ -137,12 +137,10 @@ impl PluginInner {
         let mut stdout = BufReader::new(stdout);
 
         let mut first_line = String::new();
-        info!("1");
         stdout
             .read_line(&mut first_line)
             .await
             .context("failed to read port or error from plugin: plugin should print to stdout")?;
-        info!("2");
 
         let port: u16 = match first_line.split_once(':') {
             Some(("PORT", port_num)) => port_num

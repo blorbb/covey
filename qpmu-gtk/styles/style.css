@@ -9,7 +9,7 @@
     --pane-background: var(--primary-background);
     --pane-background: radial-gradient(
         circle 500px at var(--entry-icon-center) var(--entry-icon-center),
-        color-mix(in hwb, var(--primary-background) 95%, white) 0%,
+        rgba(from var(--primary) r g b / 0.2) 0%,
         var(--primary-background) 100%
     );
 

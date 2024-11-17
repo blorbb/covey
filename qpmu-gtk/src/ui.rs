@@ -1,6 +1,10 @@
+use color_eyre::eyre::eyre;
 use qpmu::{config::Config, Input};
 use relm4::{
-    gtk::{self, gdk::Key, glib::SignalHandlerId, prelude::*, EventControllerKey, ListBox},
+    gtk::{
+        self, gdk::Key, gio::Notification, glib::SignalHandlerId, prelude::*, EventControllerKey,
+        ListBox,
+    },
     prelude::ComponentParts,
     Component, ComponentSender, RelmContainerExt as _, RelmRemoveAllExt as _,
 };
@@ -189,11 +193,15 @@ impl Component for Launcher {
             }
             LauncherMsg::Activate => {
                 let fut = self.model.activate();
-                sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) });
+                if let Some(fut) = fut {
+                    sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) });
+                }
             }
             LauncherMsg::Complete => {
                 let fut = self.model.complete();
-                sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) });
+                if let Some(fut) = fut {
+                    sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) });
+                }
             }
             LauncherMsg::Focus => {
                 root.present();
@@ -248,7 +256,10 @@ impl<'a> qpmu::Frontend for Frontend<'a> {
     }
 
     fn copy(&mut self, str: String) {
-        arboard::Clipboard::new().unwrap().set_text(str).unwrap();
+        let result = arboard::Clipboard::new().and_then(|mut clipboard| clipboard.set_text(str));
+        if let Err(e) = result {
+            self.display_error("Failed to set clipboard", eyre!(e));
+        }
     }
 
     fn set_input(&mut self, input: Input) {
@@ -334,5 +345,20 @@ impl<'a> qpmu::Frontend for Frontend<'a> {
                 .row_at_index(index as i32)
                 .as_ref(),
         );
+    }
+
+    fn display_error(&mut self, title: &str, error: color_eyre::eyre::Report) {
+        let notif = Notification::new(title);
+        let error_body = error
+            .chain()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        notif.set_body(Some(&error_body));
+
+        self.root
+            .application()
+            .expect("missing application instance")
+            .send_notification(None, &notif);
     }
 }

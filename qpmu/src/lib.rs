@@ -1,6 +1,6 @@
 use std::{future::Future, path::PathBuf, sync::LazyLock};
 
-use color_eyre::eyre::{bail, Result};
+use color_eyre::eyre::{bail, Context, Result};
 use plugin::{Action, Plugin, PluginEvent};
 
 pub mod config;
@@ -62,28 +62,24 @@ impl Model {
         fe.set_list_selection(self.results.selection);
     }
 
-    pub fn activate(&mut self) -> impl Future<Output = Result<PluginEvent>> + Send + use<> {
-        let Some(item) = self.results.selected_item().cloned() else {
-            todo!()
-        };
+    pub fn activate(&mut self) -> Option<impl Future<Output = Result<PluginEvent>> + Send + use<>> {
+        let item = self.results.selected_item().cloned()?;
 
-        async move { Ok(PluginEvent::Run(item.activate().await?)) }
+        Some(async move { Ok(PluginEvent::Run(item.activate().await?)) })
     }
 
-    pub fn complete(&mut self) -> impl Future<Output = Result<PluginEvent>> + Send + use<> {
-        let Some(item) = self.results.selected_item().cloned() else {
-            todo!()
-        };
-
+    pub fn complete(&mut self) -> Option<impl Future<Output = Result<PluginEvent>> + Send + use<>> {
+        let item = self.results.selected_item().cloned()?;
         let query = self.input.contents.clone();
 
-        async move {
+        Some(async move {
             if let Some(new) = item.complete(&query).await? {
                 Ok(PluginEvent::Run(vec![Action::SetInput(new)]))
             } else {
+                // do nothing
                 Ok(PluginEvent::Run(vec![]))
             }
-        }
+        })
     }
 
     /// Sets the input string and returns a future that should be passed back
@@ -119,8 +115,12 @@ impl Model {
     /// All of these should run very quickly, so it's fine to run on the main thread.
     #[must_use = "if this returns true you must call `set_input`"]
     pub fn handle_event(&mut self, event: Result<PluginEvent>, fe: &mut impl Frontend) -> bool {
-        let Ok(event) = event else {
-            todo!("set first item to an error message")
+        let event = match event {
+            Ok(ev) => ev,
+            Err(e) => {
+                fe.display_error("Error in plugin", e);
+                return false;
+            }
         };
 
         match event {
@@ -148,10 +148,19 @@ impl Model {
         match event {
             Action::Close => fe.close(),
             Action::RunCommand(cmd, args) => {
-                spawn::free_null(cmd, args).expect("TODO");
+                if let Err(e) = spawn::free_null(&cmd, &args).context(format!(
+                    "failed to run command `{cmd} {args}`",
+                    args = args.join(" ")
+                )) {
+                    fe.display_error("Error running command", e);
+                }
             }
             Action::RunShell(str) => {
-                spawn::free_null("sh", ["-c", &str]).expect("TODO");
+                if let Err(e) = spawn::free_null("sh", ["-c", &str])
+                    .context(format!("failed to run command `{str}`"))
+                {
+                    fe.display_error("Error running command", e);
+                }
             }
             Action::Copy(str) => {
                 fe.copy(str);
@@ -186,4 +195,6 @@ pub trait Frontend {
     fn set_list(&mut self, list: &ResultList);
 
     fn set_list_selection(&mut self, index: usize);
+
+    fn display_error(&mut self, title: &str, error: color_eyre::eyre::Report);
 }

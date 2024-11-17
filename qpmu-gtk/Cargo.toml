@@ -15,5 +15,5 @@ tokio = { version = "1.41.0", features = ["full"] }
 relm4 = "0.9.1"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing = "0.1.40"
-arboard = "3.4.1"
+arboard = { version = "3.4.1", features = ["wayland-data-control"] }
 clap = { version = "4.5.20", features = ["derive"] }

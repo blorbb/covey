@@ -1,5 +1,5 @@
 use super::Plugin;
-use crate::{plugin::bindings, Input};
+use crate::{plugin::proto, Input};
 
 #[derive(Debug)]
 pub enum Action {
@@ -7,11 +7,11 @@ pub enum Action {
     RunCommand(String, Vec<String>),
     RunShell(String),
     Copy(String),
-    SetInputLine(Input),
+    SetInput(Input),
 }
 
-pub fn map_actions(plugin: Plugin, actions: Vec<bindings::Action>) -> Vec<Action> {
-    use bindings::action::Action as BA;
+pub(super) fn map_actions(plugin: Plugin, actions: Vec<proto::Action>) -> Vec<Action> {
+    use proto::action::Action as BA;
 
     actions
         .into_iter()
@@ -23,12 +23,10 @@ pub fn map_actions(plugin: Plugin, actions: Vec<bindings::Action>) -> Vec<Action
 
             Some(match action {
                 BA::Close(()) => Action::Close,
-                BA::RunCommand(bindings::Command { cmd, args }) => Action::RunCommand(cmd, args),
+                BA::RunCommand(proto::Command { cmd, args }) => Action::RunCommand(cmd, args),
                 BA::RunShell(str) => Action::RunShell(str),
                 BA::Copy(str) => Action::Copy(str),
-                BA::SetInputLine(input_line) => {
-                    Action::SetInputLine(Input::from_wit_input(plugin, input_line))
-                }
+                BA::SetInput(input) => Action::SetInput(Input::from_proto(plugin, input)),
             })
         })
         .collect()

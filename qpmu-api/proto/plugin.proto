@@ -34,7 +34,7 @@ message Action {
         Command run_command = 2;
         string run_shell = 3;
         string copy = 4;
-        InputLine set_input_line = 5;
+        Input set_input = 5;
     };
 }
 
@@ -43,10 +43,10 @@ message Command {
     repeated string args = 2;
 }
 
-message InputLine {
+message Input {
     string query = 1;
     uint32 range_lb = 2;
-    uint32  range_ub = 3;
+    uint32 range_ub = 3;
 }
 
 message CompletionRequest {
@@ -55,5 +55,5 @@ message CompletionRequest {
 }
 
 message CompletionResponse {
-    optional InputLine input = 1;
+    optional Input input = 1;
 }

@@ -1,7 +1,10 @@
 //! API for interacting with plugins.
 
-pub(crate) mod bindings;
 pub mod event;
 mod wrappers;
 
 pub use wrappers::{Action, ListItem, Plugin};
+
+pub(crate) mod proto {
+    tonic::include_proto!("plugin");
+}

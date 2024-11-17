@@ -44,7 +44,7 @@ impl Input {
         self.selection = (a.saturating_add(prefix_len), b.saturating_add(prefix_len));
     }
 
-    pub(crate) fn from_wit_input(plugin: Plugin, il: plugin::bindings::InputLine) -> Self {
+    pub(crate) fn from_proto(plugin: Plugin, il: plugin::proto::Input) -> Self {
         let mut input = Self {
             contents: il.query,
             selection: (il.range_lb.saturating_as(), il.range_ub.saturating_as()),
@@ -145,7 +145,7 @@ impl Model {
 
         async move {
             if let Some(new) = item.complete(&query).await? {
-                Ok(PluginEvent::Run(vec![Action::SetInputLine(new)]))
+                Ok(PluginEvent::Run(vec![Action::SetInput(new)]))
             } else {
                 Ok(PluginEvent::Run(vec![]))
             }
@@ -222,7 +222,7 @@ impl Model {
             Action::Copy(str) => {
                 fe.copy(str);
             }
-            Action::SetInputLine(input) => {
+            Action::SetInput(input) => {
                 self.input = input.clone();
                 fe.set_input(input);
                 return true;

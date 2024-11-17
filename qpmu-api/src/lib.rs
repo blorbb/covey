@@ -46,7 +46,7 @@ pub enum Action {
     RunCommand(String, Vec<String>),
     RunShell(String),
     Copy(String),
-    SetInputLine(InputLine),
+    SetInput(Input),
 }
 
 impl Action {
@@ -58,7 +58,7 @@ impl Action {
             Action::RunCommand(cmd, args) => PrAction::RunCommand(proto::Command { cmd, args }),
             Action::RunShell(str) => PrAction::RunShell(str),
             Action::Copy(str) => PrAction::Copy(str),
-            Action::SetInputLine(input_line) => PrAction::SetInputLine(input_line),
+            Action::SetInput(input) => PrAction::SetInput(input),
         };
 
         proto::Action {
@@ -99,8 +99,8 @@ impl SelectionRange {
     }
 }
 
-pub use proto::InputLine;
-impl InputLine {
+pub use proto::Input;
+impl Input {
     /// Sets the input to the provided query and with the cursor placed
     /// at the end.
     pub fn new(query: impl Into<String>) -> Self {
@@ -132,7 +132,7 @@ pub trait Plugin: Sized + Send + Sync + 'static {
         &self,
         _query: String,
         _selected: ListItem,
-    ) -> impl Future<Output = Result<Option<InputLine>>> + Send {
+    ) -> impl Future<Output = Result<Option<Input>>> + Send {
         async { Ok(None) }
     }
 }

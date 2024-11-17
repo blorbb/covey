@@ -4,7 +4,7 @@ use color_eyre::eyre::Result;
 
 use super::Plugin;
 use crate::{
-    plugin::{bindings, Action},
+    plugin::{proto, Action},
     Input,
 };
 
@@ -14,18 +14,15 @@ use crate::{
 #[derive(Clone)]
 pub struct ListItem {
     plugin: Plugin,
-    item: bindings::ListItem,
+    item: proto::ListItem,
 }
 
 impl ListItem {
-    fn new(plugin: Plugin, item: bindings::ListItem) -> Self {
+    fn new(plugin: Plugin, item: proto::ListItem) -> Self {
         Self { plugin, item }
     }
 
-    pub(super) fn from_many_and_plugin(
-        items: Vec<bindings::ListItem>,
-        plugin: Plugin,
-    ) -> Vec<Self> {
+    pub(super) fn from_many_and_plugin(items: Vec<proto::ListItem>, plugin: Plugin) -> Vec<Self> {
         items
             .into_iter()
             .map(|item| Self::new(plugin, item))

@@ -9,11 +9,11 @@ use tokio::{
 use tonic::{transport::Channel, Request};
 use tracing::info;
 
-use self::bindings::{plugin_client::PluginClient, QueryRequest, QueryResponse};
+use self::proto::{plugin_client::PluginClient, QueryRequest, QueryResponse};
 use super::{action, ListItem};
 use crate::{
     config::PluginConfig,
-    plugin::{bindings, Action},
+    plugin::{proto, Action},
     Input,
 };
 
@@ -56,7 +56,7 @@ impl Plugin {
         ))
     }
 
-    pub(super) async fn activate(&self, item: bindings::ListItem) -> Result<Vec<Action>> {
+    pub(super) async fn activate(&self, item: proto::ListItem) -> Result<Vec<Action>> {
         Ok(action::map_actions(
             *self,
             self.plugin.get().await?.call_activate(item).await?,
@@ -66,7 +66,7 @@ impl Plugin {
     pub(super) async fn complete(
         &self,
         query: impl Into<String>,
-        item: bindings::ListItem,
+        item: proto::ListItem,
     ) -> Result<Option<Input>> {
         Ok(self
             .plugin
@@ -74,7 +74,7 @@ impl Plugin {
             .await?
             .call_complete(query.into(), item)
             .await?
-            .map(|il| Input::from_wit_input(*self, il)))
+            .map(|il| Input::from_proto(*self, il)))
     }
 }
 
@@ -119,7 +119,7 @@ impl LazyPlugin {
 
 /// Internals of a plugin.
 ///
-/// Simple wrapper around `bindings::Plugin` that handles some
+/// Simple wrapper around `proto::Plugin` that handles some
 /// request-response conversions.
 struct PluginInner {
     plugin: PluginClient<Channel>,
@@ -178,7 +178,7 @@ impl PluginInner {
             .into_inner())
     }
 
-    async fn call_activate(&self, item: bindings::ListItem) -> Result<Vec<bindings::Action>> {
+    async fn call_activate(&self, item: proto::ListItem) -> Result<Vec<proto::Action>> {
         Ok(self
             .plugin
             .clone()
@@ -191,12 +191,12 @@ impl PluginInner {
     async fn call_complete(
         &self,
         query: String,
-        item: bindings::ListItem,
-    ) -> Result<Option<bindings::InputLine>> {
+        item: proto::ListItem,
+    ) -> Result<Option<proto::Input>> {
         Ok(self
             .plugin
             .clone()
-            .complete(Request::new(bindings::CompletionRequest {
+            .complete(Request::new(proto::CompletionRequest {
                 query,
                 selected: Some(item),
             }))

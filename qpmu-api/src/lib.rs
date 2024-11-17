@@ -1,7 +1,6 @@
 use std::{future::Future, process};
 
 pub use anyhow;
-pub use tokio;
 
 use anyhow::{Context, Result};
 use proto::plugin_server::PluginServer;

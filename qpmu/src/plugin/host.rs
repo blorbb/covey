@@ -2,15 +2,6 @@
 
 use std::{fs, process::Stdio, sync::LazyLock};
 
-use wasmtime_wasi::{async_trait, ResourceTable, WasiCtx, WasiView};
-
-use super::bindings::{self, IoError};
-use crate::plugin::bindings::{Capture, ProcessOutput};
-
-pub(super) struct State {
-    pub(super) ctx: WasiCtx,
-    pub(super) table: ResourceTable,
-}
 
 impl WasiView for State {
     fn table(&mut self) -> &mut ResourceTable {

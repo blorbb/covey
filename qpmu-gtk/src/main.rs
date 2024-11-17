@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 use color_eyre::eyre::Result;
 use install::install_plugin;
 use model::Launcher;
-use qpmu::{config::Config, plugin::Plugin};
+use qpmu::{config::Config, plugin::Plugin, CONFIG_DIR, PLUGINS_DIR};
 use relm4::RelmApp;
 use tracing::{error, info, instrument, Level};
 
@@ -12,13 +12,6 @@ mod install;
 mod model;
 mod styles;
 mod ui;
-
-static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
-    dirs::config_dir()
-        .expect("missing config directory")
-        .join("qpmu")
-});
-static PLUGINS_DIR: LazyLock<PathBuf> = LazyLock::new(|| CONFIG_DIR.join("plugins"));
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -76,10 +69,7 @@ pub fn load_plugins() -> &'static [Plugin] {
 
     let mut v = vec![];
     for plugin in config.plugins {
-        let name = plugin.name.replace('-', "_");
-        info!("found plugin {name}");
-        let path = format!("{name}.wasm");
-        match Plugin::new(plugin, fs::read(PLUGINS_DIR.join(path)).unwrap()) {
+        match Plugin::new(plugin) {
             Ok(plugin) => v.push(plugin),
             Err(e) => error!("{e}"),
         }

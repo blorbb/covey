@@ -5,4 +5,10 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.93"
-wit-bindgen = "0.34.0"
+prost = "0.13.3"
+tokio = { version = "1.41.1", features = ["macros", "rt-multi-thread"] }
+tokio-stream = { version = "0.1.16", default-features = false, features = ["net"] }
+tonic = "0.12.3"
+
+[build-dependencies]
+tonic-build = "0.12.3"

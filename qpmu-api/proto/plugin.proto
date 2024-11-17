@@ -1,0 +1,49 @@
+syntax = "proto3";
+package plugin;
+
+import "google/protobuf/empty.proto";
+
+service Plugin {
+    rpc Query (QueryRequest) returns (QueryResponse);
+    rpc Activate (ListItem) returns (ActivationResponse);
+}
+
+message QueryRequest {
+    string query = 1;
+}
+
+message QueryResponse {
+    repeated ListItem items = 1;
+}
+
+message ListItem {
+    string title = 1;
+    optional string icon = 2;
+    string description = 3;
+    string metadata = 4;
+}
+
+message ActivationResponse {
+    repeated Action actions = 1;
+}
+
+message Action {
+    oneof action {
+        google.protobuf.Empty close = 1;
+        Command run_command = 2;
+        string run_shell = 3;
+        string copy = 4;
+        InputLine set_input_line = 5;
+    };
+}
+
+message Command {
+    string cmd = 1;
+    repeated string args = 2;
+}
+
+message InputLine {
+    string query = 1;
+    uint32 range_lb = 2;
+    uint32  range_ub = 3;
+}

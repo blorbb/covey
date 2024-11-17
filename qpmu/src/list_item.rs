@@ -9,8 +9,6 @@ use crate::{
 };
 
 /// A row in the results list.
-///
-/// Contains an associated plugin.
 #[derive(Clone)]
 pub struct ListItem {
     plugin: Plugin,
@@ -18,15 +16,8 @@ pub struct ListItem {
 }
 
 impl ListItem {
-    fn new(plugin: Plugin, item: proto::ListItem) -> Self {
+    pub(crate) fn new(plugin: Plugin, item: proto::ListItem) -> Self {
         Self { plugin, item }
-    }
-
-    pub(super) fn from_many_and_plugin(items: Vec<proto::ListItem>, plugin: Plugin) -> Vec<Self> {
-        items
-            .into_iter()
-            .map(|item| Self::new(plugin, item))
-            .collect()
     }
 
     pub fn plugin(&self) -> Plugin {

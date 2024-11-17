@@ -1,11 +1,16 @@
 use std::{future::Future, path::PathBuf, sync::LazyLock};
 
-use az::SaturatingAs;
 use color_eyre::eyre::{bail, Result};
-use plugin::{event::PluginEvent, Action, ListItem, Plugin};
+use plugin::{Action, Plugin, PluginEvent};
 
 pub mod config;
+mod list_item;
+pub use list_item::ListItem;
+mod input;
+pub use input::Input;
 pub mod plugin;
+mod result_list;
+pub use result_list::ResultList;
 mod spawn;
 
 pub static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
@@ -14,78 +19,7 @@ pub static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
         .join("qpmu")
 });
 pub static PLUGINS_DIR: LazyLock<PathBuf> = LazyLock::new(|| CONFIG_DIR.join("plugins"));
-
-/// Gets the path to the plugin binary.
-fn plugin_file_of(plugin_name: &str) -> PathBuf {
-    PLUGINS_DIR.join(plugin_name)
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct Input {
-    pub contents: String,
-    /// Range in terms of chars, not bytes
-    pub selection: (u16, u16),
-}
-
-impl Input {
-    pub fn new(contents: String, selection: (u16, u16)) -> Self {
-        Self {
-            contents,
-            selection,
-        }
-    }
-
-    pub(crate) fn prefix_with(&mut self, prefix: &str) {
-        self.contents.insert_str(0, prefix);
-        let prefix_len =
-            u16::try_from(prefix.chars().count()).expect("prefix should not be insanely long");
-
-        let (a, b) = self.selection;
-        self.selection = (a.saturating_add(prefix_len), b.saturating_add(prefix_len));
-    }
-
-    pub(crate) fn from_proto(plugin: Plugin, il: plugin::proto::Input) -> Self {
-        let mut input = Self {
-            contents: il.query,
-            selection: (il.range_lb.saturating_as(), il.range_ub.saturating_as()),
-        };
-        input.prefix_with(&plugin.prefix());
-        input
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct ResultList {
-    list: Vec<ListItem>,
-    selection: usize,
-}
-
-impl ResultList {
-    pub fn reset(&mut self, list: Vec<ListItem>) {
-        self.list = list;
-        self.selection = 0;
-    }
-
-    pub fn list(&self) -> &[ListItem] {
-        &self.list
-    }
-
-    pub fn len(&self) -> usize {
-        self.list.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.list.is_empty()
-    }
-
-    pub fn selection(&self) -> usize {
-        self.selection
-    }
-
-    pub fn selected_item(&self) -> Option<&ListItem> {
-        self.list.get(self.selection)
-    }
-}
+pub static CONFIG_PATH: LazyLock<PathBuf> = LazyLock::new(|| CONFIG_DIR.join("config.toml"));
 
 /// Main public API for interacting with qpmu.
 ///
@@ -94,13 +28,13 @@ impl ResultList {
 pub struct Model {
     input: Input,
     results: ResultList,
-    plugins: &'static [Plugin],
+    plugins: Vec<Plugin>,
     dispatched_actions: u64,
     activated_actions: u64,
 }
 
 impl Model {
-    pub fn new(plugins: &'static [Plugin]) -> Self {
+    pub fn new(plugins: Vec<Plugin>) -> Self {
         Self {
             input: Input::default(),
             results: ResultList::default(),
@@ -163,7 +97,7 @@ impl Model {
         self.input = input.clone();
         self.dispatched_actions += 1;
 
-        let plugins = self.plugins;
+        let plugins = self.plugins.clone();
         let actioni = self.dispatched_actions;
         async move {
             for plugin in plugins {

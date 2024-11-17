@@ -1,6 +1,6 @@
 use color_eyre::eyre::Result;
 use qpmu::{
-    plugin::{event::PluginEvent, Plugin},
+    plugin::{Plugin, PluginEvent},
     Input, Model,
 };
 
@@ -10,7 +10,7 @@ pub struct Launcher {
 }
 
 impl Launcher {
-    pub fn new(plugins: &'static [Plugin]) -> Self {
+    pub fn new(plugins: Vec<Plugin>) -> Self {
         Self {
             model: Model::new(plugins),
         }

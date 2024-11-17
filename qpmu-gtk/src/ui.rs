@@ -1,21 +1,12 @@
-use qpmu::Input;
+use qpmu::{config::Config, Input};
 use relm4::{
-    gtk::{
-        self,
-        gdk::Key,
-        glib::SignalHandlerId,
-        prelude::{
-            EditableExt as _, GtkWindowExt as _, ListBoxRowExt, ObjectExt as _, WidgetExt as _,
-        },
-        EventControllerKey, ListBox,
-    },
+    gtk::{self, gdk::Key, glib::SignalHandlerId, prelude::*, EventControllerKey, ListBox},
     prelude::ComponentParts,
     Component, ComponentSender, RelmContainerExt as _, RelmRemoveAllExt as _,
 };
 use tracing::{info, instrument, warn};
 
 use crate::{
-    load_plugins,
     model::{Launcher, LauncherMsg},
     styles::load_css,
 };
@@ -54,7 +45,7 @@ impl Component for Launcher {
     ) -> ComponentParts<Self> {
         info!("initialising new application instance");
 
-        let model = Launcher::new(load_plugins());
+        let model = Launcher::new(Config::load_plugins().expect("failed to load plugins"));
         load_css();
 
         let window = root.clone();
@@ -110,12 +101,12 @@ impl Component for Launcher {
         let entry_change_handler = entry.connect_changed({
             let sender = sender.clone();
             move |entry| {
-                sender.input(LauncherMsg::SetInput(Input::new(
-                    entry.text().replace('\n', ""),
-                    entry
+                sender.input(LauncherMsg::SetInput(Input {
+                    contents: entry.text().replace('\n', ""),
+                    selection: entry
                         .selection_bounds()
                         .map_or((0, 0), |(a, b)| (a as u16, b as u16)),
-                )));
+                }));
             }
         });
 

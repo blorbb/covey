@@ -4,24 +4,28 @@ use std::{path::PathBuf, process::Stdio};
 use color_eyre::eyre::{bail, Context, Result};
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, BufReader},
+    process::Command,
     sync::OnceCell,
 };
 use tonic::{transport::Channel, Request};
 use tracing::info;
 
 use self::proto::{plugin_client::PluginClient, QueryRequest, QueryResponse};
-use super::{action, ListItem};
+use super::action;
 use crate::{
     config::PluginConfig,
     plugin::{proto, Action},
-    Input,
+    Input, ListItem, PLUGINS_DIR,
 };
 
-/// A static reference to a plugin wasm instance.
+/// A static reference to a plugin instance.
+///
+/// This can be constructed using [`Config::load_plugins`].
+///
+/// [`Config::load_plugins`]: crate::config::Config::load_plugins
 #[derive(Clone, Copy)]
 pub struct Plugin {
     plugin: &'static LazyPlugin,
-    prefix: &'static str,
 }
 
 impl Plugin {
@@ -31,39 +35,39 @@ impl Plugin {
     /// be active for the entire program.
     pub fn new(config: PluginConfig) -> Result<Self> {
         Ok(Self {
-            plugin: Box::leak(Box::new(LazyPlugin::new(
-                config.name,
-                config.options.to_string(),
-            ))),
-            prefix: config.prefix.leak(),
+            plugin: Box::leak(Box::new(LazyPlugin::new(config))),
         })
     }
 
+    pub fn name(&self) -> &str {
+        &self.plugin.config.name
+    }
+
     pub fn prefix(&self) -> &str {
-        &self.prefix
+        &self.plugin.config.prefix
     }
 
-    /// Runs the plugin until the query is fully completed.
-    pub async fn query(&self, query: impl Into<String>) -> Result<Vec<ListItem>> {
-        Ok(ListItem::from_many_and_plugin(
-            self.plugin
-                .get()
-                .await?
-                .call_query(query.into())
-                .await?
-                .items,
-            *self,
-        ))
+    pub(crate) async fn query(&self, query: impl Into<String>) -> Result<Vec<ListItem>> {
+        Ok(self
+            .plugin
+            .get()
+            .await?
+            .call_query(query.into())
+            .await?
+            .items
+            .into_iter()
+            .map(|li| ListItem::new(*self, li))
+            .collect())
     }
 
-    pub(super) async fn activate(&self, item: proto::ListItem) -> Result<Vec<Action>> {
+    pub(crate) async fn activate(&self, item: proto::ListItem) -> Result<Vec<Action>> {
         Ok(action::map_actions(
             *self,
             self.plugin.get().await?.call_activate(item).await?,
         ))
     }
 
-    pub(super) async fn complete(
+    pub(crate) async fn complete(
         &self,
         query: impl Into<String>,
         item: proto::ListItem,
@@ -80,23 +84,21 @@ impl Plugin {
 
 impl fmt::Debug for Plugin {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Plugin").field(&self.plugin.name).finish()
+        f.debug_tuple("Plugin").field(&self.name()).finish()
     }
 }
 
 /// A plugin that is not initialised until [`Self::get`] is called.
 struct LazyPlugin {
     cell: OnceCell<Result<PluginInner>>,
-    name: String,
-    options: String,
+    config: PluginConfig,
 }
 
 impl LazyPlugin {
-    pub fn new(name: String, options: String) -> Self {
+    pub fn new(config: PluginConfig) -> Self {
         Self {
             cell: OnceCell::new(),
-            name,
-            options,
+            config,
         }
     }
 
@@ -105,29 +107,33 @@ impl LazyPlugin {
         let plugin = self
             .cell
             .get_or_init(|| async {
-                info!("initialising plugin {}", self.name);
-                Ok(PluginInner::new(crate::plugin_file_of(&self.name), &self.options).await?)
+                info!("initialising plugin {}", self.config.name);
+
+                let path = PLUGINS_DIR.join(&self.config.name);
+                let config_toml = self.config.options.to_string();
+
+                Ok(PluginInner::new(path, &config_toml).await?)
             })
             .await;
 
         match plugin {
             Ok(a) => Ok(a),
-            Err(e) => bail!("failed to initialise plugin {}: {e}", self.name),
+            Err(e) => bail!("failed to initialise plugin {}: {e}", self.config.name),
         }
     }
 }
 
 /// Internals of a plugin.
 ///
-/// Simple wrapper around `proto::Plugin` that handles some
-/// request-response conversions.
+/// Simple wrapper that handles some request-response conversions.
 struct PluginInner {
     plugin: PluginClient<Channel>,
 }
 
 impl PluginInner {
     async fn new(path: PathBuf, toml: &str) -> Result<Self> {
-        let mut process = tokio::process::Command::new(path)
+        // run process and read first line
+        let mut process = Command::new(path)
             .arg(toml)
             .stdout(Stdio::piped())
             .spawn()
@@ -142,6 +148,9 @@ impl PluginInner {
             .await
             .context("failed to read port or error from plugin: plugin should print to stdout")?;
 
+        // stdout should either be:
+        // PORT:12345 if the server was successfully created
+        // ERROR:... if an error occurred during initialisation
         let port: u16 = match first_line.split_once(':') {
             Some(("PORT", port_num)) => port_num
                 .trim()
@@ -150,7 +159,7 @@ impl PluginInner {
             Some(("ERROR", first_err_line)) => {
                 _ = process.kill().await;
 
-                // collect error message
+                // collect the entire error message, not just first line
                 let mut err = String::from(first_err_line);
                 stdout.read_to_string(&mut err).await?;
                 bail!("Error initialising process:\n{err}")

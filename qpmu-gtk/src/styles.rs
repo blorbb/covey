@@ -1,7 +1,7 @@
+use qpmu::CONFIG_DIR;
 use relm4::gtk::{self, gdk::Display, CssProvider};
 use tracing::instrument;
 
-use crate::CONFIG_DIR;
 
 #[instrument]
 pub fn load_css() {

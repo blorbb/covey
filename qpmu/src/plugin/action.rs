@@ -11,7 +11,7 @@ pub enum Action {
 }
 
 pub(super) fn map_actions(plugin: Plugin, actions: Vec<proto::Action>) -> Vec<Action> {
-    use proto::action::Action as BA;
+    use proto::action::Action as PAction;
 
     actions
         .into_iter()
@@ -22,11 +22,11 @@ pub(super) fn map_actions(plugin: Plugin, actions: Vec<proto::Action>) -> Vec<Ac
             };
 
             Some(match action {
-                BA::Close(()) => Action::Close,
-                BA::RunCommand(proto::Command { cmd, args }) => Action::RunCommand(cmd, args),
-                BA::RunShell(str) => Action::RunShell(str),
-                BA::Copy(str) => Action::Copy(str),
-                BA::SetInput(input) => Action::SetInput(Input::from_proto(plugin, input)),
+                PAction::Close(()) => Action::Close,
+                PAction::RunCommand(proto::Command { cmd, args }) => Action::RunCommand(cmd, args),
+                PAction::RunShell(str) => Action::RunShell(str),
+                PAction::Copy(str) => Action::Copy(str),
+                PAction::SetInput(input) => Action::SetInput(Input::from_proto(plugin, input)),
             })
         })
         .collect()

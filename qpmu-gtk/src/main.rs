@@ -1,12 +1,11 @@
-use std::{fs, io::Read, process};
+use std::process;
 
 use clap::{Parser, Subcommand};
 use color_eyre::eyre::Result;
 use install::install_plugin;
 use model::Launcher;
-use qpmu::{config::Config, plugin::Plugin, CONFIG_DIR, PLUGINS_DIR};
 use relm4::RelmApp;
-use tracing::{error, info, instrument, level_filters::LevelFilter};
+use tracing::{info, instrument, level_filters::LevelFilter};
 use tracing_subscriber::EnvFilter;
 
 mod install;
@@ -37,7 +36,7 @@ fn main() -> Result<()> {
     tracing_subscriber::fmt().with_env_filter(filter).init();
 
     relm4::RELM_THREADS
-        .set(20)
+        .set(2)
         .expect("failed to set background threads");
     let args = Args::parse();
 
@@ -53,34 +52,8 @@ fn main() -> Result<()> {
 fn new_instance() -> Result<()> {
     info!("starting up app");
 
-    let app = RelmApp::new("r4.qpmu");
+    let app = RelmApp::new("blorbb.qpmu");
     app.run::<Launcher>(());
 
     Ok(())
-}
-
-pub fn load_plugins() -> &'static [Plugin] {
-    let config_path = CONFIG_DIR.join("config.toml");
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .read(true)
-        .truncate(false)
-        .open(config_path)
-        .unwrap();
-
-    let mut s = String::new();
-
-    file.read_to_string(&mut s).unwrap();
-    let config = Config::read(&s).unwrap();
-
-    let mut v = vec![];
-    for plugin in config.plugins {
-        match Plugin::new(plugin) {
-            Ok(plugin) => v.push(plugin),
-            Err(e) => error!("{e}"),
-        }
-    }
-
-    v.leak()
 }

@@ -49,16 +49,11 @@ impl ListItem {
     }
 
     pub async fn activate(self) -> Result<Vec<Action>> {
-        self.plugin.clone().activate(self.as_ref()).await
+        self.plugin.clone().activate(self.item).await
     }
 
     pub async fn complete(self, query: &str) -> Result<Option<Input>> {
-        Ok(self
-            .plugin
-            .clone()
-            .complete(query, self.as_ref())
-            .await?
-            .map(|il| Input::from_wit_input(self.plugin, il)))
+        self.plugin.clone().complete(query, self.item).await
     }
 }
 
@@ -71,11 +66,5 @@ impl fmt::Debug for ListItem {
             .field("metadata", &self.item.metadata)
             .field("icon", &self.item.icon)
             .finish()
-    }
-}
-
-impl AsRef<bindings::ListItem> for ListItem {
-    fn as_ref(&self) -> &bindings::ListItem {
-        &self.item
     }
 }

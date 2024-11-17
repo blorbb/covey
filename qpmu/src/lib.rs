@@ -1,11 +1,24 @@
-use std::future::Future;
+use std::{future::Future, path::PathBuf, sync::LazyLock};
 
+use az::SaturatingAs;
 use color_eyre::eyre::{bail, Result};
 use plugin::{event::PluginEvent, Action, ListItem, Plugin};
 
 pub mod config;
 pub mod plugin;
 mod spawn;
+
+pub static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
+    dirs::config_dir()
+        .expect("config dir must exist")
+        .join("qpmu")
+});
+pub static PLUGINS_DIR: LazyLock<PathBuf> = LazyLock::new(|| CONFIG_DIR.join("plugins"));
+
+/// Gets the path to the plugin binary.
+fn plugin_file_of(plugin_name: &str) -> PathBuf {
+    PLUGINS_DIR.join(plugin_name)
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct Input {
@@ -34,7 +47,7 @@ impl Input {
     pub(crate) fn from_wit_input(plugin: Plugin, il: plugin::bindings::InputLine) -> Self {
         let mut input = Self {
             contents: il.query,
-            selection: (il.range.lower_bound, il.range.upper_bound),
+            selection: (il.range_lb.saturating_as(), il.range_ub.saturating_as()),
         };
         input.prefix_with(&plugin.prefix());
         input
@@ -143,7 +156,10 @@ impl Model {
     /// into the model later.
     ///
     /// This function should generally **not** be awaited.
-    pub fn set_input(&mut self, input: Input) -> impl Future<Output = Result<PluginEvent>> + Send + use<> {
+    pub fn set_input(
+        &mut self,
+        input: Input,
+    ) -> impl Future<Output = Result<PluginEvent>> + Send + use<> {
         self.input = input.clone();
         self.dispatched_actions += 1;
 
@@ -154,9 +170,7 @@ impl Model {
                 let Some(stripped) = input.contents.strip_prefix(plugin.prefix()) else {
                     continue;
                 };
-                let Some(list) = plugin.complete_query(stripped).await? else {
-                    continue;
-                };
+                let list = plugin.query(stripped).await?;
 
                 return Ok(PluginEvent::SetList {
                     list,

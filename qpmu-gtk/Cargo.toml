@@ -13,7 +13,7 @@ qpmu = { path = "../qpmu" }
 color-eyre = "0.6.3"
 tokio = { version = "1.41.0", features = ["full"] }
 relm4 = "0.9.1"
-tracing-subscriber = "0.3.18"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing = "0.1.40"
 arboard = "3.4.1"
 clap = { version = "4.5.20", features = ["derive"] }

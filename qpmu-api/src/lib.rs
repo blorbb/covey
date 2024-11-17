@@ -1,60 +1,19 @@
-#[doc(hidden)]
-pub mod __raw_bindings {
-    wit_bindgen::generate!({
-        // path: "./wit",
-        world: "plugin",
-        pub_export_macro: true,
-        export_macro_name: "export",
-        // so that everything `use`d in `plugin` is exported,
-        // instead of going through `types`.
-        generate_unused_types: true,
-    });
+use std::{future::Future, process};
+
+pub use anyhow;
+
+use anyhow::{Context, Result};
+use proto::plugin_server::PluginServer;
+use tokio::net::TcpListener;
+use tonic::{transport::Server, Status};
+
+pub mod rank;
+
+mod proto {
+    tonic::include_proto!("plugin");
 }
 
-pub mod host {
-    use std::path::{Path, PathBuf};
-
-    use super::__raw_bindings::qpmu::plugin::{host, types::*};
-
-    pub fn spawn(
-        cmd: &str,
-        args: impl IntoIterator<Item: AsRef<str>>,
-        capture: Capture,
-    ) -> Result<ProcessOutput, IoError> {
-        host::spawn(
-            cmd,
-            &args
-                .into_iter()
-                .map(|a| a.as_ref().to_owned())
-                .collect::<Vec<_>>(),
-            capture,
-        )
-    }
-
-    pub fn config_dir() -> PathBuf {
-        PathBuf::from(host::config_dir())
-    }
-
-    pub fn data_dir() -> PathBuf {
-        PathBuf::from(host::data_dir())
-    }
-
-    pub fn read_dir(dir: impl AsRef<Path>) -> Result<Vec<String>, IoError> {
-        host::read_dir(dir.as_ref().to_str().ok_or(IoError::InvalidPath)?)
-    }
-
-    pub fn read_file(file: impl AsRef<Path>) -> Result<Vec<u8>, IoError> {
-        host::read_file(file.as_ref().to_str().ok_or(IoError::InvalidPath)?)
-    }
-
-    pub fn rank(query: &str, items: &[ListItem], weights: Weights) -> Vec<host::ListItem> {
-        host::rank(query, items, weights)
-    }
-}
-
-use std::cell::RefCell;
-
-pub use __raw_bindings::ListItem;
+pub use proto::ListItem;
 impl ListItem {
     pub fn new(title: impl Into<String>) -> Self {
         Self {
@@ -81,41 +40,38 @@ impl ListItem {
     }
 }
 
-pub use __raw_bindings::Weights;
-impl Default for Weights {
-    fn default() -> Self {
-        Self {
-            title: 1.0,
-            description: 0.0,
-            metadata: 0.0,
-            frequency: 3.0,
+#[derive(Debug, Clone)]
+pub enum Action {
+    Close,
+    RunCommand(String, Vec<String>),
+    RunShell(String),
+    Copy(String),
+    SetInputLine(InputLine),
+}
+
+impl Action {
+    fn map_to_proto(self) -> proto::Action {
+        use proto::action::Action as PrAction;
+
+        let inner_action = match self {
+            Action::Close => PrAction::Close(()),
+            Action::RunCommand(cmd, args) => PrAction::RunCommand(proto::Command { cmd, args }),
+            Action::RunShell(str) => PrAction::RunShell(str),
+            Action::Copy(str) => PrAction::Copy(str),
+            Action::SetInputLine(input_line) => PrAction::SetInputLine(input_line),
+        };
+
+        proto::Action {
+            action: Some(inner_action),
         }
     }
 }
 
-impl Weights {
-    pub fn title(mut self, title: f32) -> Self {
-        self.title = title;
-        self
-    }
-
-    pub fn description(mut self, description: f32) -> Self {
-        self.description = description;
-        self
-    }
-
-    pub fn metadata(mut self, metadata: f32) -> Self {
-        self.metadata = metadata;
-        self
-    }
-
-    pub fn frequency(mut self, frequency: f32) -> Self {
-        self.frequency = frequency;
-        self
-    }
+pub struct SelectionRange {
+    lower_bound: u16,
+    upper_bound: u16,
 }
 
-pub use __raw_bindings::SelectionRange;
 impl SelectionRange {
     /// Sets both the start and end bound to the provided index.
     pub fn at(index: u16) -> Self {
@@ -143,93 +99,146 @@ impl SelectionRange {
     }
 }
 
-pub use __raw_bindings::InputLine;
+pub use proto::InputLine;
 impl InputLine {
     /// Sets the input to the provided query and with the cursor placed
     /// at the end.
     pub fn new(query: impl Into<String>) -> Self {
+        let range = SelectionRange::end();
         Self {
             query: query.into(),
-            range: SelectionRange::end(),
+            range_lb: u32::from(range.lower_bound),
+            range_ub: u32::from(range.upper_bound),
         }
     }
 
     pub fn select(mut self, sel: SelectionRange) -> Self {
-        self.range = sel;
+        self.range_lb = u32::from(sel.lower_bound);
+        self.range_ub = u32::from(sel.lower_bound);
         self
     }
 }
 
-pub use __raw_bindings::{
-    Action, Capture, DeferredAction, DeferredResult, IoError, ProcessOutput, QueryResult,
-};
-pub use anyhow;
-use anyhow::{bail, Result};
+type TonicResult<T> = Result<tonic::Response<T>, tonic::Status>;
 
-pub trait Plugin: Sized {
-    fn new(config: String) -> Result<Self>;
+pub trait Plugin: Sized + Send + Sync + 'static {
+    fn new(toml: String) -> impl Future<Output = Result<Self>> + Send;
 
-    fn query(&mut self, query: String) -> Result<QueryResult>;
+    fn query(&self, query: String) -> impl Future<Output = Result<Vec<ListItem>>> + Send;
 
-    #[allow(unused_variables)]
-    fn handle_deferred(&mut self, query: String, result: DeferredResult) -> Result<QueryResult> {
-        bail!("plugin has no deferred action handler")
-    }
+    fn activate(&self, query: ListItem) -> impl Future<Output = Result<Vec<Action>>> + Send;
 
-    fn activate(&mut self, selected: ListItem) -> Result<impl IntoIterator<Item = Action>>;
-
-    #[allow(unused_variables)]
-    fn complete(&mut self, query: String, selected: ListItem) -> Result<Option<InputLine>> {
-        Ok(None)
-    }
-}
-
-impl<T> __raw_bindings::exports::qpmu::plugin::handler::GuestHandler for RefCell<T>
-where
-    T: Plugin + 'static,
-{
-    fn new(config: String) -> Self {
-        RefCell::new(T::new(config).expect("failed to initialise plugin"))
-    }
-
-    fn query(&self, query: String) -> Result<QueryResult, String> {
-        T::query(&mut self.borrow_mut(), query).map_err(stringify_error)
-    }
-
-    fn handle_deferred(
+    fn complete(
         &self,
-        query: String,
-        result: DeferredResult,
-    ) -> Result<QueryResult, String> {
-        T::handle_deferred(&mut self.borrow_mut(), query, result).map_err(stringify_error)
-    }
-
-    fn activate(&self, selected: ListItem) -> Result<Vec<Action>, String> {
-        match T::activate(&mut self.borrow_mut(), selected) {
-            Ok(list) => Ok(list.into_iter().collect()),
-            Err(e) => Err(stringify_error(e)),
-        }
-    }
-
-    fn complete(&self, query: String, selected: ListItem) -> Result<Option<InputLine>, String> {
-        T::complete(&mut self.borrow_mut(), query, selected).map_err(stringify_error)
+        _query: String,
+        _selected: ListItem,
+    ) -> impl Future<Output = Result<Option<InputLine>>> + Send {
+        async { Ok(None) }
     }
 }
 
-#[macro_export]
-macro_rules! register {
-    ($plugin:ident) => {
-        struct __QpmuImplementation;
-        impl $crate::__raw_bindings::exports::qpmu::plugin::handler::Guest for __QpmuImplementation {
-            type Handler = ::std::cell::RefCell<$plugin>;
-        }
-        $crate::__raw_bindings::export!(__QpmuImplementation with_types_in $crate::__raw_bindings);
-    };
+#[tonic::async_trait]
+impl<T> proto::plugin_server::Plugin for T
+where
+    T: Plugin,
+{
+    async fn query(
+        &self,
+        request: tonic::Request<proto::QueryRequest>,
+    ) -> TonicResult<proto::QueryResponse> {
+        map_result(
+            T::query(self, request.into_inner().query)
+                .await
+                .map(|items| proto::QueryResponse { items }),
+        )
+    }
+
+    async fn activate(
+        &self,
+        request: tonic::Request<ListItem>,
+    ) -> TonicResult<proto::ActivationResponse> {
+        map_result(
+            T::activate(self, request.into_inner())
+                .await
+                .map(|actions| proto::ActivationResponse {
+                    actions: actions.into_iter().map(Action::map_to_proto).collect(),
+                }),
+        )
+    }
+
+    async fn complete(
+        &self,
+        request: tonic::Request<proto::CompletionRequest>,
+    ) -> TonicResult<proto::CompletionResponse> {
+        let request = request.into_inner();
+
+        map_result(
+            T::complete(
+                self,
+                request.query,
+                request
+                    .selected
+                    .expect("completion request should always have an associated selected item"),
+            )
+            .await
+            .map(|input| proto::CompletionResponse { input }),
+        )
+    }
 }
 
-fn stringify_error(err: anyhow::Error) -> String {
-    err.chain()
+fn map_result<T>(result: Result<T>) -> TonicResult<T> {
+    match result {
+        Ok(response) => Ok(tonic::Response::new(response)),
+        Err(err) => Err(Status::unknown(
+            err.chain()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )),
+    }
+}
+
+pub fn main<T: Plugin>() -> ! {
+    let result = tokio::runtime::Runtime::new()
+        .map_err(|e| anyhow::anyhow!(e))
+        .and_then(|rt| {
+            rt.block_on(async {
+                let mut args = std::env::args();
+                let toml = args
+                    .nth(1)
+                    .context("missing toml settings as first argument")?;
+                // if port 0 is provided, asks the OS for a port
+                // https://github.com/hyperium/tonic/blob/master/tests/integration_tests/tests/timeout.rs#L77-L89
+                let listener = TcpListener::bind("[::1]:0").await?;
+                let port = listener.local_addr()?.port();
+                let plugin = T::new(toml).await?;
+
+                // print port for qpmu to read
+                println!("PORT:{port}");
+
+                Server::builder()
+                    .add_service(PluginServer::new(plugin))
+                    .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
+                    .await?;
+
+                Ok(())
+            })
+        });
+
+    match result {
+        Ok(()) => process::exit(0),
+        Err(e) => {
+            print_error(e);
+            process::exit(1)
+        }
+    }
+}
+
+fn print_error(e: anyhow::Error) {
+    let err_string = e
+        .chain()
         .map(ToString::to_string)
         .collect::<Vec<_>>()
-        .join("\n")
+        .join("\n");
+    println!("ERROR:{err_string}");
 }

@@ -1,17 +1,20 @@
 use core::fmt;
+use std::{path::PathBuf, process::Stdio};
 
-use color_eyre::eyre::{bail, eyre, Result};
-use tokio::sync::{Mutex, MutexGuard, OnceCell};
-use tracing::info;
-use wasmtime::{component::ResourceAny, Store};
-
-use super::{
-    super::bindings::{DeferredResult, InputLine, QueryResult},
-    ListItem,
+use color_eyre::eyre::{bail, Context, Result};
+use tokio::{
+    io::{AsyncBufReadExt, AsyncReadExt, BufReader},
+    sync::OnceCell,
 };
+use tonic::{transport::Channel, Request};
+use tracing::info;
+
+use self::bindings::{plugin_client::PluginClient, QueryRequest, QueryResponse};
+use super::{action, ListItem};
 use crate::{
     config::PluginConfig,
-    plugin::{bindings, host, init, Action},
+    plugin::{bindings, Action},
+    Input,
 };
 
 /// A static reference to a plugin wasm instance.
@@ -26,10 +29,9 @@ impl Plugin {
     ///
     /// Note that this will leak the plugin and configuration, as they should
     /// be active for the entire program.
-    pub fn new(config: PluginConfig, binary: Vec<u8>) -> Result<Self> {
+    pub fn new(config: PluginConfig) -> Result<Self> {
         Ok(Self {
             plugin: Box::leak(Box::new(LazyPlugin::new(
-                binary,
                 config.name,
                 config.options.to_string(),
             ))),
@@ -42,48 +44,37 @@ impl Plugin {
     }
 
     /// Runs the plugin until the query is fully completed.
-    ///
-    /// Returns `Ok(None)` if any of the results are `QueryResult::Skip`.
-    pub async fn complete_query(&self, query: &str) -> Result<Option<Vec<ListItem>>> {
-        let mut result = self.plugin.get().await?.call_query(query).await?;
-        loop {
-            match result {
-                QueryResult::SetList(vec) => {
-                    return Ok(Some(ListItem::from_many_and_plugin(vec, *self)))
-                }
-                QueryResult::Defer(deferred_action) => {
-                    let deferred_result = deferred_action.run().await;
-                    result = self
-                        .plugin
-                        .get()
-                        .await?
-                        .call_handle_deferred(query, &deferred_result)
-                        .await
-                        .unwrap();
-                }
-                QueryResult::Skip => return Ok(None),
-            }
-        }
+    pub async fn query(&self, query: impl Into<String>) -> Result<Vec<ListItem>> {
+        Ok(ListItem::from_many_and_plugin(
+            self.plugin
+                .get()
+                .await?
+                .call_query(query.into())
+                .await?
+                .items,
+            *self,
+        ))
     }
 
-    pub(super) async fn activate(&self, item: &bindings::ListItem) -> Result<Vec<Action>> {
-        Ok(self
-            .plugin
-            .get()
-            .await?
-            .call_activate(item)
-            .await?
-            .into_iter()
-            .map(|action| Action::from_wit_action(*self, action))
-            .collect())
+    pub(super) async fn activate(&self, item: bindings::ListItem) -> Result<Vec<Action>> {
+        Ok(action::map_actions(
+            *self,
+            self.plugin.get().await?.call_activate(item).await?,
+        ))
     }
 
     pub(super) async fn complete(
         &self,
-        query: &str,
-        item: &bindings::ListItem,
-    ) -> Result<Option<InputLine>> {
-        self.plugin.get().await?.call_complete(query, item).await
+        query: impl Into<String>,
+        item: bindings::ListItem,
+    ) -> Result<Option<Input>> {
+        Ok(self
+            .plugin
+            .get()
+            .await?
+            .call_complete(query.into(), item)
+            .await?
+            .map(|il| Input::from_wit_input(*self, il)))
     }
 }
 
@@ -95,36 +86,32 @@ impl fmt::Debug for Plugin {
 
 /// A plugin that is not initialised until [`Self::get`] is called.
 struct LazyPlugin {
-    cell: OnceCell<Result<Mutex<PluginInner>>>,
+    cell: OnceCell<Result<PluginInner>>,
     name: String,
     options: String,
-    binary: Vec<u8>,
 }
 
 impl LazyPlugin {
-    pub fn new(binary: Vec<u8>, name: String, options: String) -> Self {
+    pub fn new(name: String, options: String) -> Self {
         Self {
             cell: OnceCell::new(),
-            binary,
             name,
             options,
         }
     }
 
     /// Initialises or gets access to the plugin.
-    pub async fn get(&self) -> Result<MutexGuard<PluginInner>> {
+    pub async fn get(&self) -> Result<&PluginInner> {
         let plugin = self
             .cell
             .get_or_init(|| async {
                 info!("initialising plugin {}", self.name);
-                Ok(Mutex::new(
-                    PluginInner::new(&self.binary, &self.options).await?,
-                ))
+                Ok(PluginInner::new(crate::plugin_file_of(&self.name), &self.options).await?)
             })
             .await;
 
         match plugin {
-            Ok(a) => Ok(a.lock().await),
+            Ok(a) => Ok(a),
             Err(e) => bail!("failed to initialise plugin {}: {e}", self.name),
         }
     }
@@ -132,79 +119,89 @@ impl LazyPlugin {
 
 /// Internals of a plugin.
 ///
-/// Simple wrapper around `bindings::Plugin` and the plugin handler resource
-/// so that calling functions doesn't need to pass in a `Store` or `ResourceAny`.
+/// Simple wrapper around `bindings::Plugin` that handles some
+/// request-response conversions.
 struct PluginInner {
-    plugin: bindings::Plugin,
-    store: Store<host::State>,
-    resource: ResourceAny,
+    plugin: PluginClient<Channel>,
 }
 
 impl PluginInner {
-    async fn new(binary: &[u8], toml: &str) -> Result<Self> {
-        let (plugin, mut store) = init::initialise_plugin(binary)
-            .await
-            .map_err(|e| eyre!(e))?;
+    async fn new(path: PathBuf, toml: &str) -> Result<Self> {
+        let mut process = tokio::process::Command::new(path)
+            .arg(toml)
+            .stdout(Stdio::piped())
+            .spawn()
+            .context("failed to spawn plugin server")?;
 
-        let resource = plugin
-            .qpmu_plugin_handler()
-            .handler()
-            .call_constructor(&mut store, toml)
-            .await
-            .map_err(|e| eyre!(e))?;
+        let stdout = process.stdout.take().expect("stdout should be captured");
+        let mut stdout = BufReader::new(stdout);
 
-        Ok(Self {
-            plugin,
-            store,
-            resource,
-        })
+        let mut first_line = String::new();
+        stdout
+            .read_line(&mut first_line)
+            .await
+            .context("failed to read port or error from plugin: plugin should print to stdout")?;
+
+        let port: u16 = match first_line.split_once(':') {
+            Some(("PORT", port_num)) => port_num
+                .trim()
+                .parse()
+                .context("plugin should print it's connected port number to stdout")?,
+            Some(("ERROR", first_err_line)) => {
+                _ = process.kill().await;
+
+                // collect error message
+                let mut err = String::from(first_err_line);
+                stdout.read_to_string(&mut err).await?;
+                bail!("Error initialising process:\n{err}")
+            }
+            Some(_) | None => {
+                _ = process.kill().await;
+                bail!("invalid stdout of plugin process")
+            }
+        };
+
+        let client = PluginClient::connect(format!("http://[::1]:{port}"))
+            .await
+            .context(format!("failed to connect to plugin server on port {port}"))?;
+
+        info!("finished initialising plugin");
+        Ok(Self { plugin: client })
     }
 
-    async fn call_query(&mut self, input: &str) -> Result<QueryResult> {
-        self.plugin
-            .qpmu_plugin_handler()
-            .handler()
-            .call_query(&mut self.store, self.resource, input)
-            .await
-            .unwrap()
-            .map_err(|e| eyre!(e))
+    async fn call_query(&self, query: String) -> Result<QueryResponse> {
+        Ok(self
+            .plugin
+            .clone()
+            .query(Request::new(QueryRequest { query }))
+            .await?
+            .into_inner())
     }
 
-    async fn call_handle_deferred(
-        &mut self,
-        query: &str,
-        result: &DeferredResult,
-    ) -> Result<QueryResult> {
-        self.plugin
-            .qpmu_plugin_handler()
-            .handler()
-            .call_handle_deferred(&mut self.store, self.resource, query, result)
-            .await
-            .unwrap()
-            .map_err(|e| eyre!(e))
-    }
-
-    async fn call_activate(&mut self, item: &bindings::ListItem) -> Result<Vec<bindings::Action>> {
-        self.plugin
-            .qpmu_plugin_handler()
-            .handler()
-            .call_activate(&mut self.store, self.resource, item)
-            .await
-            .unwrap()
-            .map_err(|e| eyre!(e))
+    async fn call_activate(&self, item: bindings::ListItem) -> Result<Vec<bindings::Action>> {
+        Ok(self
+            .plugin
+            .clone()
+            .activate(Request::new(item))
+            .await?
+            .into_inner()
+            .actions)
     }
 
     async fn call_complete(
-        &mut self,
-        query: &str,
-        item: &bindings::ListItem,
+        &self,
+        query: String,
+        item: bindings::ListItem,
     ) -> Result<Option<bindings::InputLine>> {
-        self.plugin
-            .qpmu_plugin_handler()
-            .handler()
-            .call_complete(&mut self.store, self.resource, query, item)
-            .await
-            .unwrap()
-            .map_err(|e| eyre!(e))
+        Ok(self
+            .plugin
+            .clone()
+            .complete(Request::new(bindings::CompletionRequest {
+                query,
+                selected: Some(item),
+            }))
+            .await?
+            .into_inner()
+            .input)
     }
 }

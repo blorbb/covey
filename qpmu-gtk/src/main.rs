@@ -1,24 +1,18 @@
-use std::{fs, io::Read, path::PathBuf, process, sync::LazyLock};
+use std::{fs, io::Read, process};
 
 use clap::{Parser, Subcommand};
 use color_eyre::eyre::Result;
 use install::install_plugin;
 use model::Launcher;
-use qpmu::{config::Config, plugin::Plugin};
+use qpmu::{config::Config, plugin::Plugin, CONFIG_DIR, PLUGINS_DIR};
 use relm4::RelmApp;
-use tracing::{error, info, instrument, Level};
+use tracing::{error, info, instrument, level_filters::LevelFilter};
+use tracing_subscriber::EnvFilter;
 
 mod install;
 mod model;
 mod styles;
 mod ui;
-
-static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
-    dirs::config_dir()
-        .expect("missing config directory")
-        .join("qpmu")
-});
-static PLUGINS_DIR: LazyLock<PathBuf> = LazyLock::new(|| CONFIG_DIR.join("plugins"));
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -34,7 +28,13 @@ enum Command {
 
 fn main() -> Result<()> {
     color_eyre::install()?;
-    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
+
+    // https://stackoverflow.com/a/77485843
+    let filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::WARN.into())
+        .from_env()?
+        .add_directive("qpmu=info".parse()?);
+    tracing_subscriber::fmt().with_env_filter(filter).init();
 
     relm4::RELM_THREADS
         .set(20)
@@ -76,10 +76,7 @@ pub fn load_plugins() -> &'static [Plugin] {
 
     let mut v = vec![];
     for plugin in config.plugins {
-        let name = plugin.name.replace('-', "_");
-        info!("found plugin {name}");
-        let path = format!("{name}.wasm");
-        match Plugin::new(plugin, fs::read(PLUGINS_DIR.join(path)).unwrap()) {
+        match Plugin::new(plugin) {
             Ok(plugin) => v.push(plugin),
             Err(e) => error!("{e}"),
         }

@@ -222,7 +222,6 @@ impl Component for Launcher {
         sender: ComponentSender<Self>,
         root: &Self::Root,
     ) {
-        info!("received command {message:?}");
         self.update_with_view(widgets, message, sender, root)
     }
 }

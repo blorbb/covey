@@ -1,6 +1,8 @@
 use std::{future::Future, process};
 
 pub use anyhow;
+pub use tokio;
+
 use anyhow::{Context, Result};
 use proto::plugin_server::PluginServer;
 use tokio::net::TcpListener;
@@ -164,6 +166,14 @@ pub trait Plugin: Sized + Send + Sync + 'static {
     fn query(&self, query: String) -> impl Future<Output = Result<Vec<ListItem>>> + Send;
 
     fn activate(&self, query: ListItem) -> impl Future<Output = Result<Vec<Action>>> + Send;
+
+    fn complete(
+        &self,
+        _query: String,
+        _selected: ListItem,
+    ) -> impl Future<Output = Result<Option<InputLine>>> + Send {
+        async { Ok(None) }
+    }
 }
 
 #[tonic::async_trait]
@@ -192,6 +202,25 @@ where
                 .map(|actions| proto::ActivationResponse {
                     actions: actions.into_iter().map(Action::map_to_proto).collect(),
                 }),
+        )
+    }
+
+    async fn complete(
+        &self,
+        request: tonic::Request<proto::CompletionRequest>,
+    ) -> TonicResult<proto::CompletionResponse> {
+        let request = request.into_inner();
+
+        map_result(
+            T::complete(
+                self,
+                request.query,
+                request
+                    .selected
+                    .expect("completion request should always have an associated selected item"),
+            )
+            .await
+            .map(|input| proto::CompletionResponse { input }),
         )
     }
 }

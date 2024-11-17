@@ -6,6 +6,7 @@ import "google/protobuf/empty.proto";
 service Plugin {
     rpc Query (QueryRequest) returns (QueryResponse);
     rpc Activate (ListItem) returns (ActivationResponse);
+    rpc Complete (CompletionRequest) returns (CompletionResponse);
 }
 
 message QueryRequest {
@@ -46,4 +47,13 @@ message InputLine {
     string query = 1;
     uint32 range_lb = 2;
     uint32  range_ub = 3;
+}
+
+message CompletionRequest {
+    string query = 1;
+    ListItem selected = 2;
+}
+
+message CompletionResponse {
+    optional InputLine input = 1;
 }

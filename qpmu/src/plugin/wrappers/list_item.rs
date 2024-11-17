@@ -53,12 +53,7 @@ impl ListItem {
     }
 
     pub async fn complete(self, query: &str) -> Result<Option<Input>> {
-        Ok(self
-            .plugin
-            .clone()
-            .complete(query, self.item)
-            .await?
-            .map(|il| Input::from_wit_input(self.plugin, il)))
+        self.plugin.clone().complete(query, self.item).await
     }
 }
 

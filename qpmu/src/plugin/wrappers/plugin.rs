@@ -4,16 +4,17 @@ use std::{path::PathBuf, process::Stdio};
 use color_eyre::eyre::{bail, Context, Result};
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, BufReader},
-    sync::{Mutex, MutexGuard, OnceCell},
+    sync::OnceCell,
 };
 use tonic::{transport::Channel, Request};
 use tracing::info;
 
-use self::bindings::{plugin_client::PluginClient, InputLine, QueryRequest, QueryResponse};
+use self::bindings::{plugin_client::PluginClient, QueryRequest, QueryResponse};
 use super::{action, ListItem};
 use crate::{
     config::PluginConfig,
     plugin::{bindings, Action},
+    Input,
 };
 
 /// A static reference to a plugin wasm instance.
@@ -43,9 +44,14 @@ impl Plugin {
     }
 
     /// Runs the plugin until the query is fully completed.
-    pub async fn query(&self, query: &str) -> Result<Vec<ListItem>> {
+    pub async fn query(&self, query: impl Into<String>) -> Result<Vec<ListItem>> {
         Ok(ListItem::from_many_and_plugin(
-            self.plugin.get().await?.call_query(query).await?.items,
+            self.plugin
+                .get()
+                .await?
+                .call_query(query.into())
+                .await?
+                .items,
             *self,
         ))
     }
@@ -59,10 +65,16 @@ impl Plugin {
 
     pub(super) async fn complete(
         &self,
-        query: &str,
+        query: impl Into<String>,
         item: bindings::ListItem,
-    ) -> Result<Option<InputLine>> {
-        self.plugin.get().await?.call_complete(query, item).await
+    ) -> Result<Option<Input>> {
+        Ok(self
+            .plugin
+            .get()
+            .await?
+            .call_complete(query.into(), item)
+            .await?
+            .map(|il| Input::from_wit_input(*self, il)))
     }
 }
 
@@ -74,7 +86,7 @@ impl fmt::Debug for Plugin {
 
 /// A plugin that is not initialised until [`Self::get`] is called.
 struct LazyPlugin {
-    cell: OnceCell<Result<Mutex<PluginInner>>>,
+    cell: OnceCell<Result<PluginInner>>,
     name: String,
     options: String,
 }
@@ -89,19 +101,17 @@ impl LazyPlugin {
     }
 
     /// Initialises or gets access to the plugin.
-    pub async fn get(&self) -> Result<MutexGuard<PluginInner>> {
+    pub async fn get(&self) -> Result<&PluginInner> {
         let plugin = self
             .cell
             .get_or_init(|| async {
                 info!("initialising plugin {}", self.name);
-                Ok(Mutex::new(
-                    PluginInner::new(crate::plugin_file_of(&self.name), &self.options).await?,
-                ))
+                Ok(PluginInner::new(crate::plugin_file_of(&self.name), &self.options).await?)
             })
             .await;
 
         match plugin {
-            Ok(a) => Ok(a.lock().await),
+            Ok(a) => Ok(a),
             Err(e) => bail!("failed to initialise plugin {}: {e}", self.name),
         }
     }
@@ -161,19 +171,19 @@ impl PluginInner {
         Ok(Self { plugin: client })
     }
 
-    async fn call_query(&mut self, input: &str) -> Result<QueryResponse> {
+    async fn call_query(&self, query: String) -> Result<QueryResponse> {
         Ok(self
             .plugin
-            .query(Request::new(QueryRequest {
-                query: input.into(),
-            }))
+            .clone()
+            .query(Request::new(QueryRequest { query }))
             .await?
             .into_inner())
     }
 
-    async fn call_activate(&mut self, item: bindings::ListItem) -> Result<Vec<bindings::Action>> {
+    async fn call_activate(&self, item: bindings::ListItem) -> Result<Vec<bindings::Action>> {
         Ok(self
             .plugin
+            .clone()
             .activate(Request::new(item))
             .await?
             .into_inner()
@@ -181,10 +191,19 @@ impl PluginInner {
     }
 
     async fn call_complete(
-        &mut self,
-        query: &str,
+        &self,
+        query: String,
         item: bindings::ListItem,
     ) -> Result<Option<bindings::InputLine>> {
-        todo!()
+        Ok(self
+            .plugin
+            .clone()
+            .complete(Request::new(bindings::CompletionRequest {
+                query,
+                selected: Some(item),
+            }))
+            .await?
+            .into_inner()
+            .input)
     }
 }

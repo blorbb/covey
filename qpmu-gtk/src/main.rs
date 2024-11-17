@@ -5,7 +5,7 @@ use color_eyre::eyre::Result;
 use install::install_plugin;
 use model::Launcher;
 use relm4::RelmApp;
-use tracing::{info, instrument, level_filters::LevelFilter};
+use tracing::{info, level_filters::LevelFilter};
 use tracing_subscriber::EnvFilter;
 
 mod install;
@@ -48,7 +48,6 @@ fn main() -> Result<()> {
     }
 }
 
-#[instrument]
 fn new_instance() -> Result<()> {
     info!("starting up app");
 

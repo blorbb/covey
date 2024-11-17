@@ -11,6 +11,7 @@ pub use input::Input;
 pub mod plugin;
 mod result_list;
 pub use result_list::ResultList;
+use tracing::info;
 mod spawn;
 
 pub static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
@@ -114,6 +115,7 @@ impl Model {
 
     /// All of these should run very quickly, so it's fine to run on the main thread.
     #[must_use = "if this returns true you must call `set_input`"]
+    #[tracing::instrument(skip_all)]
     pub fn handle_event(&mut self, event: Result<PluginEvent>, fe: &mut impl Frontend) -> bool {
         let event = match event {
             Ok(ev) => ev,
@@ -144,7 +146,9 @@ impl Model {
     }
 
     /// Returns whether a [`set_input`] future should be made after this.
+    #[tracing::instrument(skip_all)]
     fn handle_action(&mut self, event: Action, fe: &mut impl Frontend) -> bool {
+        info!("handling action {event:?}");
         match event {
             Action::Close => fe.close(),
             Action::RunCommand(cmd, args) => {

@@ -8,7 +8,7 @@ use relm4::{
     prelude::ComponentParts,
     Component, ComponentSender, RelmContainerExt as _, RelmRemoveAllExt as _,
 };
-use tracing::{info, instrument, warn};
+use tracing::{error, info, instrument, warn};
 
 use crate::{
     model::{Launcher, LauncherMsg},
@@ -38,28 +38,27 @@ impl Component for Launcher {
     type CommandOutput = LauncherMsg;
 
     fn init_root() -> Self::Root {
-        gtk::Window::default()
+        gtk::Window::builder()
+            .title("qpmu")
+            .hide_on_close(true)
+            .decorated(false)
+            .vexpand(true)
+            .css_classes(["window"])
+            .width_request(WIDTH)
+            .height_request(-1)
+            .build()
     }
 
     #[instrument(skip_all)]
     fn init(
         _init: Self::Init,
-        root: Self::Root,
+        window: Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
         info!("initialising new application instance");
 
         let model = Launcher::new(Config::load_plugins().expect("failed to load plugins"));
         load_css();
-
-        let window = root.clone();
-        window.set_title(Some("qpmu"));
-        window.set_hide_on_close(true);
-        window.set_decorated(false);
-        window.set_vexpand(true);
-        window.set_css_classes(&["window"]);
-        window.set_width_request(WIDTH);
-        window.set_height_request(-1);
 
         window.connect_visible_notify({
             let sender = sender.clone();
@@ -213,7 +212,6 @@ impl Component for Launcher {
         }
     }
 
-    #[instrument(skip_all)]
     fn update_cmd_with_view(
         &mut self,
         widgets: &mut Self::Widgets,
@@ -252,10 +250,14 @@ pub struct Frontend<'a> {
 
 impl<'a> qpmu::Frontend for Frontend<'a> {
     fn close(&mut self) {
+        info!("closing window");
+
         self.root.close();
     }
 
     fn copy(&mut self, str: String) {
+        info!("copying string {str:?}");
+
         let result = arboard::Clipboard::new().and_then(|mut clipboard| clipboard.set_text(str));
         if let Err(e) = result {
             self.display_error("Failed to set clipboard", eyre!(e));
@@ -263,6 +265,11 @@ impl<'a> qpmu::Frontend for Frontend<'a> {
     }
 
     fn set_input(&mut self, input: Input) {
+        info!(
+            "set input to {:?} with selection {}..{}",
+            input.contents, input.selection.0, input.selection.1
+        );
+
         self.widgets
             .entry
             .block_signal(&self.widgets.entry_change_handler);
@@ -276,7 +283,7 @@ impl<'a> qpmu::Frontend for Frontend<'a> {
     }
 
     fn set_list(&mut self, list: &qpmu::ResultList) {
-        info!("setting list");
+        info!("setting list to {} items", list.list().len());
 
         let results_list = &self.widgets.results_list;
 
@@ -339,6 +346,8 @@ impl<'a> qpmu::Frontend for Frontend<'a> {
     }
 
     fn set_list_selection(&mut self, index: usize) {
+        info!("set list selection to index {index}");
+
         self.widgets.results_list.select_row(
             self.widgets
                 .results_list
@@ -348,6 +357,8 @@ impl<'a> qpmu::Frontend for Frontend<'a> {
     }
 
     fn display_error(&mut self, title: &str, error: color_eyre::eyre::Report) {
+        error!("displaying error {title}");
+
         let notif = Notification::new(title);
         let error_body = error
             .chain()

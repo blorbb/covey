@@ -29,7 +29,12 @@ pub async fn rank<'iter>(
     items: impl IntoIterator<Item = &'iter ListItem>,
     weights: Weights,
 ) -> Vec<ListItem> {
-    let activations = self::activations().await.unwrap_or_else(HashMap::new);
+    let should_track_history = weights.frequency != 0.0 || weights.recency != 0.0;
+    let activations = if should_track_history {
+        self::activations().await.unwrap_or_else(HashMap::new)
+    } else {
+        HashMap::new()
+    };
 
     let now = OffsetDateTime::now_utc();
 
@@ -66,22 +71,18 @@ pub async fn rank<'iter>(
 
             let fuzzy_score = title_score + desc_score + meta_score;
             // factor in recency and fuzzy matching score for the frequency
-            let freq_score = freq as f32 * weights.frequency * recency * (fuzzy_score / 500.0 + 0.1);
+            let freq_score =
+                freq as f32 * weights.frequency * recency * (fuzzy_score / 500.0 + 0.1);
             let recency_score = recency * weights.recency;
 
             let total_score = fuzzy_score + freq_score + recency_score;
             let should_show = query.is_empty() || fuzzy_score > 1.0;
-            should_show.then_some((
-                total_score,
-                item.clone().with_description(format!(
-                    "fz {fuzzy_score} fr {freq_score} re {recency_score} tt {total_score} el {elapsed_secs}"
-                )),
-            ))
+            should_show.then_some((total_score, item))
         })
         .collect();
     // sort reversed
     scored.sort_by(|(s1, _), (s2, _)| s2.total_cmp(s1));
-    scored.into_iter().map(|(_, item)| item).collect()
+    scored.into_iter().map(|(_, item)| item).cloned().collect()
 }
 
 pub struct Weights {
@@ -92,19 +93,23 @@ pub struct Weights {
     recency: f32,
 }
 
-impl Default for Weights {
-    fn default() -> Self {
+impl Weights {
+    /// Weights based on the title as well as frequency and recency.
+    pub fn with_history() -> Self {
+        Self::without_history().frequency(50.0).recency(500.0)
+    }
+
+    /// Weights based on the title only, not including usage history.
+    pub fn without_history() -> Self {
         Self {
             title: 1.0,
             description: 0.0,
             metadata: 0.0,
-            frequency: 50.0,
-            recency: 500.0,
+            frequency: 0.0,
+            recency: 0.0,
         }
     }
-}
 
-impl Weights {
     pub fn title(mut self, title: f32) -> Self {
         self.title = title;
         self

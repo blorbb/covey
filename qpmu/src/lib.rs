@@ -56,13 +56,13 @@ impl Model {
     }
 
     pub fn set_list_selection(&mut self, selection: usize, fe: &mut impl Frontend) {
-        self.results.selection = selection;
-        fe.set_list_selection(self.results.selection);
+        self.results.set_selection(selection);
+        fe.set_list_selection(self.results.selection());
     }
 
     pub fn move_list_selection(&mut self, delta: isize, fe: &mut impl Frontend) {
-        self.results.selection = self.results.selection.saturating_add_signed(delta);
-        fe.set_list_selection(self.results.selection);
+        self.results.move_selection_signed(delta);
+        fe.set_list_selection(self.results.selection());
     }
 
     pub fn activate(&mut self) -> Option<impl Future<Output = Result<PluginEvent>> + Send + use<>> {

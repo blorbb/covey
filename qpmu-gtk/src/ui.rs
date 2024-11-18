@@ -347,13 +347,15 @@ impl<'a> qpmu::Frontend for Frontend<'a> {
 
     fn set_list_selection(&mut self, index: usize) {
         info!("set list selection to index {index}");
+        let target_row = self.widgets.results_list.row_at_index(index as i32);
 
-        self.widgets.results_list.select_row(
-            self.widgets
-                .results_list
-                .row_at_index(index as i32)
-                .as_ref(),
-        );
+        self.widgets.results_list.select_row(target_row.as_ref());
+
+        // scroll to the target, but don't lose focus on the entry
+        if let Some(target_row) = target_row {
+            target_row.grab_focus();
+            self.widgets.entry.grab_focus_without_selecting();
+        }
     }
 
     fn display_error(&mut self, title: &str, error: color_eyre::eyre::Report) {

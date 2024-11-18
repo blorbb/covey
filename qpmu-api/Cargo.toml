@@ -19,6 +19,7 @@ sqlx = { version = "0.8", features = [
     "time",
 ] }
 time = "0.3"
+az = "1"
 
 
 [build-dependencies]

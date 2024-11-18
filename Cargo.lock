@@ -2381,6 +2381,7 @@ name = "qpmu-api"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "az",
  "prost",
  "sqlx",
  "sublime_fuzzy",

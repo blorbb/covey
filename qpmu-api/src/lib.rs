@@ -1,13 +1,13 @@
 use std::{future::Future, process};
 
 pub use anyhow;
-
 use anyhow::{Context, Result};
 use proto::plugin_server::PluginServer;
 use tokio::net::TcpListener;
 use tonic::{transport::Server, Status};
 
 pub mod rank;
+pub mod sql;
 
 mod proto {
     tonic::include_proto!("plugin");
@@ -157,6 +157,22 @@ where
         &self,
         request: tonic::Request<ListItem>,
     ) -> TonicResult<proto::ActivationResponse> {
+        // increment frequency table
+        sqlx::query(
+            "
+            INSERT INTO activations (title, frequency, last_use)
+            VALUES (?, 1, ?)
+            ON CONFLICT (title) DO UPDATE SET
+                frequency = frequency + 1,
+                last_use = excluded.last_use
+            ",
+        )
+        .bind(&request.get_ref().title)
+        .bind(time::OffsetDateTime::now_utc())
+        .execute(sql::pool())
+        .await
+        .map_err(|e| Status::unknown(e.to_string()))?;
+
         map_result(
             T::activate(self, request.into_inner())
                 .await
@@ -204,9 +220,16 @@ pub fn main<T: Plugin>() -> ! {
         .and_then(|rt| {
             rt.block_on(async {
                 let mut args = std::env::args();
-                let toml = args
+                let sqlite_url = args
                     .nth(1)
-                    .context("missing toml settings as first argument")?;
+                    .context("missing sqlite url as first argument")?;
+
+                let toml = args
+                    .next()
+                    .context("missing toml settings as second argument")?;
+
+                sql::init(&sqlite_url).await?;
+
                 // if port 0 is provided, asks the OS for a port
                 // https://github.com/hyperium/tonic/blob/master/tests/integration_tests/tests/timeout.rs#L77-L89
                 let listener = TcpListener::bind("[::1]:0").await?;

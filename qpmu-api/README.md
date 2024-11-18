@@ -65,6 +65,21 @@ impl Plugin for MyPlugin {
 }
 ```
 
+`qpmu-api` also gives access to an sqlite pool at `qpmu_api::sql::pool()`. This is a connection to the plugin's sqlite database. By default, it stores a `activations` table that updates on every activation.
+
+The `activations` table has the following schema:
+
+```sql
+CREATE TABLE activations (
+    id          INTEGER PRIMARY KEY,
+    title       TEXT NOT NULL UNIQUE,
+    frequency   INTEGER NOT NULL,
+    last_use    DATETIME NOT NULL
+);
+```
+
+The plugin can store any other tables it wants here.
+
 ## Bindings for other languages
 
 Currently, only Rust bindings exist. Bindings for other languages may be made in the future.
@@ -74,3 +89,4 @@ The program needs to run a server with RPC services that follow the protobuf def
 -   When initialising, it needs to connect to a port in loopback (`[::1]`) and print `PORT:<port>` to stdout (e.g. `PORT:12345`).
     -   The qpmu backend will then connect to `http://[::1]:<port>`.
 -   If an error occurs during initialisation, you should print `ERROR:<message>` to stdout and exit. The message can be over multiple lines.
+-   qpmu will give two arguments to the binary: the first is an sqlite URL that the plugin can connect to for storing any kind of data, and the second is a string of TOML that is the plugin's extra options.

@@ -21,6 +21,8 @@ pub static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
 });
 pub static PLUGINS_DIR: LazyLock<PathBuf> = LazyLock::new(|| CONFIG_DIR.join("plugins"));
 pub static CONFIG_PATH: LazyLock<PathBuf> = LazyLock::new(|| CONFIG_DIR.join("config.toml"));
+pub static DATA_DIR: LazyLock<PathBuf> =
+    LazyLock::new(|| dirs::data_dir().expect("data dir must exist").join("qpmu"));
 
 /// Main public API for interacting with qpmu.
 ///

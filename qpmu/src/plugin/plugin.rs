@@ -1,8 +1,9 @@
 use core::fmt;
 use std::{path::PathBuf, process::Stdio};
 
-use color_eyre::eyre::{bail, Context, Result};
+use color_eyre::eyre::{bail, Context, ContextCompat, Result};
 use tokio::{
+    fs,
     io::{AsyncBufReadExt, AsyncReadExt, BufReader},
     process::Command,
     sync::OnceCell,
@@ -15,7 +16,7 @@ use super::action;
 use crate::{
     config::PluginConfig,
     plugin::{proto, Action},
-    Input, ListItem, PLUGINS_DIR,
+    Input, ListItem, DATA_DIR, PLUGINS_DIR,
 };
 
 /// A static reference to a plugin instance.
@@ -88,6 +89,32 @@ impl fmt::Debug for Plugin {
     }
 }
 
+/// Gets the connection URL for a given plugin.
+///
+/// The database file will be created first.
+async fn sqlite_connection_url(plugin_name: &str) -> Result<String> {
+    let path = DATA_DIR.join(format!("{plugin_name}.db"));
+    assert!(path.is_absolute());
+
+    // make the file
+    fs::create_dir_all(&*DATA_DIR).await?;
+    fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(false)
+        .open(&path)
+        .await?;
+
+    // https://docs.rs/sqlx/latest/sqlx/sqlite/struct.SqliteConnectOptions.html
+    let connection_string = format!(
+        "sqlite://{}",
+        path.to_str()
+            .context("plugin data path must be a UTF-8 string")?
+    );
+
+    Ok(connection_string)
+}
+
 /// A plugin that is not initialised until [`Self::get`] is called.
 struct LazyPlugin {
     cell: OnceCell<Result<PluginInner>>,
@@ -109,10 +136,11 @@ impl LazyPlugin {
             .get_or_init(|| async {
                 info!("initialising plugin {}", self.config.name);
 
-                let path = PLUGINS_DIR.join(&self.config.name);
+                let bin_path = PLUGINS_DIR.join(&self.config.name);
+                let db_url = sqlite_connection_url(&self.config.name).await?;
                 let config_toml = self.config.options.to_string();
 
-                Ok(PluginInner::new(path, &config_toml).await?)
+                Ok(PluginInner::new(bin_path, &db_url, &config_toml).await?)
             })
             .await;
 
@@ -131,9 +159,10 @@ struct PluginInner {
 }
 
 impl PluginInner {
-    async fn new(path: PathBuf, toml: &str) -> Result<Self> {
+    async fn new(bin_path: PathBuf, db_url: &str, toml: &str) -> Result<Self> {
         // run process and read first line
-        let mut process = Command::new(path)
+        let mut process = Command::new(bin_path)
+            .arg(db_url)
             .arg(toml)
             .stdout(Stdio::piped())
             .spawn()

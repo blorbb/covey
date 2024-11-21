@@ -49,16 +49,22 @@ impl Plugin for MyPlugin {
         Ok(list_items)
     }
 
-    async fn activate(&self, selected: ListItem) -> Result<Vec<Action>> {
+    async fn activate(
+        &self,
+        ActivationContext { item, .. }: ActivationContext
+    ) -> Result<Vec<Action>> {
         // ...
         // Return a vec of actions to perform. These will be run in order.
         Ok(vec![
             Action::Close, // You will usually want to close the app.
-            Action::RunShell(selected.metadata),
+            Action::RunShell(item.metadata),
         ])
     }
 
-    async fn complete(&self, query: String, selected: ListItem) -> Result<Option<Input>> {
+    async fn complete(
+        &self,
+        ActivationContext { item, query, .. }: ActivationContext
+    ) -> Result<Option<Input>> {
         // ...
         Ok(Some(Input::new("new input")))
     }

@@ -16,7 +16,7 @@ pub struct PluginConfig {
     pub(crate) name: String,
     pub(crate) prefix: String,
     #[serde(default)] // empty table if missing
-    pub(crate) options: toml::Table,
+    pub(crate) config: toml::Table,
 }
 
 impl Config {

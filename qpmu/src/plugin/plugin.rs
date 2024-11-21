@@ -177,7 +177,7 @@ impl LazyPlugin {
 
                 let bin_path = PLUGINS_DIR.join(&self.config.name);
                 let db_url = sqlite_connection_url(&self.config.name).await?;
-                let config_toml = self.config.options.to_string();
+                let config_toml = self.config.config.to_string();
 
                 Ok(PluginInner::new(bin_path, &db_url, &config_toml).await?)
             })

@@ -51,9 +51,9 @@ Most configuration is stored in `qpmu/config.toml` in the [TOML file format](htt
 name = "open" # must be the same as the name of the binary
 prefix = "@"  # prefix to use to activate this plugin
 
-# additional plugin-specific configuration options can be
-# defined too, under the `options` table within the plugin.
-[plugins.options]
+# additional plugin-specific configuration can be
+# defined too, under the `config` table within the plugin.
+[plugins.config]
 std = { name = "Rust stdlib", url = "https://doc.rust-lang.org/std/?search=%s" }
 g = { name = "Google", url = "https://www.google.com/search?q=%s" }
 

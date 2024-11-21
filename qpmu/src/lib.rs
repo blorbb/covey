@@ -1,18 +1,20 @@
+pub mod config;
+mod input;
+mod list_item;
+pub mod plugin;
+mod result_list;
+mod spawn;
+pub mod hotkey;
+
 use std::{future::Future, path::PathBuf, sync::LazyLock};
 
 use color_eyre::eyre::{bail, Context, Result};
-use plugin::{Action, Plugin, PluginEvent};
-
-pub mod config;
-mod list_item;
-pub use list_item::ListItem;
-mod input;
+use hotkey::Hotkey;
 pub use input::Input;
-pub mod plugin;
-mod result_list;
+pub use list_item::ListItem;
+use plugin::{Action, Plugin, PluginEvent};
 pub use result_list::ResultList;
 use tracing::info;
-mod spawn;
 
 pub static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     dirs::config_dir()
@@ -67,8 +69,28 @@ impl Model {
 
     pub fn activate(&mut self) -> Option<impl Future<Output = Result<PluginEvent>> + Send + use<>> {
         let item = self.results.selected_item().cloned()?;
+        let query = self.input.contents.clone();
 
-        Some(async move { Ok(PluginEvent::Run(item.activate().await?)) })
+        Some(async move { Ok(PluginEvent::Run(item.activate(query).await?)) })
+    }
+
+    pub fn alt_activate(
+        &mut self,
+    ) -> Option<impl Future<Output = Result<PluginEvent>> + Send + use<>> {
+        let item = self.results.selected_item().cloned()?;
+        let query = self.input.contents.clone();
+
+        Some(async move { Ok(PluginEvent::Run(item.alt_activate(query).await?)) })
+    }
+
+    pub fn hotkey_activate(
+        &mut self,
+        hotkey: Hotkey,
+    ) -> Option<impl Future<Output = Result<PluginEvent>> + Send + use<>> {
+        let item = self.results.selected_item().cloned()?;
+        let query = self.input.contents.clone();
+
+        Some(async move { Ok(PluginEvent::Run(item.hotkey_activate(query, hotkey).await?)) })
     }
 
     pub fn complete(&mut self) -> Option<impl Future<Output = Result<PluginEvent>> + Send + use<>> {
@@ -76,7 +98,7 @@ impl Model {
         let query = self.input.contents.clone();
 
         Some(async move {
-            if let Some(new) = item.complete(&query).await? {
+            if let Some(new) = item.complete(query).await? {
                 Ok(PluginEvent::Run(vec![Action::SetInput(new)]))
             } else {
                 // do nothing

@@ -61,10 +61,49 @@ impl Plugin {
             .collect())
     }
 
-    pub(crate) async fn activate(&self, item: proto::ListItem) -> Result<Vec<Action>> {
+    pub(crate) async fn activate(
+        &self,
+        query: impl Into<String>,
+        item: proto::ListItem,
+    ) -> Result<Vec<Action>> {
         Ok(action::map_actions(
             *self,
-            self.plugin.get().await?.call_activate(item).await?,
+            self.plugin
+                .get()
+                .await?
+                .call_activate(query.into(), item)
+                .await?,
+        ))
+    }
+
+    pub(crate) async fn alt_activate(
+        &self,
+        query: impl Into<String>,
+        item: proto::ListItem,
+    ) -> Result<Vec<Action>> {
+        Ok(action::map_actions(
+            *self,
+            self.plugin
+                .get()
+                .await?
+                .call_alt_activate(query.into(), item)
+                .await?,
+        ))
+    }
+
+    pub(crate) async fn hotkey_activate(
+        &self,
+        query: impl Into<String>,
+        item: proto::ListItem,
+        hotkey: proto::Hotkey,
+    ) -> Result<Vec<Action>> {
+        Ok(action::map_actions(
+            *self,
+            self.plugin
+                .get()
+                .await?
+                .call_hotkey_activate(query.into(), item, hotkey)
+                .await?,
         ))
     }
 
@@ -216,11 +255,56 @@ impl PluginInner {
             .into_inner())
     }
 
-    async fn call_activate(&self, item: proto::ListItem) -> Result<Vec<proto::Action>> {
+    async fn call_activate(
+        &self,
+        query: String,
+        item: proto::ListItem,
+    ) -> Result<Vec<proto::Action>> {
         Ok(self
             .plugin
             .clone()
-            .activate(Request::new(item))
+            .activate(Request::new(proto::ActivationRequest {
+                query,
+                selected: Some(item),
+            }))
+            .await?
+            .into_inner()
+            .actions)
+    }
+
+    async fn call_alt_activate(
+        &self,
+        query: String,
+        item: proto::ListItem,
+    ) -> Result<Vec<proto::Action>> {
+        Ok(self
+            .plugin
+            .clone()
+            .alt_activate(Request::new(proto::ActivationRequest {
+                query,
+                selected: Some(item),
+            }))
+            .await?
+            .into_inner()
+            .actions)
+    }
+
+    async fn call_hotkey_activate(
+        &self,
+        query: String,
+        item: proto::ListItem,
+        hotkey: proto::Hotkey,
+    ) -> Result<Vec<proto::Action>> {
+        Ok(self
+            .plugin
+            .clone()
+            .hotkey_activate(Request::new(proto::HotkeyActivationRequest {
+                request: Some(proto::ActivationRequest {
+                    query,
+                    selected: Some(item),
+                }),
+                hotkey: Some(hotkey),
+            }))
             .await?
             .into_inner()
             .actions)
@@ -234,7 +318,7 @@ impl PluginInner {
         Ok(self
             .plugin
             .clone()
-            .complete(Request::new(proto::CompletionRequest {
+            .complete(Request::new(proto::ActivationRequest {
                 query,
                 selected: Some(item),
             }))

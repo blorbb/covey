@@ -4,6 +4,7 @@ use color_eyre::eyre::Result;
 
 use super::Plugin;
 use crate::{
+    hotkey::Hotkey,
     plugin::{proto, Action},
     Input,
 };
@@ -36,11 +37,22 @@ impl ListItem {
         self.item.icon.as_deref()
     }
 
-    pub async fn activate(self) -> Result<Vec<Action>> {
-        self.plugin.clone().activate(self.item).await
+    pub async fn activate(self, query: String) -> Result<Vec<Action>> {
+        self.plugin.clone().activate(query, self.item).await
     }
 
-    pub async fn complete(self, query: &str) -> Result<Option<Input>> {
+    pub async fn alt_activate(self, query: String) -> Result<Vec<Action>> {
+        self.plugin.clone().alt_activate(query, self.item).await
+    }
+
+    pub async fn hotkey_activate(self, query: String, hotkey: Hotkey) -> Result<Vec<Action>> {
+        self.plugin
+            .clone()
+            .hotkey_activate(query, self.item, hotkey)
+            .await
+    }
+
+    pub async fn complete(self, query: String) -> Result<Option<Input>> {
         self.plugin.clone().complete(query, self.item).await
     }
 }

@@ -29,6 +29,8 @@ pub enum LauncherMsg {
     SelectDelta(isize),
     /// Activate the current selected item
     Activate,
+    /// Run the alternative activation function on the current selected item
+    AltActivate,
     /// Perform (tab) completion on the current selected item
     Complete,
     /// Close (hide) the window

@@ -38,3 +38,22 @@ pub fn pool() -> &'static SqlitePool {
     POOL.get()
         .expect("init must have called first to initialise the pool")
 }
+
+// other helper stuff //
+
+pub(crate) async fn increment_frequency_table(title: &str) -> Result<()> {
+    sqlx::query(
+        "
+        INSERT INTO activations (title, frequency, last_use)
+        VALUES (?, 1, ?)
+        ON CONFLICT (title) DO UPDATE SET
+            frequency = frequency + 1,
+            last_use = excluded.last_use
+        ",
+    )
+    .bind(title)
+    .bind(time::OffsetDateTime::now_utc())
+    .execute(pool())
+    .await?;
+    Ok(())
+}

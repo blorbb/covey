@@ -2,8 +2,12 @@ use color_eyre::eyre::eyre;
 use qpmu::{config::Config, Input};
 use relm4::{
     gtk::{
-        self, gdk::Key, gio::Notification, glib::SignalHandlerId, prelude::*, EventControllerKey,
-        ListBox,
+        self,
+        gdk::{Key, ModifierType},
+        gio::Notification,
+        glib::SignalHandlerId,
+        prelude::*,
+        EventControllerKey, ListBox,
     },
     prelude::ComponentParts,
     Component, ComponentSender, RelmContainerExt as _, RelmRemoveAllExt as _,
@@ -196,6 +200,12 @@ impl Component for Launcher {
                     sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) });
                 }
             }
+            LauncherMsg::AltActivate => {
+                let fut = self.model.alt_activate();
+                if let Some(fut) = fut {
+                    sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) });
+                }
+            }
             LauncherMsg::Complete => {
                 let fut = self.model.complete();
                 if let Some(fut) = fut {
@@ -228,11 +238,14 @@ fn key_controller(sender: ComponentSender<Launcher>) -> EventControllerKey {
         .propagation_phase(gtk::PropagationPhase::Capture)
         .build();
 
-    key_events.connect_key_pressed(move |_self, key, _keycode, _modifiers| {
+    key_events.connect_key_pressed(move |_self, key, _keycode, modifiers| {
         match key {
             Key::Escape => sender.input(LauncherMsg::Close),
             Key::Down => sender.input(LauncherMsg::SelectDelta(1)),
             Key::Up => sender.input(LauncherMsg::SelectDelta(-1)),
+            Key::Return if modifiers.contains(ModifierType::ALT_MASK) => {
+                sender.input(LauncherMsg::AltActivate)
+            }
             Key::Return => sender.input(LauncherMsg::Activate),
             Key::Tab => sender.input(LauncherMsg::Complete),
             _ => return gtk::glib::Propagation::Proceed,

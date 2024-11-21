@@ -2,7 +2,7 @@ use std::{future::Future, process};
 
 pub use anyhow;
 use anyhow::{Context, Result};
-use proto::plugin_server::PluginServer;
+use proto::{plugin_server::PluginServer, ActivationRequest, HotkeyActivationRequest};
 use tokio::net::TcpListener;
 use tonic::{transport::Server, Status};
 
@@ -121,17 +121,61 @@ impl Input {
 
 type TonicResult<T> = Result<tonic::Response<T>, tonic::Status>;
 
+#[non_exhaustive]
+pub struct ActivationContext {
+    /// Query at the time this list item was created.
+    pub query: String,
+    /// Item that was activated.
+    pub item: ListItem,
+}
+
+impl ActivationContext {
+    // making this a private function instead of `impl From`
+    // so that it's not public
+    fn from_request(req: proto::ActivationRequest) -> Self {
+        Self {
+            query: req.query,
+            item: req
+                .selected
+                .expect("activation request must have an associated item"),
+        }
+    }
+}
+
+pub use proto::{Key, Modifiers};
+pub struct Hotkey {
+    pub modifiers: Modifiers,
+    pub key: Key,
+}
+
 pub trait Plugin: Sized + Send + Sync + 'static {
     fn new(toml: String) -> impl Future<Output = Result<Self>> + Send;
 
     fn query(&self, query: String) -> impl Future<Output = Result<Vec<ListItem>>> + Send;
 
-    fn activate(&self, query: ListItem) -> impl Future<Output = Result<Vec<Action>>> + Send;
+    fn activate(&self, cx: ActivationContext) -> impl Future<Output = Result<Vec<Action>>> + Send;
+
+    /// What to do on an alternate activation (alt+enter by default).
+    ///
+    /// Defaults to doing nothing.
+    fn alt_activate(
+        &self,
+        _cx: ActivationContext,
+    ) -> impl Future<Output = Result<Vec<Action>>> + Send {
+        async { Ok(vec![]) }
+    }
+
+    fn hotkey_activate(
+        &self,
+        _hotkey: Hotkey,
+        _cx: ActivationContext,
+    ) -> impl Future<Output = Result<Vec<Action>>> + Send {
+        async { Ok(vec![]) }
+    }
 
     fn complete(
         &self,
-        _query: String,
-        _selected: ListItem,
+        _cx: ActivationContext,
     ) -> impl Future<Output = Result<Option<Input>>> + Send {
         async { Ok(None) }
     }
@@ -155,51 +199,73 @@ where
 
     async fn activate(
         &self,
-        request: tonic::Request<ListItem>,
+        request: tonic::Request<ActivationRequest>,
     ) -> TonicResult<proto::ActivationResponse> {
-        // increment frequency table
-        sqlx::query(
-            "
-            INSERT INTO activations (title, frequency, last_use)
-            VALUES (?, 1, ?)
-            ON CONFLICT (title) DO UPDATE SET
-                frequency = frequency + 1,
-                last_use = excluded.last_use
-            ",
-        )
-        .bind(&request.get_ref().title)
-        .bind(time::OffsetDateTime::now_utc())
-        .execute(sql::pool())
-        .await
-        .map_err(|e| Status::unknown(e.to_string()))?;
+        activate_using(request.into_inner(), |req| T::activate(self, req)).await
+    }
 
-        map_result(
-            T::activate(self, request.into_inner())
-                .await
-                .map(|actions| proto::ActivationResponse {
-                    actions: actions.into_iter().map(Action::map_to_proto).collect(),
-                }),
-        )
+    async fn alt_activate(
+        &self,
+        request: tonic::Request<ActivationRequest>,
+    ) -> TonicResult<proto::ActivationResponse> {
+        activate_using(request.into_inner(), |req| T::alt_activate(self, req)).await
+    }
+
+    async fn hotkey_activate(
+        &self,
+        request: tonic::Request<HotkeyActivationRequest>,
+    ) -> TonicResult<proto::ActivationResponse> {
+        let request = request.into_inner();
+        let hotkey = request.hotkey.expect("hotkey request must have a hotkey");
+        let cx = request
+            .request
+            .expect("hotkey request must have an activation request");
+        activate_using(cx, |req| {
+            T::hotkey_activate(
+                self,
+                Hotkey {
+                    modifiers: hotkey.modifiers.expect("hotkey must have modifiers"),
+                    key: hotkey.key(),
+                },
+                req,
+            )
+        })
+        .await
     }
 
     async fn complete(
         &self,
-        request: tonic::Request<proto::CompletionRequest>,
+        request: tonic::Request<proto::ActivationRequest>,
     ) -> TonicResult<proto::CompletionResponse> {
-        let request = request.into_inner();
+        let request = ActivationContext::from_request(request.into_inner());
 
         map_result(
-            T::complete(
-                self,
-                request.query,
-                request
-                    .selected
-                    .expect("completion request should always have an associated selected item"),
-            )
-            .await
-            .map(|input| proto::CompletionResponse { input }),
+            T::complete(self, request)
+                .await
+                .map(|input| proto::CompletionResponse { input }),
         )
     }
+}
+
+async fn activate_using<Fut>(
+    request: proto::ActivationRequest,
+    function: impl FnOnce(ActivationContext) -> Fut,
+) -> TonicResult<proto::ActivationResponse>
+where
+    Fut: Future<Output = Result<Vec<Action>>>,
+{
+    let request = ActivationContext::from_request(request);
+    sql::increment_frequency_table(&request.item.title)
+        .await
+        .map_err(|e| Status::unknown(e.to_string()))?;
+
+    map_result(
+        function(request)
+            .await
+            .map(|actions| proto::ActivationResponse {
+                actions: actions.into_iter().map(Action::map_to_proto).collect(),
+            }),
+    )
 }
 
 fn map_result<T>(result: Result<T>) -> TonicResult<T> {

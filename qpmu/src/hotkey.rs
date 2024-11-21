@@ -1,4 +1,16 @@
-pub use crate::plugin::proto::{Hotkey, Key, Modifiers};
+use crate::plugin::proto;
+pub use crate::plugin::proto::{Key, Modifiers};
 
-// TODO: use proto2 to make all fields required
-// TODO: wrappers
+pub struct Hotkey {
+    pub key: Key,
+    pub modifiers: Modifiers,
+}
+
+impl From<Hotkey> for proto::Hotkey {
+    fn from(value: Hotkey) -> Self {
+        Self {
+            key: value.key as i32,
+            modifiers: value.modifiers,
+        }
+    }
+}

@@ -135,9 +135,7 @@ impl ActivationContext {
     fn from_request(req: proto::ActivationRequest) -> Self {
         Self {
             query: req.query,
-            item: req
-                .selected
-                .expect("activation request must have an associated item"),
+            item: req.selected,
         }
     }
 }
@@ -216,15 +214,13 @@ where
         request: tonic::Request<HotkeyActivationRequest>,
     ) -> TonicResult<proto::ActivationResponse> {
         let request = request.into_inner();
-        let hotkey = request.hotkey.expect("hotkey request must have a hotkey");
-        let cx = request
-            .request
-            .expect("hotkey request must have an activation request");
+        let hotkey = request.hotkey;
+        let cx = request.request;
         activate_using(cx, |req| {
             T::hotkey_activate(
                 self,
                 Hotkey {
-                    modifiers: hotkey.modifiers.expect("hotkey must have modifiers"),
+                    modifiers: hotkey.modifiers,
                     key: hotkey.key(),
                 },
                 req,

@@ -265,7 +265,7 @@ impl PluginInner {
             .clone()
             .activate(Request::new(proto::ActivationRequest {
                 query,
-                selected: Some(item),
+                selected: item,
             }))
             .await?
             .into_inner()
@@ -282,7 +282,7 @@ impl PluginInner {
             .clone()
             .alt_activate(Request::new(proto::ActivationRequest {
                 query,
-                selected: Some(item),
+                selected: item,
             }))
             .await?
             .into_inner()
@@ -299,11 +299,11 @@ impl PluginInner {
             .plugin
             .clone()
             .hotkey_activate(Request::new(proto::HotkeyActivationRequest {
-                request: Some(proto::ActivationRequest {
+                request: proto::ActivationRequest {
                     query,
-                    selected: Some(item),
-                }),
-                hotkey: Some(hotkey),
+                    selected: item,
+                },
+                hotkey,
             }))
             .await?
             .into_inner()
@@ -320,7 +320,7 @@ impl PluginInner {
             .clone()
             .complete(Request::new(proto::ActivationRequest {
                 query,
-                selected: Some(item),
+                selected: item,
             }))
             .await?
             .into_inner()

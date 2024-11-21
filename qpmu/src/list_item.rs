@@ -48,7 +48,7 @@ impl ListItem {
     pub async fn hotkey_activate(self, query: String, hotkey: Hotkey) -> Result<Vec<Action>> {
         self.plugin
             .clone()
-            .hotkey_activate(query, self.item, hotkey)
+            .hotkey_activate(query, self.item, proto::Hotkey::from(hotkey))
             .await
     }
 

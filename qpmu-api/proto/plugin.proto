@@ -1,4 +1,4 @@
-syntax = "proto3";
+syntax = "proto2";
 package plugin;
 
 import "google/protobuf/empty.proto";
@@ -12,7 +12,7 @@ service Plugin {
 }
 
 message QueryRequest {
-    string query = 1;
+    required string query = 1;
 }
 
 message QueryResponse {
@@ -20,10 +20,10 @@ message QueryResponse {
 }
 
 message ListItem {
-    string title = 1;
+    required string title = 1;
     optional string icon = 2;
-    string description = 3;
-    string metadata = 4;
+    required string description = 3;
+    required string metadata = 4;
 }
 
 message ActivationResponse {
@@ -41,19 +41,19 @@ message Action {
 }
 
 message Command {
-    string cmd = 1;
+    required string cmd = 1;
     repeated string args = 2;
 }
 
 message Input {
-    string query = 1;
-    uint32 range_lb = 2;
-    uint32 range_ub = 3;
+    required string query = 1;
+    required uint32 range_lb = 2;
+    required uint32 range_ub = 3;
 }
 
 message ActivationRequest {
-    string query = 1;
-    ListItem selected = 2;
+    required string query = 1;
+    required ListItem selected = 2;
 }
 
 message CompletionResponse {
@@ -61,20 +61,20 @@ message CompletionResponse {
 }
 
 message HotkeyActivationRequest {
-    ActivationRequest request = 1;
-    Hotkey hotkey = 2;
+    required ActivationRequest request = 1;
+    required Hotkey hotkey = 2;
 }
 
 message Hotkey {
-    Key key = 1;
-    Modifiers modifiers = 2;
+    required Key key = 1;
+    required Modifiers modifiers = 2;
 }
 
 message Modifiers {
-    bool ctrl = 1;
-    bool alt = 2;
-    bool shift = 3;
-    bool super = 4;
+    required bool ctrl = 1;
+    required bool alt = 2;
+    required bool shift = 3;
+    required bool super = 4;
 }
 
 // For now, keys are all the un-shifted keys on a standard US QWERTY keyboard.

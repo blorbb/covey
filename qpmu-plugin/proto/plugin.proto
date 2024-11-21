@@ -17,6 +17,19 @@ message QueryRequest {
 
 message QueryResponse {
     repeated ListItem items = 1;
+    // The kind of list to show.
+    //
+    // If this is not provided, the list style will be the default set
+    // by the user. Plugins should only set one if the content makes the
+    // most sense with one of these styles.
+    oneof list_style {
+        // Show one item per row.
+        google.protobuf.Empty rows = 2;
+        // A grid with an adaptive size.
+        google.protobuf.Empty grid = 3;
+        // A grid with a specific number of columns per row.
+        uint32 grid_with_columns = 4;
+    }
 }
 
 message ListItem {
@@ -31,6 +44,7 @@ message ActivationResponse {
 }
 
 message Action {
+    // Required.
     oneof action {
         google.protobuf.Empty close = 1;
         Command run_command = 2;

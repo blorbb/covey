@@ -37,10 +37,10 @@ impl Plugin for MyPlugin {
 
     // runs for every change to the query, if the prefix matches
     // this plugin
-    async fn query(&self, query: String) -> Result<Vec<ListItem>> {
-        let list_items = /* ... */;
+    async fn query(&self, query: String) -> Result<List> {
+        let list_items: Vec<ListItem> = /* ... */;
         // ...
-        Ok(list_items)
+        Ok(List::new(list_items))
     }
 
     // runs when the user clicks / presses enter on a selected list item.

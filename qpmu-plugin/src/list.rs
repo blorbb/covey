@@ -1,5 +1,46 @@
 use crate::proto;
 
+pub struct List {
+    items: Vec<ListItem>,
+    /// The kind of list to show.
+    ///
+    /// If this is [`None`], the list style will be the default set by
+    /// the user. Plugins should only set one if the content makes the most
+    /// sense with one of these styles.
+    style: Option<ListStyle>,
+}
+
+impl List {
+    pub fn new(items: Vec<ListItem>) -> Self {
+        Self { items, style: None }
+    }
+
+    pub(crate) fn into_proto(self) -> proto::QueryResponse {
+        proto::QueryResponse {
+            items: ListItem::into_proto_vec(self.items),
+            list_style: self.style.map(ListStyle::into_proto),
+        }
+    }
+}
+
+#[non_exhaustive]
+pub enum ListStyle {
+    Rows,
+    Grid,
+    GridWithColumns(u32),
+}
+
+impl ListStyle {
+    pub(crate) fn into_proto(self) -> proto::query_response::ListStyle {
+        use proto::query_response::ListStyle as Proto;
+        match self {
+            ListStyle::Rows => Proto::Rows(()),
+            ListStyle::Grid => Proto::Grid(()),
+            ListStyle::GridWithColumns(columns) => Proto::GridWithColumns(columns),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ListItem {
     pub title: String,

@@ -1,11 +1,11 @@
 use std::future::Future;
 
-use crate::{proto, sql, Action, ActivationContext, Hotkey, Input, ListItem, Result};
+use crate::{proto, sql, Action, ActivationContext, Hotkey, Input, List, Result};
 
 pub trait Plugin: Sized + Send + Sync + 'static {
     fn new(toml: String) -> impl Future<Output = Result<Self>> + Send;
 
-    fn query(&self, query: String) -> impl Future<Output = Result<Vec<ListItem>>> + Send;
+    fn query(&self, query: String) -> impl Future<Output = Result<List>> + Send;
 
     fn activate(&self, cx: ActivationContext) -> impl Future<Output = Result<Vec<Action>>> + Send;
 
@@ -49,9 +49,7 @@ where
         map_result(
             T::query(self, request.into_inner().query)
                 .await
-                .map(|items| proto::QueryResponse {
-                    items: ListItem::into_proto_vec(items),
-                }),
+                .map(|items| items.into_proto()),
         )
     }
 

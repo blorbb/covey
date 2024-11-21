@@ -1,5 +1,5 @@
 [package]
-name = "qpmu-api"
+name = "qpmu-plugin"
 version = "0.1.0"
 edition = "2021"
 

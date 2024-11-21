@@ -1,3 +1,3 @@
 [workspace]
-members = ["qpmu-api", "qpmu", "qpmu-gtk"]
+members = ["qpmu-plugin", "qpmu", "qpmu-gtk"]
 resolver = "2"

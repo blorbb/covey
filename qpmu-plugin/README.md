@@ -1,4 +1,4 @@
-# qpmu-api
+# qpmu-plugin
 
 Rust bindings for a qpmu plugin.
 
@@ -8,7 +8,7 @@ See a bunch of examples in [`qpmu-plugins`](https://github.com/blorbb/qpmu-plugi
 
 Example implementation below.
 
-Add `qpmu-api` to `Cargo.toml`. You may also need `tokio` and `serde`.
+Add `qpmu-plugin` to `Cargo.toml`. You may also need `tokio` and `serde`.
 
 -   `new` will be called on initialisation. You can perform some expensive / config dependent stuff here.
 -   `query` is called on every keypress, when the input changes. Return a list of items to be displayed.
@@ -21,12 +21,12 @@ Add `qpmu-api` to `Cargo.toml`. You may also need `tokio` and `serde`.
 
 ```rs
 use anyhow::Result;
-use qpmu_api::*;
+use qpmu_plugin::*;
 use serde::Deserialize;
 
 fn main() {
     // This will run the server
-    qpmu_api::main::<MyPlugin>()
+    qpmu_plugin::main::<MyPlugin>()
 }
 
 // If you need any data from the configuration, add
@@ -71,7 +71,7 @@ impl Plugin for MyPlugin {
 }
 ```
 
-`qpmu-api` also gives access to an sqlite pool at `qpmu_api::sql::pool()`. This is a connection to the plugin's sqlite database. By default, it stores a `activations` table that updates on every activation.
+`qpmu-plugin` also gives access to an sqlite pool at `qpmu_plugin::sql::pool()`. This is a connection to the plugin's sqlite database. By default, it stores a `activations` table that updates on every activation.
 
 The `activations` table has the following schema:
 

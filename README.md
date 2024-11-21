@@ -11,7 +11,7 @@ Similar to [rofi](https://github.com/davatorium/rofi), [Ulauncher](https://githu
 -   Fast feedback - low latency, highly concurrent interactions with plugins through RPC. No debouncing by default, results are almost instantaneous. Plugins can perform expensive initialisation first to speed up response times while typing.
     -   Long computations (like web requests) are performed concurrently and updates the UI as soon as a newer request is complete.
 -   _Everything_ is a [plugin](https://github.com/blorbb/qpmu-plugins) - anything can be added, removed or changed as you like.
--   Plugin system based on [protobuf](https://protobuf.dev/) for cross-language plugin support, with easy-to-use bindings for [Rust](./qpmu-api/) (more in the future!).
+-   Plugin system based on [protobuf](https://protobuf.dev/) for cross-language plugin support, with easy-to-use bindings for [Rust](./qpmu-plugin/) (more in the future!).
 -   [Separate backend](./qpmu/) - you can write your own [front end](./qpmu-gtk/) if you wish!
     -   The current GTK4 front end can be [styled with CSS](#styling).
 
@@ -71,7 +71,7 @@ prefix = ""
 
 ## Plugins
 
-See more details about how to write your own plugin in [`qpmu-api`](./qpmu-api/). A collection of plugins can be found at [`blorbb/qpmu-plugins`](https://github.com/blorbb/qpmu-plugins).
+See more details about how to write your own plugin in [`qpmu-plugin`](./qpmu-plugin/). A collection of plugins can be found at [`blorbb/qpmu-plugins`](https://github.com/blorbb/qpmu-plugins).
 
 To install a plugin, move the binary file to `plugins/` in the qpmu config folder (`~/.config/qpmu/plugins/` on Linux). You then need to register the plugin in `config.toml`, as shown above.
 

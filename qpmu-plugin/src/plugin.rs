@@ -2,8 +2,6 @@ use std::future::Future;
 
 use crate::{proto, sql, Action, ActivationContext, Hotkey, Input, ListItem, Result};
 
-type TonicResult<T> = Result<tonic::Response<T>, tonic::Status>;
-
 pub trait Plugin: Sized + Send + Sync + 'static {
     fn new(toml: String) -> impl Future<Output = Result<Self>> + Send;
 
@@ -37,6 +35,8 @@ pub trait Plugin: Sized + Send + Sync + 'static {
     }
 }
 
+type TonicResult<T> = Result<tonic::Response<T>, tonic::Status>;
+
 #[tonic::async_trait]
 impl<T> proto::plugin_server::Plugin for T
 where
@@ -49,7 +49,9 @@ where
         map_result(
             T::query(self, request.into_inner().query)
                 .await
-                .map(|items| proto::QueryResponse { items }),
+                .map(|items| proto::QueryResponse {
+                    items: ListItem::into_proto_vec(items),
+                }),
         )
     }
 
@@ -75,14 +77,7 @@ where
         let hotkey = request.hotkey;
         let cx = request.request;
         activate_using(cx, |req| {
-            T::hotkey_activate(
-                self,
-                Hotkey {
-                    modifiers: hotkey.modifiers,
-                    key: hotkey.key(),
-                },
-                req,
-            )
+            T::hotkey_activate(self, Hotkey::from_proto(hotkey), req)
         })
         .await
     }

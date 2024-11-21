@@ -14,7 +14,7 @@ impl ActivationContext {
     pub(crate) fn from_request(req: proto::ActivationRequest) -> Self {
         Self {
             query: req.query,
-            item: req.selected,
+            item: ListItem::from_proto(req.selected),
         }
     }
 }

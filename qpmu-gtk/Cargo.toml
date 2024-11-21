@@ -17,3 +17,4 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing = "0.1.40"
 arboard = { version = "3.4.1", features = ["wayland-data-control"] }
 clap = { version = "4.5.20", features = ["derive"] }
+tray-item = { version = "0.10", features = ["ksni"]}

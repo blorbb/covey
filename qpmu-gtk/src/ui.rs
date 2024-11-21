@@ -17,6 +17,7 @@ use tracing::{error, info, instrument, warn};
 use crate::{
     model::{Launcher, LauncherMsg},
     styles::load_css,
+    tray_icon,
 };
 
 const WIDTH: i32 = 800;
@@ -63,6 +64,8 @@ impl Component for Launcher {
 
         let model = Launcher::new(Config::load_plugins().expect("failed to load plugins"));
         load_css();
+
+        tray_icon::create_tray_icon(sender.clone()).expect("failed to load tray icon");
 
         window.connect_visible_notify({
             let sender = sender.clone();
@@ -225,6 +228,9 @@ impl Component for Launcher {
             LauncherMsg::Close => {
                 root.close();
             }
+            LauncherMsg::Shutdown => {
+                root.application().unwrap().quit();
+            }
         }
     }
 
@@ -236,6 +242,10 @@ impl Component for Launcher {
         root: &Self::Root,
     ) {
         self.update_with_view(widgets, message, sender, root)
+    }
+
+    fn shutdown(&mut self, _: &mut Self::Widgets, _: relm4::Sender<Self::Output>) {
+        info!("application shutting down");
     }
 }
 

@@ -13,6 +13,7 @@ mod model;
 mod styles;
 mod ui;
 mod hotkey;
+mod tray_icon;
 
 #[derive(Parser, Debug)]
 #[command(version)]

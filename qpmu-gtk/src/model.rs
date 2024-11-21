@@ -33,11 +33,13 @@ pub enum LauncherMsg {
     AltActivate,
     /// Perform (tab) completion on the current selected item
     Complete,
-    /// Close (hide) the window
-    Close,
     /// Open and focus the entry
     Focus,
     /// Run an arbitrary hotkey on the current list item
     /// that is not one of the existing keybinds.
     Hotkey(qpmu::hotkey::Hotkey),
+    /// Close (hide) the window
+    Close,
+    /// Shutdown the entire application, killing all child processes.
+    Shutdown,
 }

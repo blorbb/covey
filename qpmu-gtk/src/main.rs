@@ -12,6 +12,7 @@ mod install;
 mod model;
 mod styles;
 mod ui;
+mod hotkey;
 
 #[derive(Parser, Debug)]
 #[command(version)]

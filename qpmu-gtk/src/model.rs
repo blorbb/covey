@@ -37,4 +37,7 @@ pub enum LauncherMsg {
     Close,
     /// Open and focus the entry
     Focus,
+    /// Run an arbitrary hotkey on the current list item
+    /// that is not one of the existing keybinds.
+    Hotkey(qpmu::hotkey::Hotkey),
 }

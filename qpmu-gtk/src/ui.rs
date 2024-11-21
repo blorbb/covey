@@ -206,6 +206,12 @@ impl Component for Launcher {
                     sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) });
                 }
             }
+            LauncherMsg::Hotkey(hotkey) => {
+                let fut = self.model.hotkey_activate(hotkey);
+                if let Some(fut) = fut {
+                    sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) });
+                }
+            }
             LauncherMsg::Complete => {
                 let fut = self.model.complete();
                 if let Some(fut) = fut {
@@ -246,9 +252,15 @@ fn key_controller(sender: ComponentSender<Launcher>) -> EventControllerKey {
             Key::Return if modifiers.contains(ModifierType::ALT_MASK) => {
                 sender.input(LauncherMsg::AltActivate)
             }
-            Key::Return => sender.input(LauncherMsg::Activate),
-            Key::Tab => sender.input(LauncherMsg::Complete),
-            _ => return gtk::glib::Propagation::Proceed,
+            Key::Return if modifiers.is_empty() => sender.input(LauncherMsg::Activate),
+            Key::Tab if modifiers.is_empty() => sender.input(LauncherMsg::Complete),
+            // try run a hotkey
+            other => {
+                if let Some(hotkey) = crate::hotkey::to_qpmu_hotkey(other, modifiers) {
+                    sender.input(LauncherMsg::Hotkey(hotkey));
+                }
+                return gtk::glib::Propagation::Proceed;
+            }
         }
         gtk::glib::Propagation::Stop
     });

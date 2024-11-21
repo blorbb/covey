@@ -1,6 +1,7 @@
 use crate::plugin::proto;
 pub use crate::plugin::proto::{Key, Modifiers};
 
+#[derive(Debug, Clone, Copy)]
 pub struct Hotkey {
     pub key: Key,
     pub modifiers: Modifiers,

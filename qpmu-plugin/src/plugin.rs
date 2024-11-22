@@ -1,6 +1,8 @@
 use std::future::Future;
 
-use crate::{proto, sql, Action, ActivationContext, Hotkey, Input, List, Result};
+use crate::{
+    plugin_lock::PluginLock, proto, sql, Action, ActivationContext, Hotkey, Input, List, Result,
+};
 
 pub trait Plugin: Sized + Send + Sync + 'static {
     fn new(toml: String) -> impl Future<Output = Result<Self>> + Send;
@@ -38,44 +40,64 @@ pub trait Plugin: Sized + Send + Sync + 'static {
 type TonicResult<T> = Result<tonic::Response<T>, tonic::Status>;
 
 #[tonic::async_trait]
-impl<T> proto::plugin_server::Plugin for T
+impl<T> proto::plugin_server::Plugin for PluginLock<T>
 where
     T: Plugin,
 {
+    async fn initialise(
+        &self,
+        request: tonic::Request<proto::InitialiseRequest>,
+    ) -> TonicResult<()> {
+        let request = request.into_inner();
+        let mut guard = self.write().await;
+        sql::init(&request.sqlite_url)
+            .await
+            .map_err(into_tonic_status)?;
+        let plugin = T::new(request.toml).await.map_err(into_tonic_status)?;
+        *guard = Some(plugin);
+
+        Ok(tonic::Response::new(()))
+    }
+
     async fn query(
         &self,
         request: tonic::Request<proto::QueryRequest>,
     ) -> TonicResult<proto::QueryResponse> {
-        map_result(
-            T::query(self, request.into_inner().query)
-                .await
-                .map(|items| items.into_proto()),
-        )
+        let response = self
+            .force_read()
+            .await
+            .query(request.into_inner().query)
+            .await;
+
+        map_result(response.map(List::into_proto))
     }
 
     async fn activate(
         &self,
         request: tonic::Request<proto::ActivationRequest>,
     ) -> TonicResult<proto::ActivationResponse> {
-        activate_using(request.into_inner(), |req| T::activate(self, req)).await
+        let plugin = self.force_read().await;
+        activate_using(request.into_inner(), |req| T::activate(&plugin, req)).await
     }
 
     async fn alt_activate(
         &self,
         request: tonic::Request<proto::ActivationRequest>,
     ) -> TonicResult<proto::ActivationResponse> {
-        activate_using(request.into_inner(), |req| T::alt_activate(self, req)).await
+        let plugin = self.force_read().await;
+        activate_using(request.into_inner(), |req| T::alt_activate(&plugin, req)).await
     }
 
     async fn hotkey_activate(
         &self,
         request: tonic::Request<proto::HotkeyActivationRequest>,
     ) -> TonicResult<proto::ActivationResponse> {
+        let plugin = self.force_read().await;
         let request = request.into_inner();
         let hotkey = request.hotkey;
         let cx = request.request;
         activate_using(cx, |req| {
-            T::hotkey_activate(self, Hotkey::from_proto(hotkey), req)
+            T::hotkey_activate(&plugin, Hotkey::from_proto(hotkey), req)
         })
         .await
     }
@@ -87,7 +109,7 @@ where
         let request = ActivationContext::from_request(request.into_inner());
 
         map_result(
-            T::complete(self, request)
+            T::complete(&*self.force_read().await, request)
                 .await
                 .map(|input| proto::CompletionResponse {
                     input: input.map(Input::into_proto),
@@ -120,11 +142,15 @@ where
 fn map_result<T>(result: Result<T>) -> TonicResult<T> {
     match result {
         Ok(response) => Ok(tonic::Response::new(response)),
-        Err(err) => Err(tonic::Status::unknown(
-            err.chain()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n"),
-        )),
+        Err(err) => Err(into_tonic_status(err)),
     }
+}
+
+fn into_tonic_status(e: anyhow::Error) -> tonic::Status {
+    tonic::Status::unknown(
+        e.chain()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
 }

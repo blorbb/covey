@@ -4,9 +4,9 @@ use std::{path::PathBuf, process::Stdio};
 use color_eyre::eyre::{bail, Context, ContextCompat, Result};
 use tokio::{
     fs,
-    io::{AsyncBufReadExt, AsyncReadExt, BufReader},
+    io::{AsyncBufReadExt,  BufReader},
     process::Command,
-    sync::OnceCell,
+    sync::{Mutex, OnceCell},
 };
 use tonic::{transport::Channel, Request};
 use tracing::info;
@@ -51,7 +51,11 @@ impl Plugin {
     pub(crate) async fn query(&self, query: impl Into<String>) -> Result<ResultList> {
         Ok(ResultList::from_proto(
             *self,
-            self.plugin.get().await?.call_query(query.into()).await?,
+            self.plugin
+                .get_and_init()
+                .await?
+                .call_query(query.into())
+                .await?,
         ))
     }
 
@@ -63,7 +67,7 @@ impl Plugin {
         Ok(action::map_actions(
             *self,
             self.plugin
-                .get()
+                .get_and_init()
                 .await?
                 .call_activate(query.into(), item)
                 .await?,
@@ -78,7 +82,7 @@ impl Plugin {
         Ok(action::map_actions(
             *self,
             self.plugin
-                .get()
+                .get_and_init()
                 .await?
                 .call_alt_activate(query.into(), item)
                 .await?,
@@ -94,7 +98,7 @@ impl Plugin {
         Ok(action::map_actions(
             *self,
             self.plugin
-                .get()
+                .get_and_init()
                 .await?
                 .call_hotkey_activate(query.into(), item, hotkey)
                 .await?,
@@ -108,7 +112,7 @@ impl Plugin {
     ) -> Result<Option<Input>> {
         Ok(self
             .plugin
-            .get()
+            .get_and_init()
             .await?
             .call_complete(query.into(), item)
             .await?
@@ -151,29 +155,59 @@ async fn sqlite_connection_url(plugin_name: &str) -> Result<String> {
 /// A plugin that is not initialised until [`Self::get`] is called.
 struct LazyPlugin {
     cell: OnceCell<Result<PluginInner>>,
+    called_initialise: Mutex<bool>,
     config: PluginConfig,
 }
 
 impl LazyPlugin {
-    pub fn new(config: PluginConfig) -> Self {
+    fn new(config: PluginConfig) -> Self {
         Self {
             cell: OnceCell::new(),
+            called_initialise: Mutex::new(false),
             config,
         }
     }
 
-    /// Initialises or gets access to the plugin.
-    pub async fn get(&self) -> Result<&PluginInner> {
+    /// Gets access to a plugin and ensures it is initialised.
+    ///
+    /// Locks exclusive access to the plugin while initialising.
+    async fn get_and_init(&self) -> Result<&PluginInner> {
+        let inner = self.get_without_init().await?;
+
+        // ensures that the plugin initialisation function has been called.
+        // if already initialised, the lock should be very quickly dropped.
+        // otherwise, blocks any other accesses until initialisation
+        // either succeeds or fails.
+        let mut initialise_guard = self.called_initialise.lock().await;
+        if !*initialise_guard {
+            let db_url = sqlite_connection_url(&self.config.name).await?;
+            let config_toml = self.config.config.to_string();
+
+            inner
+                .plugin
+                .clone()
+                .initialise(Request::new(proto::InitialiseRequest {
+                    toml: config_toml,
+                    sqlite_url: db_url,
+                }))
+                .await
+                .context("plugin initialisation function failed")?;
+            *initialise_guard = true;
+        }
+
+        Ok(inner)
+    }
+
+    /// Do not call this function outside of internal implementations.
+    async fn get_without_init(&self) -> Result<&PluginInner> {
         let plugin = self
             .cell
             .get_or_init(|| async {
                 info!("initialising plugin {}", self.config.name);
 
                 let bin_path = PLUGINS_DIR.join(&self.config.name);
-                let db_url = sqlite_connection_url(&self.config.name).await?;
-                let config_toml = self.config.config.to_string();
 
-                Ok(PluginInner::new(bin_path, &db_url, &config_toml).await?)
+                Ok(PluginInner::new(bin_path).await?)
             })
             .await;
 
@@ -192,11 +226,10 @@ struct PluginInner {
 }
 
 impl PluginInner {
-    async fn new(bin_path: PathBuf, db_url: &str, toml: &str) -> Result<Self> {
+    /// Starts the plugin binary but does not call initialise.
+    async fn new(bin_path: PathBuf) -> Result<Self> {
         // run process and read first line
         let mut process = Command::new(bin_path)
-            .arg(db_url)
-            .arg(toml)
             .stdout(Stdio::piped())
             .spawn()
             .context("failed to spawn plugin server")?;
@@ -210,33 +243,16 @@ impl PluginInner {
             .await
             .context("failed to read port or error from plugin: plugin should print to stdout")?;
 
-        // stdout should either be:
-        // PORT:12345 if the server was successfully created
-        // ERROR:... if an error occurred during initialisation
-        let port: u16 = match first_line.split_once(':') {
-            Some(("PORT", port_num)) => port_num
-                .trim()
-                .parse()
-                .context("plugin should print it's connected port number to stdout")?,
-            Some(("ERROR", first_err_line)) => {
-                _ = process.kill().await;
-
-                // collect the entire error message, not just first line
-                let mut err = String::from(first_err_line);
-                stdout.read_to_string(&mut err).await?;
-                bail!("Error initialising process:\n{err}")
-            }
-            Some(_) | None => {
-                _ = process.kill().await;
-                bail!("invalid stdout of plugin process")
-            }
-        };
+        let port: u16 = first_line
+            .trim()
+            .parse()
+            .context("plugin should print it's connected port number to stdout")?;
 
         let client = PluginClient::connect(format!("http://[::1]:{port}"))
             .await
             .context(format!("failed to connect to plugin server on port {port}"))?;
 
-        info!("finished initialising plugin");
+        info!("finished initialising plugin binary");
         Ok(Self { plugin: client })
     }
 

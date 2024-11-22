@@ -91,7 +91,7 @@ Currently, only Rust bindings exist. Bindings for other languages may be made in
 
 The program needs to run a server with RPC services that follow the protobuf definition.
 
--   When initialising, it needs to connect to a port in loopback (`[::1]`) and print `PORT:<port>` to stdout (e.g. `PORT:12345`).
+-   When initialising, it needs to connect to a port in loopback (`[::1]`) and print the port to stdout (e.g. `12345`).
     -   The qpmu backend will then connect to `http://[::1]:<port>`.
--   If an error occurs during initialisation, you should print `ERROR:<message>` to stdout and exit. The message can be over multiple lines.
--   qpmu will give two arguments to the binary: the first is an sqlite URL that the plugin can connect to for storing any kind of data, and the second is a string of TOML that is the plugin's extra options.
+-   If an error occurs during initialisation, you should exit with a non-zero exit code.
+-   The backend is guaranteed to call and complete the initialise function before any other functions are called.

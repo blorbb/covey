@@ -4,11 +4,21 @@ package plugin;
 import "google/protobuf/empty.proto";
 
 service Plugin {
+    // Initialise the service, given some initialisation info.
+    //
+    // It is guaranteed that this function will be called and completed
+    // before any of the others are run.
+    rpc Initialise (InitialiseRequest) returns (google.protobuf.Empty);
     rpc Query (QueryRequest) returns (QueryResponse);
     rpc Activate (ActivationRequest) returns (ActivationResponse);
     rpc AltActivate (ActivationRequest) returns (ActivationResponse);
     rpc HotkeyActivate (HotkeyActivationRequest) returns (ActivationResponse);
     rpc Complete (ActivationRequest) returns (CompletionResponse);
+}
+
+message InitialiseRequest {
+    required string toml = 1;
+    required string sqlite_url = 2;
 }
 
 message QueryRequest {

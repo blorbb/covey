@@ -59,9 +59,9 @@ impl ListStyle {
 #[derive(Debug, Clone)]
 pub struct ListItem {
     pub title: String,
-    pub icon: Option<String>,
     pub description: String,
     pub metadata: String,
+    pub icon: Option<Icon>,
 }
 
 impl ListItem {
@@ -84,15 +84,25 @@ impl ListItem {
         self
     }
 
-    pub fn with_icon(mut self, icon: Option<impl Into<String>>) -> Self {
-        self.icon = icon.map(Into::into);
+    pub fn with_icon(mut self, icon: Option<Icon>) -> Self {
+        self.icon = icon;
+        self
+    }
+
+    pub fn with_icon_name(mut self, name: impl Into<String>) -> Self {
+        self.icon = Some(Icon::Name(name.into()));
+        self
+    }
+
+    pub fn with_icon_text(mut self, text: impl Into<String>) -> Self {
+        self.icon = Some(Icon::Text(text.into()));
         self
     }
 
     pub(crate) fn from_proto(proto: proto::ListItem) -> Self {
         Self {
             title: proto.title,
-            icon: proto.icon,
+            icon: proto.icon.map(Icon::from_proto),
             description: proto.description,
             metadata: proto.metadata,
         }
@@ -101,7 +111,7 @@ impl ListItem {
     pub(crate) fn into_proto(self) -> proto::ListItem {
         proto::ListItem {
             title: self.title,
-            icon: self.icon,
+            icon: self.icon.map(Icon::into_proto),
             description: self.description,
             metadata: self.metadata,
         }
@@ -109,5 +119,29 @@ impl ListItem {
 
     pub(crate) fn into_proto_vec(vec: Vec<Self>) -> Vec<proto::ListItem> {
         vec.into_iter().map(Self::into_proto).collect()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Icon {
+    Name(String),
+    Text(String),
+}
+
+impl Icon {
+    pub(crate) fn from_proto(proto: proto::list_item::Icon) -> Self {
+        use proto::list_item::Icon as Proto;
+        match proto {
+            Proto::Name(name) => Self::Name(name),
+            Proto::Text(text) => Self::Text(text),
+        }
+    }
+
+    pub(crate) fn into_proto(self) -> proto::list_item::Icon {
+        use proto::list_item::Icon as Proto;
+        match self {
+            Self::Name(name) => Proto::Name(name),
+            Self::Text(text) => Proto::Text(text),
+        }
     }
 }

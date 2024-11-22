@@ -11,7 +11,7 @@ use std::{future::Future, path::PathBuf, sync::LazyLock};
 use color_eyre::eyre::{bail, Context, Result};
 use hotkey::Hotkey;
 pub use input::Input;
-pub use list_item::ListItem;
+pub use list_item::{Icon, ListItem};
 use plugin::{Action, Plugin, PluginEvent};
 pub use result_list::{ListStyle, ResultList};
 use tracing::info;

@@ -34,9 +34,14 @@ message QueryResponse {
 
 message ListItem {
     required string title = 1;
-    optional string icon = 2;
-    required string description = 3;
-    required string metadata = 4;
+    required string description = 2;
+    required string metadata = 3;
+    oneof icon {
+        // A named icon, taken from the system.
+        string NAME = 4;
+        // Just some text. It should be very short.
+        string TEXT = 5;
+    }
 }
 
 message ActivationResponse {

@@ -33,8 +33,8 @@ impl ListItem {
         &self.item.description
     }
 
-    pub fn icon(&self) -> Option<&str> {
-        self.item.icon.as_deref()
+    pub fn icon(&self) -> Option<Icon> {
+        self.item.icon.clone().map(Icon::from_proto)
     }
 
     pub async fn activate(self, query: String) -> Result<Vec<Action>> {
@@ -66,5 +66,21 @@ impl fmt::Debug for ListItem {
             .field("metadata", &self.item.metadata)
             .field("icon", &self.item.icon)
             .finish()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Icon {
+    Name(String),
+    Text(String),
+}
+
+impl Icon {
+    pub(crate) fn from_proto(proto: proto::list_item::Icon) -> Self {
+        use proto::list_item::Icon as Proto;
+        match proto {
+            Proto::Name(name) => Self::Name(name),
+            Proto::Text(text) => Self::Text(text),
+        }
     }
 }

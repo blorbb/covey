@@ -37,6 +37,7 @@
     --entry-icon-size: 48px;
 
     --border-color: #26233a;
+    --window-border: 4px;
 
     /* distance to center of the entry icon, relative to the main box top left */
     --entry-icon-center: calc(var(--entry-padding) + var(--entry-icon-size) / 2);
@@ -51,7 +52,7 @@
 .main-box {
     background: var(--pane-background);
     border-radius: var(--main-brad);
-    border: 4px solid var(--border-color);
+    border: var(--window-border) solid var(--border-color);
 }
 
 .window {
@@ -88,12 +89,37 @@
     margin-left: var(--padding);
 }
 
+.main-list {
+    --_inner-padding: var(--padding);
+    --_item-gap: var(--padding);
+    padding: calc(var(--_item-gap) / 2);
+}
+
+.main-list-grid {
+    /* less padding for grid type */
+    --_inner-padding: calc(var(--padding) / 2);
+}
+
 .list-item {
-    padding: var(--padding);
+    padding: var(--_inner-padding);
+    margin: calc(var(--_item-gap) / 2);
     border-radius: var(--list-item-brad);
-    /* no margin top, even for first child, so there isn't a huge gap to the input */
-    margin: var(--padding);
-    margin-top: 0px;
+
+    /* force equal spacing of the grid */
+    /* min-width does not include the inner padding */
+    /*
+    | window padding | item gap | inner padding | actual width | inner padding | item gap | ... | window padding |
+    */
+    --_main-list-width: calc(var(--qpmu-gtk-window-width) - var(--window-padding) * 2 - var(--window-border) * 2);
+    --_total-gap-width: calc(
+        var(--qpmu-gtk-main-list-num-columns) * (var(--_item-gap) + var(--_inner-padding) * 2) +
+            /* account for final item gap */ var(--_item-gap)
+    );
+    min-width: calc((var(--_main-list-width) - var(--_total-gap-width)) / var(--qpmu-gtk-main-list-num-columns));
+}
+
+.main-list-grid .list-item-description {
+    display: none;
 }
 
 .list-item-description {
@@ -117,4 +143,6 @@
 
 .list-item-icon {
     -gtk-icon-size: var(--icon-size);
+    font-size: var(--icon-size);
+    line-height: calc(var(--icon-size) * 1.5);
 }

@@ -1,5 +1,5 @@
 use color_eyre::eyre::eyre;
-use qpmu::{config::Config, Input, ListItem, ListStyle};
+use qpmu::{config::Config, Icon, Input, ListItem, ListStyle};
 use relm4::{
     gtk::{
         self,
@@ -7,10 +7,10 @@ use relm4::{
         gio::Notification,
         glib::SignalHandlerId,
         prelude::*,
-        EventControllerKey, FlowBox,
+        EventControllerKey, FlowBox, Widget,
     },
     prelude::ComponentParts,
-    Component, ComponentSender, RelmContainerExt as _, RelmRemoveAllExt as _,
+    Component, ComponentSender, RelmContainerExt, RelmRemoveAllExt as _, RelmWidgetExt,
 };
 use tracing::{error, info, instrument, warn};
 
@@ -133,6 +133,8 @@ impl Component for Launcher {
         let list = FlowBox::builder()
             .selection_mode(gtk::SelectionMode::Browse)
             .css_classes(["main-list"])
+            .row_spacing(0)
+            .column_spacing(0)
             .build();
 
         list.connect_selected_children_changed({
@@ -155,6 +157,9 @@ impl Component for Launcher {
         vbox.container_add(&entry);
         vbox.container_add(&list_scroller);
         list_scroller.container_add(&list);
+
+        // set css property for the user CSS to receive
+        window.inline_css(&format!("--qpmu-gtk-window-width: {WIDTH}px;"));
 
         let widgets = Self::Widgets {
             entry,
@@ -335,7 +340,7 @@ impl<'a> qpmu::Frontend for Frontend<'a> {
             None => {
                 // TODO: select based on configuration
                 Self::set_list_rows(results_list, list.items());
-            },
+            }
         }
 
         self.set_list_selection(list.selection());
@@ -373,64 +378,49 @@ impl<'a> qpmu::Frontend for Frontend<'a> {
 }
 
 impl Frontend<'_> {
+    fn add_icon_to(icon: &Icon, to: &impl RelmContainerExt<Child = Widget>) {
+        match icon {
+            Icon::Name(name) => {
+                let image = gtk::Image::from_icon_name(&name);
+                image.set_css_classes(&["list-item-icon", "list-item-icon-name"]);
+                image.set_size_request(32, 32);
+                image.set_icon_size(gtk::IconSize::Large);
+                to.container_add(&image);
+            }
+            Icon::Text(text) => {
+                let label = gtk::Label::builder()
+                    .label(text)
+                    .css_classes(["list-item-icon", "list-item-icon-text"])
+                    .build();
+                to.container_add(&label);
+            }
+        };
+    }
+
     fn set_list_rows(list: &FlowBox, children: &[ListItem]) {
+        list.set_min_children_per_line(1);
         list.set_max_children_per_line(1);
         list.add_css_class("main-list-rows");
+        list.inline_css("--qpmu-gtk-main-list-num-columns: 1;");
         for item in children {
             // item format:
             // icon | title
             //      | description
 
-            let hbox = gtk::Box::builder()
-                .orientation(gtk::Orientation::Horizontal)
-                .css_classes(["list-item-hbox"])
-                .spacing(16)
-                .build();
-            if let Some(icon_name) = item.icon() {
-                let icon = gtk::Image::from_icon_name(&icon_name);
-                icon.set_css_classes(&["list-item-icon"]);
-                icon.set_size_request(32, 32);
-                icon.set_icon_size(gtk::IconSize::Large);
-                hbox.container_add(&icon);
-            }
-
-            let vbox = gtk::Box::builder()
-                .orientation(gtk::Orientation::Vertical)
-                .css_classes(["list-item-vbox"])
-                .halign(gtk::Align::Fill)
-                .hexpand(true)
-                .build();
-            let title = gtk::Label::builder()
-                .label(item.title())
-                .halign(gtk::Align::Start)
-                .css_classes(["list-item-title"])
-                .wrap(true)
-                .build();
-            vbox.container_add(&title);
-
-            if !item.description().is_empty() {
-                let description = gtk::Label::builder()
-                    .label(item.description())
-                    .halign(gtk::Align::Start)
-                    .css_classes(["list-item-description"])
-                    .wrap(true)
-                    .build();
-                vbox.container_add(&description);
-            }
-            hbox.container_add(&vbox);
-
-            list.append(
-                &gtk::FlowBoxChild::builder()
-                    .css_classes(["list-item"])
-                    .child(&hbox)
-                    .build(),
-            );
+            list.append(&Self::make_list_item(
+                item.title(),
+                item.description(),
+                item.icon(),
+                true,
+            ));
         }
     }
 
     fn set_list_grid(list: &FlowBox, children: &[ListItem], columns: u32) {
+        list.set_min_children_per_line(columns);
         list.set_max_children_per_line(columns);
         list.add_css_class("main-list-grid");
+        list.inline_css(&format!("--qpmu-gtk-main-list-num-columns: {columns};"));
 
         for item in children {
             // item format:
@@ -439,50 +429,86 @@ impl Frontend<'_> {
             //    title
             // description
 
-            let hbox = gtk::Box::builder()
-                .orientation(gtk::Orientation::Vertical)
-                .css_classes(["list-item-hbox"])
-                .spacing(16)
-                .build();
-            if let Some(icon_name) = item.icon() {
-                let icon = gtk::Image::from_icon_name(&icon_name);
-                icon.set_css_classes(&["list-item-icon"]);
-                icon.set_size_request(32, 32);
-                icon.set_icon_size(gtk::IconSize::Large);
-                hbox.container_add(&icon);
-            }
-
-            let vbox = gtk::Box::builder()
-                .orientation(gtk::Orientation::Vertical)
-                .css_classes(["list-item-vbox"])
-                .halign(gtk::Align::Fill)
-                .hexpand(true)
-                .build();
-            let title = gtk::Label::builder()
-                .label(item.title())
-                .halign(gtk::Align::Center)
-                .css_classes(["list-item-title"])
-                .wrap(true)
-                .build();
-            vbox.container_add(&title);
-
-            if !item.description().is_empty() {
-                let description = gtk::Label::builder()
-                    .label(item.description())
-                    .halign(gtk::Align::Center)
-                    .css_classes(["list-item-description"])
-                    .wrap(true)
-                    .build();
-                vbox.container_add(&description);
-            }
-            hbox.container_add(&vbox);
-
-            list.append(
-                &gtk::FlowBoxChild::builder()
-                    .css_classes(["list-item"])
-                    .child(&hbox)
-                    .build(),
-            );
+            list.append(&Self::make_list_item(
+                item.title(),
+                item.description(),
+                item.icon(),
+                false,
+            ));
         }
+
+        if let Some(missing_space) = columns.checked_sub(children.len() as u32) {
+            for _ in 0..missing_space {
+                // make a bunch of stub items to fill in the space
+                let child = Self::make_list_item("", "", None, false);
+                child.set_can_focus(false);
+                child.set_can_target(false);
+                child.set_focusable(false);
+                child.set_opacity(0.0);
+                child.set_sensitive(false);
+
+                list.append(&child);
+            }
+        }
+    }
+
+    fn make_list_item(
+        title: &str,
+        description: &str,
+        icon: Option<Icon>,
+        is_rows: bool,
+    ) -> gtk::FlowBoxChild {
+        let hbox = gtk::Box::builder()
+            .orientation(if is_rows {
+                gtk::Orientation::Horizontal
+            } else {
+                gtk::Orientation::Vertical
+            })
+            .spacing(16)
+            .css_classes(["list-item-hbox"])
+            .build();
+
+        if let Some(icon) = icon {
+            Self::add_icon_to(&icon, &hbox);
+        }
+
+        let vbox = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .css_classes(["list-item-vbox"])
+            .halign(gtk::Align::Fill)
+            .hexpand(true)
+            .build();
+
+        let text_alignment = if is_rows {
+            gtk::Align::Start
+        } else {
+            gtk::Align::Center
+        };
+
+        let title = gtk::Label::builder()
+            .label(title)
+            .halign(text_alignment)
+            .css_classes(["list-item-title"])
+            .wrap(true)
+            .wrap_mode(gtk::pango::WrapMode::WordChar)
+            .build();
+        vbox.container_add(&title);
+
+        if !description.is_empty() {
+            let description = gtk::Label::builder()
+                .label(description)
+                .halign(text_alignment)
+                .css_classes(["list-item-description"])
+                .wrap(true)
+                .wrap_mode(gtk::pango::WrapMode::WordChar)
+                .build();
+            vbox.container_add(&description);
+        }
+        hbox.container_add(&vbox);
+
+        gtk::FlowBoxChild::builder()
+            .css_classes(["list-item"])
+            .child(&hbox)
+            .build()
     }
 }

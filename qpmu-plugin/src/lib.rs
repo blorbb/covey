@@ -2,7 +2,7 @@ pub mod rank;
 pub mod sql;
 
 mod list;
-pub use list::{List, ListItem, ListStyle};
+pub use list::{Icon, List, ListItem, ListStyle};
 mod action;
 pub use action::Action;
 mod input;

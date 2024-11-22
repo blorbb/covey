@@ -1,5 +1,5 @@
 use color_eyre::eyre::eyre;
-use qpmu::{config::Config, Input};
+use qpmu::{config::Config, Input, ListItem, ListStyle};
 use relm4::{
     gtk::{
         self,
@@ -7,7 +7,7 @@ use relm4::{
         gio::Notification,
         glib::SignalHandlerId,
         prelude::*,
-        EventControllerKey, ListBox,
+        EventControllerKey, FlowBox,
     },
     prelude::ComponentParts,
     Component, ComponentSender, RelmContainerExt as _, RelmRemoveAllExt as _,
@@ -27,7 +27,7 @@ const HEIGHT_MAX: i32 = 600;
 pub struct LauncherWidgets {
     pub entry: gtk::Entry,
     pub scroller: gtk::ScrolledWindow,
-    pub results_list: gtk::ListBox,
+    pub results_list: gtk::FlowBox,
     pub entry_change_handler: SignalHandlerId,
 }
 
@@ -130,23 +130,22 @@ impl Component for Launcher {
             .build();
         list_scroller.set_visible(false);
 
-        let list = ListBox::builder()
+        let list = FlowBox::builder()
             .selection_mode(gtk::SelectionMode::Browse)
             .css_classes(["main-list"])
             .build();
-        list.select_row(list.row_at_index(0).as_ref());
 
-        list.connect_row_selected({
+        list.connect_selected_children_changed({
             let sender = sender.clone();
-            move |_, row| {
-                if let Some(row) = row {
-                    sender.input(LauncherMsg::Select(row.index() as usize));
+            move |flow_box| {
+                if let Some(child) = flow_box.selected_children().first() {
+                    sender.input(LauncherMsg::Select(child.index() as usize));
                 }
             }
         });
         // selection will happen first, so activating the current selection works
         // even if clicking on a row that isn't currently selected.
-        list.connect_row_activated({
+        list.connect_child_activated({
             let sender = sender.clone();
             move |_, _| sender.input(LauncherMsg::Activate)
         });
@@ -318,15 +317,66 @@ impl<'a> qpmu::Frontend for Frontend<'a> {
     }
 
     fn set_list(&mut self, list: &qpmu::ResultList) {
-        // TODO: respect list.style
         info!("setting list to {} items", list.items().len());
 
         let results_list = &self.widgets.results_list;
 
         self.widgets.scroller.set_visible(!list.is_empty());
         results_list.remove_all();
+        results_list.set_css_classes(&["main-list"]);
+
         // recreate list of results
-        for item in list.items() {
+        match list.style() {
+            Some(ListStyle::Rows) => Self::set_list_rows(results_list, list.items()),
+            Some(ListStyle::Grid) => Self::set_list_grid(results_list, list.items(), 5),
+            Some(ListStyle::GridWithColumns(columns)) => {
+                Self::set_list_grid(results_list, list.items(), columns)
+            }
+            None => {
+                // TODO: select based on configuration
+                Self::set_list_rows(results_list, list.items());
+            },
+        }
+
+        self.set_list_selection(list.selection());
+        self.root.set_default_height(-1);
+    }
+
+    fn set_list_selection(&mut self, index: usize) {
+        info!("set list selection to index {index}");
+        let target_row = self.widgets.results_list.child_at_index(index as i32);
+
+        if let Some(target_row) = target_row {
+            self.widgets.results_list.select_child(&target_row);
+            // scroll to the target, but don't lose focus on the entry
+            target_row.grab_focus();
+            self.widgets.entry.grab_focus_without_selecting();
+        }
+    }
+
+    fn display_error(&mut self, title: &str, error: color_eyre::eyre::Report) {
+        error!("displaying error {title}");
+
+        let notif = Notification::new(title);
+        let error_body = error
+            .chain()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        notif.set_body(Some(&error_body));
+
+        self.root
+            .application()
+            .expect("missing application instance")
+            .send_notification(None, &notif);
+    }
+}
+
+impl Frontend<'_> {
+    fn set_list_rows(list: &FlowBox, children: &[ListItem]) {
+        list.set_max_children_per_line(1);
+        list.add_css_class("main-list-rows");
+        for item in children {
             // item format:
             // icon | title
             //      | description
@@ -369,45 +419,70 @@ impl<'a> qpmu::Frontend for Frontend<'a> {
             }
             hbox.container_add(&vbox);
 
-            results_list.container_add(
-                &gtk::ListBoxRow::builder()
+            list.append(
+                &gtk::FlowBoxChild::builder()
                     .css_classes(["list-item"])
                     .child(&hbox)
                     .build(),
             );
         }
-
-        self.set_list_selection(list.selection());
-        self.root.set_default_height(-1);
     }
 
-    fn set_list_selection(&mut self, index: usize) {
-        info!("set list selection to index {index}");
-        let target_row = self.widgets.results_list.row_at_index(index as i32);
+    fn set_list_grid(list: &FlowBox, children: &[ListItem], columns: u32) {
+        list.set_max_children_per_line(columns);
+        list.add_css_class("main-list-grid");
 
-        self.widgets.results_list.select_row(target_row.as_ref());
+        for item in children {
+            // item format:
+            //    icon
+            //   -------
+            //    title
+            // description
 
-        // scroll to the target, but don't lose focus on the entry
-        if let Some(target_row) = target_row {
-            target_row.grab_focus();
-            self.widgets.entry.grab_focus_without_selecting();
+            let hbox = gtk::Box::builder()
+                .orientation(gtk::Orientation::Vertical)
+                .css_classes(["list-item-hbox"])
+                .spacing(16)
+                .build();
+            if let Some(icon_name) = item.icon() {
+                let icon = gtk::Image::from_icon_name(&icon_name);
+                icon.set_css_classes(&["list-item-icon"]);
+                icon.set_size_request(32, 32);
+                icon.set_icon_size(gtk::IconSize::Large);
+                hbox.container_add(&icon);
+            }
+
+            let vbox = gtk::Box::builder()
+                .orientation(gtk::Orientation::Vertical)
+                .css_classes(["list-item-vbox"])
+                .halign(gtk::Align::Fill)
+                .hexpand(true)
+                .build();
+            let title = gtk::Label::builder()
+                .label(item.title())
+                .halign(gtk::Align::Center)
+                .css_classes(["list-item-title"])
+                .wrap(true)
+                .build();
+            vbox.container_add(&title);
+
+            if !item.description().is_empty() {
+                let description = gtk::Label::builder()
+                    .label(item.description())
+                    .halign(gtk::Align::Center)
+                    .css_classes(["list-item-description"])
+                    .wrap(true)
+                    .build();
+                vbox.container_add(&description);
+            }
+            hbox.container_add(&vbox);
+
+            list.append(
+                &gtk::FlowBoxChild::builder()
+                    .css_classes(["list-item"])
+                    .child(&hbox)
+                    .build(),
+            );
         }
-    }
-
-    fn display_error(&mut self, title: &str, error: color_eyre::eyre::Report) {
-        error!("displaying error {title}");
-
-        let notif = Notification::new(title);
-        let error_body = error
-            .chain()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join("\n");
-        notif.set_body(Some(&error_body));
-
-        self.root
-            .application()
-            .expect("missing application instance")
-            .send_notification(None, &notif);
     }
 }

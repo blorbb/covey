@@ -65,7 +65,7 @@ impl ResultList {
             .collect();
         Self {
             style,
-            selection: BoundedUsize::new_with_bound(list.len() - 1),
+            selection: BoundedUsize::new_with_bound(list.len().saturating_sub(1)),
             items: list,
         }
     }

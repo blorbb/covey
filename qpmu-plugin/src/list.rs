@@ -15,6 +15,21 @@ impl List {
         Self { items, style: None }
     }
 
+    pub fn as_grid_with_columns(mut self, columns: u32) -> Self {
+        self.style = Some(ListStyle::GridWithColumns(columns));
+        self
+    }
+
+    pub fn as_grid(mut self) -> Self {
+        self.style = Some(ListStyle::Grid);
+        self
+    }
+
+    pub fn as_rows(mut self) -> Self {
+        self.style = Some(ListStyle::Rows);
+        self
+    }
+
     pub(crate) fn into_proto(self) -> proto::QueryResponse {
         proto::QueryResponse {
             items: ListItem::into_proto_vec(self.items),

@@ -13,7 +13,7 @@ use hotkey::Hotkey;
 pub use input::Input;
 pub use list_item::ListItem;
 use plugin::{Action, Plugin, PluginEvent};
-pub use result_list::ResultList;
+pub use result_list::{ListStyle, ResultList};
 use tracing::info;
 
 pub static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {

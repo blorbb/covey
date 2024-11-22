@@ -3,16 +3,21 @@ use qpmu::{
     plugin::{Plugin, PluginEvent},
     Input, Model,
 };
+use relm4::Controller;
+
+use crate::settings::Settings;
 
 #[derive(Debug)]
 pub struct Launcher {
     pub model: Model,
+    pub settings: Controller<Settings>,
 }
 
 impl Launcher {
-    pub fn new(plugins: Vec<Plugin>) -> Self {
+    pub fn new(plugins: Vec<Plugin>, settings: Controller<Settings>) -> Self {
         Self {
             model: Model::new(plugins),
+            settings,
         }
     }
 }
@@ -42,4 +47,5 @@ pub enum LauncherMsg {
     Close,
     /// Shutdown the entire application, killing all child processes.
     Shutdown,
+    OpenSettings,
 }

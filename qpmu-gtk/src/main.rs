@@ -14,6 +14,7 @@ mod styles;
 mod ui;
 mod hotkey;
 mod tray_icon;
+mod settings;
 
 #[derive(Parser, Debug)]
 #[command(version)]

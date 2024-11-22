@@ -146,3 +146,7 @@
     font-size: var(--icon-size);
     line-height: calc(var(--icon-size) * 1.5);
 }
+
+.settings-window {
+    background-color: black;
+}

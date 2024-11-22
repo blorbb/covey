@@ -1,4 +1,5 @@
 pub mod config;
+mod details;
 pub mod hotkey;
 mod input;
 mod list_item;
@@ -9,6 +10,7 @@ mod spawn;
 use std::{future::Future, path::PathBuf, sync::LazyLock};
 
 use color_eyre::eyre::{bail, Context, Result};
+pub use details::Details;
 use hotkey::Hotkey;
 pub use input::Input;
 pub use list_item::{Icon, ListItem};

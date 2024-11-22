@@ -1,7 +1,8 @@
 use std::future::Future;
 
 use crate::{
-    plugin_lock::PluginLock, proto, sql, Action, ActivationContext, Hotkey, Input, List, Result,
+    plugin_lock::PluginLock, proto, sql, Action, ActivationContext, Details, Hotkey, Input, List,
+    Result,
 };
 
 pub trait Plugin: Sized + Send + Sync + 'static {
@@ -34,6 +35,10 @@ pub trait Plugin: Sized + Send + Sync + 'static {
         _cx: ActivationContext,
     ) -> impl Future<Output = Result<Option<Input>>> + Send {
         async { Ok(None) }
+    }
+
+    fn details() -> Details {
+        Details::new()
     }
 }
 
@@ -115,6 +120,10 @@ where
                     input: input.map(Input::into_proto),
                 }),
         )
+    }
+
+    async fn details(&self, _: tonic::Request<()>) -> TonicResult<proto::DetailsResponse> {
+        Ok(tonic::Response::new(T::details().into_proto()))
     }
 }
 

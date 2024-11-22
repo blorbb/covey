@@ -10,12 +10,14 @@ use relm4::{
         EventControllerKey, FlowBox, Widget,
     },
     prelude::ComponentParts,
-    Component, ComponentSender, RelmContainerExt, RelmRemoveAllExt as _, RelmWidgetExt,
+    Component, ComponentController, ComponentSender, RelmContainerExt, RelmRemoveAllExt as _,
+    RelmWidgetExt,
 };
 use tracing::{error, info, instrument, warn};
 
 use crate::{
     model::{Launcher, LauncherMsg},
+    settings::{self, Settings, SettingsMsg},
     styles::load_css,
     tray_icon,
 };
@@ -62,7 +64,13 @@ impl Component for Launcher {
     ) -> ComponentParts<Self> {
         info!("initialising new application instance");
 
-        let model = Launcher::new(Config::load_plugins().expect("failed to load plugins"));
+        let plugins = Config::load_plugins().expect("failed to load plugins");
+        let model = Launcher::new(
+            plugins.clone(),
+            Settings::builder()
+                .launch(plugins)
+                .forward(sender.input_sender(), settings::output_transform),
+        );
         load_css();
 
         tray_icon::create_tray_icon(sender.clone()).expect("failed to load tray icon");
@@ -104,9 +112,20 @@ impl Component for Launcher {
             .placeholder_text("Search...")
             .css_classes(["main-entry"])
             .primary_icon_name("search")
+            .secondary_icon_name("settings")
+            .secondary_icon_activatable(true)
             // must guarantee that there are no new lines
             .truncate_multiline(true)
             .build();
+
+        entry.connect_icon_press({
+            let sender = sender.clone();
+            move |_, icon_position| {
+                if icon_position == gtk::EntryIconPosition::Secondary {
+                    sender.input(LauncherMsg::OpenSettings)
+                }
+            }
+        });
 
         let entry_change_handler = entry.connect_changed({
             let sender = sender.clone();
@@ -234,6 +253,10 @@ impl Component for Launcher {
             }
             LauncherMsg::Shutdown => {
                 root.application().unwrap().quit();
+            }
+            LauncherMsg::OpenSettings => {
+                info!("opened settings");
+                self.settings.emit(SettingsMsg::Show)
             }
         }
     }

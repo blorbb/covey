@@ -16,6 +16,8 @@ pub use hotkey::{Hotkey, Key, Modifiers};
 mod server;
 pub use server::run_server as main;
 mod plugin_lock;
+mod details;
+pub use details::Details;
 
 mod proto {
     tonic::include_proto!("plugin");

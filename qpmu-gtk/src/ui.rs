@@ -318,14 +318,15 @@ impl<'a> qpmu::Frontend for Frontend<'a> {
     }
 
     fn set_list(&mut self, list: &qpmu::ResultList) {
-        info!("setting list to {} items", list.list().len());
+        // TODO: respect list.style
+        info!("setting list to {} items", list.items().len());
 
         let results_list = &self.widgets.results_list;
 
         self.widgets.scroller.set_visible(!list.is_empty());
         results_list.remove_all();
         // recreate list of results
-        for item in list.list() {
+        for item in list.items() {
             // item format:
             // icon | title
             //      | description

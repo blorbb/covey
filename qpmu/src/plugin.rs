@@ -8,7 +8,7 @@ use core::fmt;
 pub use action::Action;
 pub use plugin::Plugin;
 
-use crate::ListItem;
+use crate::ResultList;
 
 pub(crate) mod proto {
     tonic::include_proto!("plugin");
@@ -17,7 +17,7 @@ pub(crate) mod proto {
 /// Event returned by a plugin.
 pub enum PluginEvent {
     /// Set the displayed list.
-    SetList { list: Vec<ListItem>, index: u64 },
+    SetList { list: ResultList, index: u64 },
     /// Run a sequence of actions.
     Run(Vec<Action>),
 }

@@ -1,10 +1,10 @@
 pub mod config;
+pub mod hotkey;
 mod input;
 mod list_item;
 pub mod plugin;
 mod result_list;
 mod spawn;
-pub mod hotkey;
 
 use std::{future::Future, path::PathBuf, sync::LazyLock};
 
@@ -155,7 +155,7 @@ impl Model {
                     return false;
                 }
                 self.activated_actions = index;
-                self.results.reset(list);
+                self.results = list;
                 fe.set_list(&self.results);
                 false
             }

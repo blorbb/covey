@@ -16,7 +16,7 @@ use super::action;
 use crate::{
     config::PluginConfig,
     plugin::{proto, Action},
-    Input, ListItem, DATA_DIR, PLUGINS_DIR,
+    Input, ResultList, DATA_DIR, PLUGINS_DIR,
 };
 
 /// A static reference to a plugin instance.
@@ -48,17 +48,11 @@ impl Plugin {
         &self.plugin.config.prefix
     }
 
-    pub(crate) async fn query(&self, query: impl Into<String>) -> Result<Vec<ListItem>> {
-        Ok(self
-            .plugin
-            .get()
-            .await?
-            .call_query(query.into())
-            .await?
-            .items
-            .into_iter()
-            .map(|li| ListItem::new(*self, li))
-            .collect())
+    pub(crate) async fn query(&self, query: impl Into<String>) -> Result<ResultList> {
+        Ok(ResultList::from_proto(
+            *self,
+            self.plugin.get().await?.call_query(query.into()).await?,
+        ))
     }
 
     pub(crate) async fn activate(

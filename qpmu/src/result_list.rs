@@ -1,28 +1,27 @@
-use crate::ListItem;
+use crate::{
+    plugin::{proto, Plugin},
+    ListItem,
+};
 
 /// A list of results to show.
 #[derive(Debug, Default)]
 pub struct ResultList {
-    list: Vec<ListItem>,
+    items: Vec<ListItem>,
     selection: BoundedUsize,
+    style: Option<ListStyle>,
 }
 
 impl ResultList {
-    pub fn reset(&mut self, list: Vec<ListItem>) {
-        self.selection = BoundedUsize::new_with_bound(list.len().saturating_sub(1));
-        self.list = list;
-    }
-
-    pub fn list(&self) -> &[ListItem] {
-        &self.list
+    pub fn items(&self) -> &[ListItem] {
+        &self.items
     }
 
     pub fn len(&self) -> usize {
-        self.list.len()
+        self.items.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.list.is_empty()
+        self.items.is_empty()
     }
 
     pub fn selection(&self) -> usize {
@@ -50,7 +49,43 @@ impl ResultList {
     ///
     /// Returns [`None`] if the list is empty.
     pub fn selected_item(&self) -> Option<&ListItem> {
-        self.list.get(self.selection())
+        self.items.get(self.selection())
+    }
+
+    pub fn style(&self) -> Option<ListStyle> {
+        self.style
+    }
+
+    pub(crate) fn from_proto(plugin: Plugin, proto: proto::QueryResponse) -> Self {
+        let style = proto.list_style.map(ListStyle::from_proto);
+        let list: Vec<_> = proto
+            .items
+            .into_iter()
+            .map(|li| ListItem::new(plugin, li))
+            .collect();
+        Self {
+            style,
+            selection: BoundedUsize::new_with_bound(list.len() - 1),
+            items: list,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ListStyle {
+    Rows,
+    Grid,
+    GridWithColumns(u32),
+}
+
+impl ListStyle {
+    pub(crate) fn from_proto(proto: proto::query_response::ListStyle) -> Self {
+        use proto::query_response::ListStyle as Ls;
+        match proto {
+            Ls::Rows(()) => Self::Rows,
+            Ls::Grid(()) => Self::Grid,
+            Ls::GridWithColumns(columns) => Self::GridWithColumns(columns),
+        }
     }
 }
 

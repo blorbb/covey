@@ -24,7 +24,7 @@ mod proto {
 
 pub use anyhow::{self, Result};
 
-/// Clones variables into an async closure.
+/// Clones variables into an async closure (by calling [`ToOwned::to_owned`]).
 ///
 /// The closure will automatically be turned into a
 /// `move || async move {...}` closure. Closure arguments are supported.
@@ -40,8 +40,8 @@ pub use anyhow::{self, Result};
 /// });
 /// // Expands to:
 /// // move || {
-/// //     let thing = thing.clone();
-/// //     let foo = foo.clone();
+/// //     let thing = thing.to_owned();
+/// //     let foo = foo.to_owned();
 /// //     async move {
 /// //         println!("some {thing} from {foo}");
 /// //     }
@@ -118,7 +118,7 @@ macro_rules! clone_async {
                 $crate::__clone_helper!($($double)? @ $ident $(, $expr)?);
             )*
             move || {
-                $(let $ident = ($ident).clone();)*
+                $(let $ident = ($ident).to_owned();)*
                 async move {$($tt)*}
             }
         }
@@ -133,7 +133,7 @@ macro_rules! clone_async {
                 $crate::__clone_helper!($($double)? @ $ident $(, $expr)?);
             )*
             move | $($args),* | {
-                $(let $ident = ($ident).clone();)*
+                $(let $ident = ($ident).to_owned();)*
                 async move {$($tt)*}
             }
         }
@@ -148,12 +148,12 @@ macro_rules! __clone_helper {
     // first clone: if `double` is present, actually do a clone.
     // otherwise a no-op.
     (double @ $ident:ident) => {
-        let $ident = ($ident).clone();
+        let $ident = ($ident).to_owned();
     };
     (@ $ident:ident) => {};
 
     (double @ $ident:ident, $expr:expr) => {
-        let $ident = ($expr).clone();
+        let $ident = ($expr).to_owned();
     };
     (@ $ident:ident, $expr:expr) => {
         // let ident = expr, easier for later, only need to handle cloning idents

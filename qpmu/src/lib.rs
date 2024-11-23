@@ -71,18 +71,16 @@ impl Model {
 
     pub fn activate(&mut self) -> Option<impl Future<Output = Result<PluginEvent>> + Send + use<>> {
         let item = self.results.selected_item().cloned()?;
-        let query = self.input.contents.clone();
 
-        Some(async move { Ok(PluginEvent::Run(item.activate(query).await?)) })
+        Some(async move { Ok(PluginEvent::Run(item.activate().await?)) })
     }
 
     pub fn alt_activate(
         &mut self,
     ) -> Option<impl Future<Output = Result<PluginEvent>> + Send + use<>> {
         let item = self.results.selected_item().cloned()?;
-        let query = self.input.contents.clone();
 
-        Some(async move { Ok(PluginEvent::Run(item.alt_activate(query).await?)) })
+        Some(async move { Ok(PluginEvent::Run(item.alt_activate().await?)) })
     }
 
     pub fn hotkey_activate(
@@ -90,17 +88,15 @@ impl Model {
         hotkey: Hotkey,
     ) -> Option<impl Future<Output = Result<PluginEvent>> + Send + use<>> {
         let item = self.results.selected_item().cloned()?;
-        let query = self.input.contents.clone();
 
-        Some(async move { Ok(PluginEvent::Run(item.hotkey_activate(query, hotkey).await?)) })
+        Some(async move { Ok(PluginEvent::Run(item.hotkey_activate(hotkey).await?)) })
     }
 
     pub fn complete(&mut self) -> Option<impl Future<Output = Result<PluginEvent>> + Send + use<>> {
         let item = self.results.selected_item().cloned()?;
-        let query = self.input.contents.clone();
 
         Some(async move {
-            if let Some(new) = item.complete(query).await? {
+            if let Some(new) = item.complete().await? {
                 Ok(PluginEvent::Run(vec![Action::SetInput(new)]))
             } else {
                 // do nothing

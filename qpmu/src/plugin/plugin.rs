@@ -57,40 +57,31 @@ impl Plugin {
         ))
     }
 
-    pub(crate) async fn activate(
-        &self,
-        query: impl Into<String>,
-        item: proto::ListItem,
-    ) -> Result<Vec<Action>> {
+    pub(crate) async fn activate(&self, selection_id: u64) -> Result<Vec<Action>> {
         Ok(action::map_actions(
             *self,
             self.plugin
                 .get_and_init()
                 .await?
-                .call_activate(query.into(), item)
+                .call_activate(selection_id)
                 .await?,
         ))
     }
 
-    pub(crate) async fn alt_activate(
-        &self,
-        query: impl Into<String>,
-        item: proto::ListItem,
-    ) -> Result<Vec<Action>> {
+    pub(crate) async fn alt_activate(&self, selection_id: u64) -> Result<Vec<Action>> {
         Ok(action::map_actions(
             *self,
             self.plugin
                 .get_and_init()
                 .await?
-                .call_alt_activate(query.into(), item)
+                .call_alt_activate(selection_id)
                 .await?,
         ))
     }
 
     pub(crate) async fn hotkey_activate(
         &self,
-        query: impl Into<String>,
-        item: proto::ListItem,
+        selection_id: u64,
         hotkey: proto::Hotkey,
     ) -> Result<Vec<Action>> {
         Ok(action::map_actions(
@@ -98,21 +89,17 @@ impl Plugin {
             self.plugin
                 .get_and_init()
                 .await?
-                .call_hotkey_activate(query.into(), item, hotkey)
+                .call_hotkey_activate(selection_id, hotkey)
                 .await?,
         ))
     }
 
-    pub(crate) async fn complete(
-        &self,
-        query: impl Into<String>,
-        item: proto::ListItem,
-    ) -> Result<Option<Input>> {
+    pub(crate) async fn complete(&self, selection_id: u64) -> Result<Option<Input>> {
         Ok(self
             .plugin
             .get_and_init()
             .await?
-            .call_complete(query.into(), item)
+            .call_complete(selection_id)
             .await?
             .map(|il| Input::from_proto(*self, il)))
     }
@@ -294,18 +281,11 @@ mod implementation {
                 .into_inner())
         }
 
-        pub(super) async fn call_activate(
-            &self,
-            query: String,
-            item: proto::ListItem,
-        ) -> Result<Vec<proto::Action>> {
+        pub(super) async fn call_activate(&self, selection_id: u64) -> Result<Vec<proto::Action>> {
             Ok(self
                 .plugin
                 .clone()
-                .activate(Request::new(proto::ActivationRequest {
-                    query,
-                    selected: item,
-                }))
+                .activate(Request::new(proto::ActivationRequest { selection_id }))
                 .await?
                 .into_inner()
                 .actions)
@@ -313,16 +293,12 @@ mod implementation {
 
         pub(super) async fn call_alt_activate(
             &self,
-            query: String,
-            item: proto::ListItem,
+            selection_id: u64,
         ) -> Result<Vec<proto::Action>> {
             Ok(self
                 .plugin
                 .clone()
-                .alt_activate(Request::new(proto::ActivationRequest {
-                    query,
-                    selected: item,
-                }))
+                .alt_activate(Request::new(proto::ActivationRequest { selection_id }))
                 .await?
                 .into_inner()
                 .actions)
@@ -330,18 +306,14 @@ mod implementation {
 
         pub(super) async fn call_hotkey_activate(
             &self,
-            query: String,
-            item: proto::ListItem,
+            selection_id: u64,
             hotkey: proto::Hotkey,
         ) -> Result<Vec<proto::Action>> {
             Ok(self
                 .plugin
                 .clone()
                 .hotkey_activate(Request::new(proto::HotkeyActivationRequest {
-                    request: proto::ActivationRequest {
-                        query,
-                        selected: item,
-                    },
+                    request: proto::ActivationRequest { selection_id },
                     hotkey,
                 }))
                 .await?
@@ -351,16 +323,12 @@ mod implementation {
 
         pub(super) async fn call_complete(
             &self,
-            query: String,
-            item: proto::ListItem,
+            selection_id: u64,
         ) -> Result<Option<proto::Input>> {
             Ok(self
                 .plugin
                 .clone()
-                .complete(Request::new(proto::ActivationRequest {
-                    query,
-                    selected: item,
-                }))
+                .complete(Request::new(proto::ActivationRequest { selection_id }))
                 .await?
                 .into_inner()
                 .input)

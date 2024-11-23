@@ -1,41 +1,14 @@
 use std::future::Future;
 
 use crate::{
-    plugin_lock::PluginLock, proto, sql, Action, ActivationContext, Details, Hotkey, Input, List,
-    Result,
+    list::ListItemCallbacks, plugin_lock::PluginLock, proto, sql, store, Action, Details, Hotkey,
+    Input, List, Result,
 };
 
 pub trait Plugin: Sized + Send + Sync + 'static {
     fn new(toml: String) -> impl Future<Output = Result<Self>> + Send;
 
     fn query(&self, query: String) -> impl Future<Output = Result<List>> + Send;
-
-    fn activate(&self, cx: ActivationContext) -> impl Future<Output = Result<Vec<Action>>> + Send;
-
-    /// What to do on an alternate activation (alt+enter by default).
-    ///
-    /// Defaults to doing nothing.
-    fn alt_activate(
-        &self,
-        _cx: ActivationContext,
-    ) -> impl Future<Output = Result<Vec<Action>>> + Send {
-        async { Ok(vec![]) }
-    }
-
-    fn hotkey_activate(
-        &self,
-        _hotkey: Hotkey,
-        _cx: ActivationContext,
-    ) -> impl Future<Output = Result<Vec<Action>>> + Send {
-        async { Ok(vec![]) }
-    }
-
-    fn complete(
-        &self,
-        _cx: ActivationContext,
-    ) -> impl Future<Output = Result<Option<Input>>> + Send {
-        async { Ok(None) }
-    }
 
     fn details() -> Details {
         Details::new()
@@ -68,41 +41,39 @@ where
         &self,
         request: tonic::Request<proto::QueryRequest>,
     ) -> TonicResult<proto::QueryResponse> {
-        let response = self
+        let list = self
             .force_read()
             .await
             .query(request.into_inner().query)
-            .await;
+            .await
+            .map_err(into_tonic_status)?;
 
-        map_result(response.map(List::into_proto))
+        Ok(tonic::Response::new(store::store_query_result(list)))
     }
 
     async fn activate(
         &self,
         request: tonic::Request<proto::ActivationRequest>,
     ) -> TonicResult<proto::ActivationResponse> {
-        let plugin = self.force_read().await;
-        activate_using(request.into_inner(), |req| T::activate(&plugin, req)).await
+        activate_using(request.into_inner(), ListItemCallbacks::activate).await
     }
 
     async fn alt_activate(
         &self,
         request: tonic::Request<proto::ActivationRequest>,
     ) -> TonicResult<proto::ActivationResponse> {
-        let plugin = self.force_read().await;
-        activate_using(request.into_inner(), |req| T::alt_activate(&plugin, req)).await
+        activate_using(request.into_inner(), ListItemCallbacks::alt_activate).await
     }
 
     async fn hotkey_activate(
         &self,
         request: tonic::Request<proto::HotkeyActivationRequest>,
     ) -> TonicResult<proto::ActivationResponse> {
-        let plugin = self.force_read().await;
         let request = request.into_inner();
         let hotkey = request.hotkey;
         let cx = request.request;
-        activate_using(cx, |req| {
-            T::hotkey_activate(&plugin, Hotkey::from_proto(hotkey), req)
+        activate_using(cx, |callback| {
+            callback.hotkey_activate(Hotkey::from_proto(hotkey))
         })
         .await
     }
@@ -111,15 +82,19 @@ where
         &self,
         request: tonic::Request<proto::ActivationRequest>,
     ) -> TonicResult<proto::CompletionResponse> {
-        let request = ActivationContext::from_request(request.into_inner());
+        let id = request.into_inner().selection_id;
+        let callback = store::fetch_callbacks_of(id).ok_or(tonic::Status::data_loss(format!(
+            "failed to fetch callback of list item with id {id}"
+        )))?;
 
-        map_result(
-            T::complete(&*self.force_read().await, request)
-                .await
-                .map(|input| proto::CompletionResponse {
-                    input: input.map(Input::into_proto),
-                }),
-        )
+        let new_input = callback
+            .complete()
+            .await
+            .map(|input| proto::CompletionResponse {
+                input: input.map(Input::into_proto),
+            });
+
+        map_result(new_input)
     }
 
     async fn details(&self, _: tonic::Request<()>) -> TonicResult<proto::DetailsResponse> {
@@ -129,23 +104,20 @@ where
 
 async fn activate_using<Fut>(
     request: proto::ActivationRequest,
-    function: impl FnOnce(ActivationContext) -> Fut,
+    function: impl FnOnce(ListItemCallbacks) -> Fut,
 ) -> TonicResult<proto::ActivationResponse>
 where
     Fut: Future<Output = Result<Vec<Action>>>,
 {
-    let request = ActivationContext::from_request(request);
-    sql::increment_frequency_table(&request.item.title)
-        .await
-        .map_err(|e| tonic::Status::unknown(e.to_string()))?;
+    let id = request.selection_id;
+    let callback = store::fetch_callbacks_of(id).ok_or(tonic::Status::data_loss(format!(
+        "failed to fetch callback of list item with id {id}"
+    )))?;
+    let response = function(callback).await.map(|a| proto::ActivationResponse {
+        actions: a.into_iter().map(Action::into_proto).collect(),
+    });
 
-    map_result(
-        function(request)
-            .await
-            .map(|actions| proto::ActivationResponse {
-                actions: actions.into_iter().map(Action::into_proto).collect(),
-            }),
-    )
+    map_result(response)
 }
 
 fn map_result<T>(result: Result<T>) -> TonicResult<T> {

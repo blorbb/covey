@@ -53,7 +53,6 @@ pub async fn rank<'iter>(
 
             let title_score = score!(title);
             let desc_score = score!(description);
-            let meta_score = score!(metadata);
 
             let (freq, elapsed_secs) =
                 activations
@@ -69,7 +68,7 @@ pub async fn rank<'iter>(
             // between (0, 1]
             let recency = 1.0 / elapsed_min.saturating_add(20) as f32;
 
-            let fuzzy_score = title_score + desc_score + meta_score;
+            let fuzzy_score = title_score + desc_score;
             // factor in recency and fuzzy matching score for the frequency
             let freq_score =
                 freq as f32 * weights.frequency * recency * (fuzzy_score / 500.0 + 0.1);
@@ -88,7 +87,6 @@ pub async fn rank<'iter>(
 pub struct Weights {
     title: f32,
     description: f32,
-    metadata: f32,
     frequency: f32,
     recency: f32,
 }
@@ -104,7 +102,6 @@ impl Weights {
         Self {
             title: 1.0,
             description: 0.0,
-            metadata: 0.0,
             frequency: 0.0,
             recency: 0.0,
         }
@@ -117,11 +114,6 @@ impl Weights {
 
     pub fn description(mut self, description: f32) -> Self {
         self.description = description;
-        self
-    }
-
-    pub fn metadata(mut self, metadata: f32) -> Self {
-        self.metadata = metadata;
         self
     }
 

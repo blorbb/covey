@@ -37,23 +37,23 @@ impl ListItem {
         self.item.icon.clone().map(Icon::from_proto)
     }
 
-    pub async fn activate(self, query: String) -> Result<Vec<Action>> {
-        self.plugin.clone().activate(query, self.item).await
+    pub async fn activate(self) -> Result<Vec<Action>> {
+        self.plugin.clone().activate(self.item.id).await
     }
 
-    pub async fn alt_activate(self, query: String) -> Result<Vec<Action>> {
-        self.plugin.clone().alt_activate(query, self.item).await
+    pub async fn alt_activate(self) -> Result<Vec<Action>> {
+        self.plugin.clone().alt_activate(self.item.id).await
     }
 
-    pub async fn hotkey_activate(self, query: String, hotkey: Hotkey) -> Result<Vec<Action>> {
+    pub async fn hotkey_activate(self, hotkey: Hotkey) -> Result<Vec<Action>> {
         self.plugin
             .clone()
-            .hotkey_activate(query, self.item, proto::Hotkey::from(hotkey))
+            .hotkey_activate(self.item.id, proto::Hotkey::from(hotkey))
             .await
     }
 
-    pub async fn complete(self, query: String) -> Result<Option<Input>> {
-        self.plugin.clone().complete(query, self.item).await
+    pub async fn complete(self) -> Result<Option<Input>> {
+        self.plugin.clone().complete(self.item.id).await
     }
 }
 
@@ -63,7 +63,6 @@ impl fmt::Debug for ListItem {
             .field("plugin", &self.plugin())
             .field("title", &self.item.title)
             .field("description", &self.item.description)
-            .field("metadata", &self.item.metadata)
             .field("icon", &self.item.icon)
             .finish()
     }

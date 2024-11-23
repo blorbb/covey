@@ -47,9 +47,11 @@ message QueryResponse {
 }
 
 message ListItem {
-    required string title = 1;
-    required string description = 2;
-    required string metadata = 3;
+    // Must be unique within the plugin - duplicates across multiple
+    // plugins is fine.
+    required uint64 id = 1;
+    required string title = 2;
+    required string description = 3;
     oneof icon {
         // A named icon, taken from the system.
         string NAME = 4;
@@ -85,8 +87,7 @@ message Input {
 }
 
 message ActivationRequest {
-    required string query = 1;
-    required ListItem selected = 2;
+    required uint64 selection_id = 1;
 }
 
 message CompletionResponse {

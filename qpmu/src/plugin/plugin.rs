@@ -1,4 +1,5 @@
 use core::fmt;
+use std::path::PathBuf;
 
 use color_eyre::eyre::{ContextCompat, Result};
 use tokio::fs;
@@ -37,6 +38,26 @@ impl Plugin {
 
     pub fn prefix(&self) -> &str {
         &self.plugin.config.prefix
+    }
+
+    /// Returns the path to the provided plugin's directory.
+    ///
+    /// This is in `<data folder>/qpmu/plugins/<plugin name>`, for example,
+    /// `~/.local/share/qpmu/plugins/my-plugin-name`.
+    pub fn data_directory_path(&self) -> PathBuf {
+        data_directory_path(self.name())
+    }
+
+    pub fn binary_path(&self) -> PathBuf {
+        binary_path(self.name())
+    }
+
+    pub fn manifest_path(&self) -> PathBuf {
+        manifest_path(self.name())
+    }
+
+    pub fn database_path(&self) -> PathBuf {
+        database_path(self.name())
     }
 
     pub(crate) async fn query(&self, query: impl Into<String>) -> Result<ResultList> {
@@ -104,26 +125,40 @@ impl fmt::Debug for Plugin {
     }
 }
 
+fn data_directory_path(plugin_name: &str) -> PathBuf {
+    DATA_DIR.join("plugins").join(plugin_name)
+}
+
+fn binary_path(plugin_name: &str) -> PathBuf {
+    data_directory_path(plugin_name).join(plugin_name)
+}
+
+fn manifest_path(plugin_name: &str) -> PathBuf {
+    data_directory_path(plugin_name).join("manifest.toml")
+}
+
+fn database_path(plugin_name: &str) -> PathBuf {
+    data_directory_path(plugin_name).join("data.db")
+}
+
 /// Gets the connection URL for a given plugin.
 ///
 /// The database file will be created first.
 async fn sqlite_connection_url(plugin_name: &str) -> Result<String> {
-    let path = DATA_DIR.join(format!("{plugin_name}.db"));
-    assert!(path.is_absolute());
-
     // make the file
-    fs::create_dir_all(&*DATA_DIR).await?;
+    fs::create_dir_all(data_directory_path(plugin_name)).await?;
     fs::OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(false)
-        .open(&path)
+        .open(database_path(plugin_name))
         .await?;
 
     // https://docs.rs/sqlx/latest/sqlx/sqlite/struct.SqliteConnectOptions.html
     let connection_string = format!(
         "sqlite://{}",
-        path.to_str()
+        database_path(plugin_name)
+            .to_str()
             .context("plugin data path must be a UTF-8 string")?
     );
 
@@ -145,8 +180,7 @@ mod implementation {
     use super::sqlite_connection_url;
     use crate::{
         config::PluginConfig,
-        plugin::proto::{self, plugin_client::PluginClient},
-        PLUGINS_DIR,
+        plugin::{plugin::binary_path, proto::{self, plugin_client::PluginClient}},
     };
 
     /// A plugin that is not initialised until [`Self::get_and_init`] is called.
@@ -201,7 +235,7 @@ mod implementation {
                 .get_or_init(|| async {
                     info!("initialising plugin {}", self.config.name);
 
-                    let bin_path = PLUGINS_DIR.join(&self.config.name);
+                    let bin_path = binary_path(&self.config.name);
 
                     Ok(PluginInner::new(bin_path).await?)
                 })

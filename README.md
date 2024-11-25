@@ -26,17 +26,9 @@ Similar to [rofi](https://github.com/davatorium/rofi), [Ulauncher](https://githu
 
 ## Configuration
 
-All configuration is stored in a `qpmu` folder of the config directory for your OS. By default, it's usually:
+All configuration is stored in a `qpmu` folder of the [config directory](https://docs.rs/dirs/latest/dirs/fn.config_dir.html) for your OS. The `qpmu` folder contains `config.toml` - see below for details.
 
-| Platform | Value                                 | Example                                    |
-| -------- | ------------------------------------- | ------------------------------------------ |
-| Linux    | `$XDG_CONFIG_HOME` or `$HOME/.config` | `/home/alice/.config`                      |
-| macOS    | `$HOME/Library/Application Support`   | `/Users/Alice/Library/Application Support` |
-| Windows  | `{FOLDERID_RoamingAppData}`           | `C:\Users\Alice\AppData\Roaming`           |
-
-The `qpmu` folder contains:
-- `config.toml` - see below for details.
-- `plugins/*` - binaries for each plugin.
+Plugins have their data stored in a `qpmu/plugins` folder of the [data directory](https://docs.rs/dirs/latest/dirs/fn.data_dir.html) for your OS. The `qpmu/plugins` folder contains a folder for every installed plugin. Each of these folders contains a binary with the same name as the plugin for the executable, a `manifest.toml`, and a `data.db` sqlite database.
 
 ### Configuration Format
 

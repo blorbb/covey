@@ -1,17 +1,18 @@
+use std::time::Instant;
+
 use color_eyre::eyre::eyre;
-use qpmu::{config::Config, Icon, Input, ListItem, ListStyle};
+use qpmu::{config::Config, Icon, Input, ListItem};
 use relm4::{
     gtk::{
         self,
         gdk::{Key, ModifierType},
-        gio::Notification,
-        glib::SignalHandlerId,
+        gio::{ListStore, Notification},
+        glib::{self, BoxedAnyObject, MainContext, SignalHandlerId},
         prelude::*,
-        EventControllerKey, FlowBox, Widget,
+        EventControllerKey, FlowBox, GridView, SignalListItemFactory, Widget,
     },
     prelude::ComponentParts,
-    Component, ComponentController, ComponentSender, RelmContainerExt, RelmRemoveAllExt as _,
-    RelmWidgetExt,
+    Component, ComponentController, ComponentSender, RelmContainerExt, RelmWidgetExt,
 };
 use tracing::{error, info, instrument, warn};
 
@@ -29,8 +30,123 @@ const HEIGHT_MAX: i32 = 600;
 pub struct LauncherWidgets {
     pub entry: gtk::Entry,
     pub scroller: gtk::ScrolledWindow,
-    pub results_list: gtk::FlowBox,
+    pub results_view: gtk::GridView,
+    pub results_store: ListStore,
     pub entry_change_handler: SignalHandlerId,
+}
+
+fn row_factory() -> SignalListItemFactory {
+    let factory = SignalListItemFactory::new();
+    factory.connect_setup(|_, list_item| {
+        info!("setup");
+        // need to prepend icon if present
+        let hbox = gtk::Box::builder()
+            .spacing(16)
+            .orientation(gtk::Orientation::Horizontal)
+            .css_classes(["list-item-hbox"])
+            .build();
+
+        let vbox = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .css_classes(["list-item-vbox"])
+            .halign(gtk::Align::Fill)
+            .hexpand(true)
+            .build();
+
+        let title = gtk::Label::builder()
+            .halign(gtk::Align::Start)
+            .css_classes(["list-item-title"])
+            .wrap(true)
+            .wrap_mode(gtk::pango::WrapMode::WordChar)
+            .build();
+        let description = gtk::Label::builder()
+            .halign(gtk::Align::Start)
+            .css_classes(["list-item-description"])
+            .wrap(true)
+            .wrap_mode(gtk::pango::WrapMode::WordChar)
+            .build();
+
+        vbox.append(&title);
+        vbox.append(&description);
+        hbox.append(&vbox);
+        list_item.set_child(Some(&hbox));
+    });
+
+    factory.connect_bind(|_, list_item| {
+        info!("bind");
+        try_connect_bind(list_item).expect("type casting failed in factory binding");
+    });
+
+    fn try_connect_bind(list_item: &gtk::ListItem) -> Option<()> {
+        let item = list_item
+            .item()
+            .and_downcast::<glib::BoxedAnyObject>()
+            .unwrap();
+        let item = item.borrow::<ListItem>();
+
+        let hbox = list_item.child().unwrap().downcast::<gtk::Box>().unwrap();
+        let vbox = hbox.last_child().unwrap().downcast::<gtk::Box>().unwrap();
+        let title = vbox
+            .first_child()
+            .unwrap()
+            .downcast::<gtk::Label>()
+            .unwrap();
+        let description = vbox
+        .last_child()
+        .unwrap()
+        .downcast::<gtk::Label>()
+        .unwrap();
+
+        title.set_label(item.title());
+        description.set_label(item.description());
+        if !item.description().is_empty() {
+        }
+
+        // if let Some(icon) = item.icon() {
+        //     hbox.prepend(&make_icon(&icon));
+        // }
+
+        Some(())
+    }
+
+    factory.connect_unbind(|_, list_item| {
+        let item = list_item
+            .item()
+            .and_downcast::<glib::BoxedAnyObject>()
+            .unwrap();
+        let item = item.borrow::<ListItem>();
+
+        let hbox = list_item.child().unwrap().downcast::<gtk::Box>().unwrap();
+        let vbox = hbox.last_child().unwrap().downcast::<gtk::Box>().unwrap();
+
+        // if !item.description().is_empty() {
+        //     vbox.remove(&vbox.last_child().unwrap());
+        // }
+        // if item.icon().is_some() {
+        //     hbox.remove(&hbox.first_child().unwrap());
+        // }
+    });
+
+    fn make_icon(icon: &Icon) -> Widget {
+        match icon {
+            Icon::Name(name) => {
+                let image = gtk::Image::from_icon_name(&name);
+                image.set_css_classes(&["list-item-icon", "list-item-icon-name"]);
+                image.set_size_request(32, 32);
+                image.set_icon_size(gtk::IconSize::Large);
+                image.upcast()
+            }
+            Icon::Text(text) => {
+                let label = gtk::Label::builder()
+                    .label(text)
+                    .css_classes(["list-item-icon", "list-item-icon-text"])
+                    .build();
+                label.upcast()
+            }
+        }
+    }
+
+    factory
 }
 
 // not using the macro because the app has a lot of custom behaviour
@@ -90,15 +206,15 @@ impl Component for Launcher {
             }
         });
 
-        {
-            // close on focus leave
-            let leave_controller = gtk::EventControllerFocus::new();
-            leave_controller.connect_leave({
-                let window = window.clone();
-                move |_| window.close()
-            });
-            window.add_controller(leave_controller);
-        }
+        // {
+        //     // close on focus leave
+        //     let leave_controller = gtk::EventControllerFocus::new();
+        //     leave_controller.connect_leave({
+        //         let window = window.clone();
+        //         move |_| window.close()
+        //     });
+        //     window.add_controller(leave_controller);
+        // }
 
         // main box layout
         let vbox = gtk::Box::builder()
@@ -149,33 +265,38 @@ impl Component for Launcher {
             .build();
         list_scroller.set_visible(false);
 
-        let list = FlowBox::builder()
-            .selection_mode(gtk::SelectionMode::Browse)
-            .css_classes(["main-list"])
-            .row_spacing(0)
-            .column_spacing(0)
+        let list_store = ListStore::new::<BoxedAnyObject>();
+        let list_factory = row_factory();
+        let grid_view = GridView::builder()
+            .model(&gtk::SingleSelection::builder().model(&list_store).build())
+            .factory(&list_factory)
+            .css_classes(["main-list", "main-list-rows"])
+            .min_columns(1)
+            .max_columns(1)
             .build();
 
-        list.connect_selected_children_changed({
-            let sender = sender.clone();
-            move |flow_box| {
-                if let Some(child) = flow_box.selected_children().first() {
-                    sender.input(LauncherMsg::Select(child.index() as usize));
-                }
-            }
-        });
-        // selection will happen first, so activating the current selection works
-        // even if clicking on a row that isn't currently selected.
-        list.connect_child_activated({
-            let sender = sender.clone();
-            move |_, _| sender.input(LauncherMsg::Activate)
-        });
+        grid_view.inline_css("--qpmu-gtk-main-list-num-columns: 1;");
+
+        // grid_view.connect_selected_children_changed({
+        //     let sender = sender.clone();
+        //     move |flow_box| {
+        //         if let Some(child) = flow_box.selected_children().first() {
+        //             sender.input(LauncherMsg::Select(child.index() as usize));
+        //         }
+        //     }
+        // });
+        // // selection will happen first, so activating the current selection works
+        // // even if clicking on a row that isn't currently selected.
+        // list.connect_child_activated({
+        //     let sender = sender.clone();
+        //     move |_, _| sender.input(LauncherMsg::Activate)
+        // });
 
         window.container_add(&vbox);
         window.add_controller(key_controller(sender.clone()));
         vbox.container_add(&entry);
         vbox.container_add(&list_scroller);
-        list_scroller.container_add(&list);
+        list_scroller.container_add(&grid_view);
 
         // set css property for the user CSS to receive
         window.inline_css(&format!("--qpmu-gtk-window-width: {WIDTH}px;"));
@@ -183,7 +304,8 @@ impl Component for Launcher {
         let widgets = Self::Widgets {
             entry,
             scroller: list_scroller,
-            results_list: list,
+            results_view: grid_view,
+            results_store: list_store,
             entry_change_handler,
         };
         ComponentParts { model, widgets }
@@ -199,10 +321,19 @@ impl Component for Launcher {
     ) {
         match message {
             LauncherMsg::SetInput(input) => {
+                info!("SET INPUT START");
                 let fut = self.model.set_input(input);
-                sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) })
+                sender.oneshot_command(async {
+                    info!("AWAIT START");
+                    let result = LauncherMsg::PluginEvent(fut.await);
+                    info!("AWAIT END");
+                    result
+                });
+                info!("SET INPUT COMMAND SENT");
             }
             LauncherMsg::PluginEvent(plugin_event) => {
+                let start = Instant::now();
+                info!("received plugin event");
                 // TODO: fix this hack
                 let reset_input = self
                     .model
@@ -211,6 +342,7 @@ impl Component for Launcher {
                     warn!("resetting input");
                     sender.input(LauncherMsg::SetInput(self.model.input().clone()))
                 }
+                info!("plugin event ended, {:?}", start.elapsed());
             }
             LauncherMsg::Select(index) => {
                 self.model
@@ -347,39 +479,41 @@ impl<'a> qpmu::Frontend for Frontend<'a> {
     fn set_list(&mut self, list: &qpmu::ResultList) {
         info!("setting list to {} items", list.items().len());
 
-        let results_list = &self.widgets.results_list;
+        let results_list = &self.widgets.results_store;
 
         self.widgets.scroller.set_visible(!list.is_empty());
-        results_list.remove_all();
-        results_list.set_css_classes(&["main-list"]);
+        let start = Instant::now();
+        Self::set_list_rows(results_list, list.items());
 
         // recreate list of results
-        match list.style() {
-            Some(ListStyle::Rows) => Self::set_list_rows(results_list, list.items()),
-            Some(ListStyle::Grid) => Self::set_list_grid(results_list, list.items(), 5),
-            Some(ListStyle::GridWithColumns(columns)) => {
-                Self::set_list_grid(results_list, list.items(), columns)
-            }
-            None => {
-                // TODO: select based on configuration
-                Self::set_list_rows(results_list, list.items());
-            }
-        }
+        // match list.style() {
+        //     Some(ListStyle::Rows) => Self::set_list_rows(results_list, list.items()),
+        //     Some(ListStyle::Grid) => Self::set_list_grid(results_list, list.items(), 5),
+        //     Some(ListStyle::GridWithColumns(columns)) => {
+        //         Self::set_list_grid(results_list, list.items(), columns)
+        //     }
+        //     None => {
+        //         // TODO: select based on configuration
+        //         Self::set_list_rows(results_list, list.items());
+        //     }
+        // }
 
         self.set_list_selection(list.selection());
         self.root.set_default_height(-1);
+        error!("elapsed {:?}", start.elapsed());
     }
 
     fn set_list_selection(&mut self, index: usize) {
         info!("set list selection to index {index}");
-        let target_row = self.widgets.results_list.child_at_index(index as i32);
 
-        if let Some(target_row) = target_row {
-            self.widgets.results_list.select_child(&target_row);
-            // scroll to the target, but don't lose focus on the entry
-            target_row.grab_focus();
-            self.widgets.entry.grab_focus_without_selecting();
-        }
+        self.widgets
+            .results_view
+            .model()
+            .unwrap()
+            .select_item(index as u32, true);
+        // scroll to the target, but don't lose focus on the entry
+        // target_row.grab_focus();
+        self.widgets.entry.grab_focus_without_selecting();
     }
 
     fn display_error(&mut self, title: &str, error: color_eyre::eyre::Report) {
@@ -420,22 +554,10 @@ impl Frontend<'_> {
         };
     }
 
-    fn set_list_rows(list: &FlowBox, children: &[ListItem]) {
-        list.set_min_children_per_line(1);
-        list.set_max_children_per_line(1);
-        list.add_css_class("main-list-rows");
-        list.inline_css("--qpmu-gtk-main-list-num-columns: 1;");
+    fn set_list_rows(list: &ListStore, children: &[ListItem]) {
+        list.remove_all();
         for item in children {
-            // item format:
-            // icon | title
-            //      | description
-
-            list.append(&Self::make_list_item(
-                item.title(),
-                item.description(),
-                item.icon(),
-                true,
-            ));
+            list.append(&BoxedAnyObject::new(item.clone()));
         }
     }
 

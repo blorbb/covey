@@ -7,7 +7,7 @@ use super::action;
 use crate::{
     config::PluginConfig,
     plugin::{proto, Action},
-    Details, Input, ResultList, DATA_DIR,
+    Input, ResultList, DATA_DIR,
 };
 
 /// A static reference to a plugin instance.
@@ -37,13 +37,6 @@ impl Plugin {
 
     pub fn prefix(&self) -> &str {
         &self.plugin.config.prefix
-    }
-
-    pub async fn details(&self) -> Result<Details> {
-        self.plugin
-            .details()
-            .await
-            .map(|details| Details::from_proto(*self, details))
     }
 
     pub(crate) async fn query(&self, query: impl Into<String>) -> Result<ResultList> {
@@ -218,17 +211,6 @@ mod implementation {
                 Ok(a) => Ok(a),
                 Err(e) => bail!("failed to initialise plugin {}: {e}", self.config.name),
             }
-        }
-
-        pub(super) async fn details(&self) -> Result<proto::DetailsResponse> {
-            Ok(self
-                .get_without_init()
-                .await?
-                .plugin
-                .clone()
-                .details(Request::new(()))
-                .await?
-                .into_inner())
         }
     }
 

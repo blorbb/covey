@@ -1,5 +1,5 @@
 use color_eyre::eyre::Result;
-use qpmu::{plugin::Plugin, Details};
+use qpmu::plugin::Plugin;
 use relm4::{
     gtk::{self, prelude::GtkWindowExt},
     Component, RelmContainerExt,
@@ -24,7 +24,7 @@ pub enum SettingsMsg {
 
 #[derive(Debug)]
 pub enum SettingsCmd {
-    ListDetails(Vec<Result<Details>>),
+    // ListDetails(Vec<Result<Details>>),
 }
 
 #[derive(Debug)]
@@ -50,14 +50,14 @@ impl Component for Settings {
         sender: relm4::ComponentSender<Self>,
     ) -> relm4::ComponentParts<Self> {
         {
-            let init = init.clone();
-            sender.oneshot_command(async move {
-                let mut v = vec![];
-                for plugin in init {
-                    v.push(plugin.details().await);
-                }
-                SettingsCmd::ListDetails(v)
-            });
+            // let init = init.clone();
+            // sender.oneshot_command(async move {
+            //     let mut v = vec![];
+            //     for plugin in init {
+            //         v.push(plugin.details().await);
+            //     }
+            //     SettingsCmd::ListDetails(v)
+            // });
         }
 
         let list = gtk::Box::builder()
@@ -90,13 +90,13 @@ impl Component for Settings {
         root: &Self::Root,
     ) {
         match message {
-            SettingsCmd::ListDetails(vec) => {
-                for detail in vec {
-                    widgets
-                        .plugin_list
-                        .container_add(&gtk::Label::new(Some(&format!("{:#?}", detail))));
-                }
-            }
+            // SettingsCmd::ListDetails(vec) => {
+            //     for detail in vec {
+            //         widgets
+            //             .plugin_list
+            //             .container_add(&gtk::Label::new(Some(&format!("{:#?}", detail))));
+            //     }
+            // }
         }
     }
 }

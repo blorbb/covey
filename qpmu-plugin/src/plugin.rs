@@ -1,18 +1,14 @@
 use std::future::Future;
 
 use crate::{
-    list::ListItemCallbacks, plugin_lock::PluginLock, proto, sql, store, Action, Details, Hotkey,
-    Input, List, Result,
+    list::ListItemCallbacks, plugin_lock::PluginLock, proto, sql, store, Action, Hotkey, Input,
+    List, Result,
 };
 
 pub trait Plugin: Sized + Send + Sync + 'static {
     fn new(toml: String) -> impl Future<Output = Result<Self>> + Send;
 
     fn query(&self, query: String) -> impl Future<Output = Result<List>> + Send;
-
-    fn details() -> Details {
-        Details::new()
-    }
 }
 
 type TonicResult<T> = Result<tonic::Response<T>, tonic::Status>;
@@ -95,10 +91,6 @@ where
             });
 
         map_result(new_input)
-    }
-
-    async fn details(&self, _: tonic::Request<()>) -> TonicResult<proto::DetailsResponse> {
-        Ok(tonic::Response::new(T::details().into_proto()))
     }
 }
 

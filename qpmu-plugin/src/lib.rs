@@ -13,9 +13,7 @@ mod hotkey;
 pub use hotkey::{Hotkey, Key, Modifiers};
 mod server;
 pub use server::run_server as main;
-mod details;
 mod plugin_lock;
-pub use details::Details;
 mod store;
 
 mod proto {

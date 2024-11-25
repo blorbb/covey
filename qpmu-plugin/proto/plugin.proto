@@ -14,10 +14,6 @@ service Plugin {
     rpc AltActivate (ActivationRequest) returns (ActivationResponse);
     rpc HotkeyActivate (HotkeyActivationRequest) returns (ActivationResponse);
     rpc Complete (ActivationRequest) returns (CompletionResponse);
-    /// Fetch details about the plugin.
-    ///
-    /// Used for the settings GUI. This should be a pure function.
-    rpc Details (google.protobuf.Empty) returns (DetailsResponse);
 }
 
 message InitialiseRequest {
@@ -187,11 +183,4 @@ enum Key {
     COMMA = 70;
     PERIOD = 71;
     SLASH = 72;
-}
-
-message DetailsResponse {
-    optional string name = 1;
-    repeated string authors = 2;
-    optional string repository = 3;
-    optional string description = 4;
 }

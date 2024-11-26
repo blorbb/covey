@@ -2,6 +2,7 @@
 
 mod action;
 mod plugin;
+pub mod manifest;
 
 use core::fmt;
 

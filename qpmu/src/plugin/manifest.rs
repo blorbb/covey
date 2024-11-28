@@ -34,7 +34,7 @@ pub struct PluginManifest {
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct ConfigSchema {
-    name: String,
+    title: String,
     description: Option<String>,
     r#type: ConfigType,
 }

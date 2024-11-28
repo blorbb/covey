@@ -27,8 +27,9 @@ pub struct PluginManifest {
     /// List of authors of the plugin.
     #[serde(default)]
     authors: Vec<String>,
+    /// Key is the ID of the configuration option.
     #[serde(default)]
-    schema: Vec<ConfigSchema>,
+    schema: HashMap<String, ConfigSchema>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]

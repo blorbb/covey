@@ -16,7 +16,7 @@ use serde::{
 /// This should be a TOML file stored in
 /// `data directory/qpmu/plugins/<plugin>/manifest.toml`.
 #[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct PluginManifest {
     /// User-facing name of the plugin.
     name: String,
@@ -52,74 +52,6 @@ pub enum ConfigType {
     List(ConfigList),
     Map(ConfigMap),
     Struct(ConfigStruct),
-}
-
-/// Equivalent to [`ConfigType`] but with a derived deserialisation
-/// implementation.
-///
-/// This is needed to avoid adding `#[deserialize_with = "string_or_struct"]`
-/// on every instance of [`ConfigType`], and to be used in nested types like
-/// a [`HashMap<_, ConfigType>`].
-///
-/// [`ConfigType`] has a manual deserialisation implementation that uses
-/// the deserialisation of this.
-///
-/// [`ConfigType`] isn't a struct wrapper around this so that users can match
-/// on it's variants.
-#[derive(Deserialize)]
-#[serde(tag = "name", rename_all = "kebab-case", deny_unknown_fields)]
-enum __ConfigTypeSerdeDerive {
-    Int(ConfigInt),
-    Str(ConfigStr),
-    Bool(ConfigBool),
-    FilePath(ConfigFilePath),
-    FolderPath(ConfigFolderPath),
-    List(ConfigList),
-    Map(ConfigMap),
-    Struct(ConfigStruct),
-}
-
-macros::make_config_subtypes! {
-    pub struct ConfigInt {
-        min: i64 = i64::MIN,
-        max: i64 = i64::MAX,
-        default: Option<i64> = None,
-    }
-    pub struct ConfigStr {
-        min_length: u64 = u64::MIN,
-        max_length: u64 = u64::MAX,
-        default: Option<String> = None,
-    }
-    pub struct ConfigBool {
-        default: Option<bool> = None,
-    }
-    pub struct ConfigFilePath {
-        extension: Option<Vec<String>> = None,
-        default: Option<String> = None,
-    }
-    pub struct ConfigFolderPath {
-        default: Option<String> = None,
-    }
-}
-
-impl FromStrVariants for __ConfigTypeSerdeDerive {
-    fn expected_variants() -> &'static [&'static str] {
-        &["int", "str", "bool", "file-path", "folder-path"]
-    }
-
-    fn from_str(s: &str) -> Option<Self>
-    where
-        Self: Sized,
-    {
-        Some(match s {
-            "int" => Self::Int(Default::default()),
-            "str" => Self::Str(Default::default()),
-            "bool" => Self::Bool(Default::default()),
-            "file-path" => Self::FilePath(Default::default()),
-            "folder-path" => Self::FolderPath(Default::default()),
-            _ => return None,
-        })
-    }
 }
 
 // the below structs can't use the macro because they have extra
@@ -160,6 +92,74 @@ pub struct ConfigSelection {
     allowed_values: Vec<String>,
     #[serde(default)]
     default: Option<String>,
+}
+
+macros::make_config_subtypes! {
+    pub struct ConfigInt {
+        min: i64 = i64::MIN,
+        max: i64 = i64::MAX,
+        default: Option<i64> = None,
+    }
+    pub struct ConfigStr {
+        min_length: u64 = u64::MIN,
+        max_length: u64 = u64::MAX,
+        default: Option<String> = None,
+    }
+    pub struct ConfigBool {
+        default: Option<bool> = None,
+    }
+    pub struct ConfigFilePath {
+        extension: Option<Vec<String>> = None,
+        default: Option<String> = None,
+    }
+    pub struct ConfigFolderPath {
+        default: Option<String> = None,
+    }
+}
+
+/// Equivalent to [`ConfigType`] but with a derived deserialisation
+/// implementation.
+///
+/// This is needed to avoid adding `#[deserialize_with = "string_or_struct"]`
+/// on every instance of [`ConfigType`], and to be used in nested types like
+/// a [`HashMap<_, ConfigType>`].
+///
+/// [`ConfigType`] has a manual deserialisation implementation that uses
+/// the deserialisation of this.
+///
+/// [`ConfigType`] isn't a struct wrapper around this so that users can match
+/// on it's variants.
+#[derive(Deserialize)]
+#[serde(tag = "name", rename_all = "kebab-case", deny_unknown_fields)]
+enum __ConfigTypeSerdeDerive {
+    Int(ConfigInt),
+    Str(ConfigStr),
+    Bool(ConfigBool),
+    FilePath(ConfigFilePath),
+    FolderPath(ConfigFolderPath),
+    List(ConfigList),
+    Map(ConfigMap),
+    Struct(ConfigStruct),
+}
+
+impl FromStrVariants for __ConfigTypeSerdeDerive {
+    fn expected_variants() -> &'static [&'static str] {
+        &["int", "str", "bool", "file-path", "folder-path"]
+    }
+
+    fn from_str(s: &str) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        Some(match s {
+            "int" => Self::Int(Default::default()),
+            "str" => Self::Str(Default::default()),
+            "bool" => Self::Bool(Default::default()),
+            "file-path" => Self::FilePath(Default::default()),
+            "folder-path" => Self::FolderPath(Default::default()),
+            _ => return None,
+        })
+    }
 }
 
 // other misc implementation details //
@@ -267,4 +267,94 @@ mod macros {
         };
     }
     pub(super) use make_config_subtypes;
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use color_eyre::eyre::Result;
+
+    use super::PluginManifest;
+    use crate::plugin::manifest::{ConfigInt, ConfigList, ConfigSchema, ConfigType};
+
+    #[test]
+    fn full() -> Result<()> {
+        let input = r#"
+            name = "test"
+            description = "my description"
+
+            [schema.first-option]
+            title = "first option"
+            type = "int"
+        "#;
+        let output: PluginManifest = toml::from_str(input)?;
+        assert_eq!(
+            output,
+            PluginManifest {
+                name: "test".to_string(),
+                description: Some("my description".to_string()),
+                repository: None,
+                authors: vec![],
+                schema: HashMap::from([(
+                    "first-option".to_string(),
+                    ConfigSchema {
+                        title: "first option".to_string(),
+                        description: None,
+                        r#type: ConfigType::Int(ConfigInt::default())
+                    }
+                )])
+            }
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn int() {
+        let input = r#"
+            name = "int"
+            min = 0
+        "#;
+        let output: ConfigType = toml::from_str(input).unwrap();
+        assert_eq!(
+            output,
+            ConfigType::Int(ConfigInt {
+                min: 0,
+                ..Default::default()
+            })
+        )
+    }
+
+    #[test]
+    fn list() {
+        let input = r#"
+            title = "thing"
+            type = { name = "list", item-type = "int", unique = true }
+        "#;
+        let output: ConfigSchema = toml::from_str(input).unwrap();
+        assert_eq!(
+            output,
+            ConfigSchema {
+                title: "thing".to_string(),
+                description: None,
+                r#type: ConfigType::List(ConfigList {
+                    item_type: Box::new(ConfigType::Int(ConfigInt::default())),
+                    min_items: 0,
+                    unique: true,
+                })
+            }
+        )
+    }
+
+    #[test]
+    fn unknown_field() {
+        let input = r#"
+            name = "file-path"
+            default = "some/path"
+            non-existent = "what"
+        "#;
+        let output = toml::from_str::<ConfigType>(input);
+        assert!(output.is_err_and(|e| e.message().contains("unknown field `non-existent`")));
+    }
 }

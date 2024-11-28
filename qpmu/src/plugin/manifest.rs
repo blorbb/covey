@@ -15,7 +15,7 @@ use serde::{
 ///
 /// This should be a TOML file stored in
 /// `data directory/qpmu/plugins/<plugin>/manifest.toml`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub struct PluginManifest {
     /// User-facing name of the plugin.
@@ -31,7 +31,7 @@ pub struct PluginManifest {
     schema: Vec<ConfigSchema>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq)]
 pub struct ConfigSchema {
     name: String,
     description: Option<String>,
@@ -41,7 +41,7 @@ pub struct ConfigSchema {
 /// TODO: better docs
 ///
 /// If there is no default, then this type will be *required*.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ConfigType {
     Int(ConfigInt),
     Str(ConfigStr),
@@ -66,7 +66,7 @@ pub enum ConfigType {
 /// [`ConfigType`] isn't a struct wrapper around this so that users can match
 /// on it's variants.
 #[derive(Deserialize)]
-#[serde(untagged, rename_all = "kebab-case")]
+#[serde(tag = "name", rename_all = "kebab-case", deny_unknown_fields)]
 enum __ConfigTypeSerdeDerive {
     Int(ConfigInt),
     Str(ConfigStr),
@@ -74,27 +74,29 @@ enum __ConfigTypeSerdeDerive {
     FilePath(ConfigFilePath),
     FolderPath(ConfigFolderPath),
     List(ConfigList),
+    Map(ConfigMap),
+    Struct(ConfigStruct),
 }
 
 macros::make_config_subtypes! {
-    pub struct ConfigInt = "int" {
+    pub struct ConfigInt {
         min: i64 = i64::MIN,
         max: i64 = i64::MAX,
         default: Option<i64> = None,
     }
-    pub struct ConfigStr = "str" {
+    pub struct ConfigStr {
         min_length: u64 = u64::MIN,
         max_length: u64 = u64::MAX,
         default: Option<String> = None,
     }
-    pub struct ConfigBool = "bool" {
+    pub struct ConfigBool {
         default: Option<bool> = None,
     }
-    pub struct ConfigFilePath = "file-path" {
+    pub struct ConfigFilePath {
         extension: Option<Vec<String>> = None,
         default: Option<String> = None,
     }
-    pub struct ConfigFolderPath = "folder-path" {
+    pub struct ConfigFolderPath {
         default: Option<String> = None,
     }
 }
@@ -121,10 +123,10 @@ impl FromStrVariants for __ConfigTypeSerdeDerive {
 
 // the below structs can't use the macro because they have extra
 // required fields.
-// all structs should have `#[serde(tag = ..., rename_all = "kebab-case")]`.
+// all structs should have the same serde meta tag.
 
-#[derive(Debug, Deserialize)]
-#[serde(tag = "list", rename_all = "kebab-case")]
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct ConfigList {
     item_type: Box<ConfigType>,
     #[serde(default)]
@@ -134,8 +136,8 @@ pub struct ConfigList {
     unique: bool,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(tag = "map", rename_all = "kebab-case")]
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
 /// A map from any string to a specified value.
 pub struct ConfigMap {
     value_type: Box<ConfigType>,
@@ -144,15 +146,15 @@ pub struct ConfigMap {
 }
 
 /// A map with specific key-value pairs.
-#[derive(Debug, Deserialize)]
-#[serde(tag = "struct", rename_all = "kebab-case")]
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct ConfigStruct {
     fields: HashMap<String, ConfigType>,
 }
 
 /// A selection of one of multiple strings.
-#[derive(Debug, Deserialize)]
-#[serde(tag = "selection", rename_all = "kebab-case")]
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct ConfigSelection {
     allowed_values: Vec<String>,
     #[serde(default)]
@@ -174,6 +176,8 @@ impl<'de> Deserialize<'de> for ConfigType {
             Derived::FilePath(config_file_path) => Self::FilePath(config_file_path),
             Derived::FolderPath(config_folder_path) => Self::FolderPath(config_folder_path),
             Derived::List(config_list) => Self::List(config_list),
+            Derived::Map(config_map) => Self::Map(config_map),
+            Derived::Struct(config_struct) => Self::Struct(config_struct),
         })
     }
 }
@@ -235,7 +239,7 @@ mod macros {
         (
             $(
                 $(#[$inner_meta:meta])*
-                pub struct $variant:ident = $tag:literal {
+                pub struct $variant:ident {
                     $(
                         $field_vis:vis $field:ident : $field_ty:ty = $field_default:expr
                     ),*
@@ -245,8 +249,8 @@ mod macros {
         ) => {
             $(
                 $(#[$inner_meta])*
-                #[derive(Debug, Deserialize)]
-                #[serde(tag = $tag, default, rename_all = "kebab-case")]
+                #[derive(Debug, Deserialize, PartialEq)]
+                #[serde(default, rename_all = "kebab-case", deny_unknown_fields)]
                 pub struct $variant {
                     $( $field_vis $field : $field_ty ),*
                 }

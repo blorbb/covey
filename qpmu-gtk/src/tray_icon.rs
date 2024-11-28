@@ -4,7 +4,7 @@ use tray_item::TrayItem;
 
 use crate::model::{Launcher, LauncherMsg};
 
-pub fn create_tray_icon(sender: ComponentSender<Launcher>) -> Result<()> {
+pub fn create_tray_icon(sender: &ComponentSender<Launcher>) -> Result<()> {
     // TODO: get a proper icon
     let mut tray = TrayItem::new("qpmu", tray_item::IconSource::Resource("application-menu"))?;
     tray.add_menu_item("Quit", {

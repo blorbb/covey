@@ -1,3 +1,4 @@
+use az::{CheckedAs, SaturatingAs as _};
 use color_eyre::eyre::eyre;
 use qpmu::{config::Config, Icon, Input, ListItem, ListStyle};
 use relm4::{
@@ -73,7 +74,7 @@ impl Component for Launcher {
         );
         load_css();
 
-        tray_icon::create_tray_icon(sender.clone()).expect("failed to load tray icon");
+        tray_icon::create_tray_icon(&sender).expect("failed to load tray icon");
 
         window.connect_visible_notify({
             let sender = sender.clone();
@@ -85,7 +86,7 @@ impl Component for Launcher {
                         // it doesn't focus properly
                         std::thread::sleep(std::time::Duration::from_millis(50));
                         LauncherMsg::Focus
-                    })
+                    });
                 }
             }
         });
@@ -122,7 +123,7 @@ impl Component for Launcher {
             let sender = sender.clone();
             move |_, icon_position| {
                 if icon_position == gtk::EntryIconPosition::Secondary {
-                    sender.input(LauncherMsg::OpenSettings)
+                    sender.input(LauncherMsg::OpenSettings);
                 }
             }
         });
@@ -134,7 +135,7 @@ impl Component for Launcher {
                     contents: entry.text().replace('\n', ""),
                     selection: entry
                         .selection_bounds()
-                        .map_or((0, 0), |(a, b)| (a as u16, b as u16)),
+                        .map_or((0, 0), |(a, b)| (a.saturating_as(), b.saturating_as())),
                 }));
             }
         });
@@ -160,7 +161,12 @@ impl Component for Launcher {
             let sender = sender.clone();
             move |flow_box| {
                 if let Some(child) = flow_box.selected_children().first() {
-                    sender.input(LauncherMsg::Select(child.index() as usize));
+                    sender.input(LauncherMsg::Select(
+                        child
+                            .index()
+                            .checked_as::<usize>()
+                            .expect("index should never be negative"),
+                    ));
                 }
             }
         });
@@ -200,7 +206,7 @@ impl Component for Launcher {
         match message {
             LauncherMsg::SetInput(input) => {
                 let fut = self.model.set_input(input);
-                sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) })
+                sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) });
             }
             LauncherMsg::PluginEvent(plugin_event) => {
                 // TODO: fix this hack
@@ -209,7 +215,7 @@ impl Component for Launcher {
                     .handle_event(plugin_event, &mut Frontend { widgets, root });
                 if reset_input {
                     warn!("resetting input");
-                    sender.input(LauncherMsg::SetInput(self.model.input().clone()))
+                    sender.input(LauncherMsg::SetInput(self.model.input().clone()));
                 }
             }
             LauncherMsg::Select(index) => {
@@ -256,7 +262,7 @@ impl Component for Launcher {
             }
             LauncherMsg::OpenSettings => {
                 info!("opened settings");
-                self.settings.emit(SettingsMsg::Show)
+                self.settings.emit(SettingsMsg::Show);
             }
         }
     }
@@ -268,7 +274,7 @@ impl Component for Launcher {
         sender: ComponentSender<Self>,
         root: &Self::Root,
     ) {
-        self.update_with_view(widgets, message, sender, root)
+        self.update_with_view(widgets, message, sender, root);
     }
 
     fn shutdown(&mut self, _: &mut Self::Widgets, _: relm4::Sender<Self::Output>) {
@@ -310,7 +316,7 @@ pub struct Frontend<'a> {
     pub root: &'a gtk::Window,
 }
 
-impl<'a> qpmu::Frontend for Frontend<'a> {
+impl qpmu::Frontend for Frontend<'_> {
     fn close(&mut self) {
         info!("closing window");
 
@@ -372,7 +378,11 @@ impl<'a> qpmu::Frontend for Frontend<'a> {
 
     fn set_list_selection(&mut self, index: usize) {
         info!("set list selection to index {index}");
-        let target_row = self.widgets.results_list.child_at_index(index as i32);
+        // saturation should probably never occur anyways
+        let target_row = self
+            .widgets
+            .results_list
+            .child_at_index(index.saturating_as::<i32>());
 
         if let Some(target_row) = target_row {
             self.widgets.results_list.select_child(&target_row);
@@ -404,7 +414,7 @@ impl Frontend<'_> {
     fn add_icon_to(icon: &Icon, to: &impl RelmContainerExt<Child = Widget>) {
         match icon {
             Icon::Name(name) => {
-                let image = gtk::Image::from_icon_name(&name);
+                let image = gtk::Image::from_icon_name(name);
                 image.set_css_classes(&["list-item-icon", "list-item-icon-name"]);
                 image.set_size_request(32, 32);
                 image.set_icon_size(gtk::IconSize::Large);
@@ -460,7 +470,7 @@ impl Frontend<'_> {
             ));
         }
 
-        if let Some(missing_space) = columns.checked_sub(children.len() as u32) {
+        if let Some(missing_space) = columns.checked_sub(children.len().saturating_as::<u32>()) {
             for _ in 0..missing_space {
                 // make a bunch of stub items to fill in the space
                 let child = Self::make_list_item("", "", None, false);

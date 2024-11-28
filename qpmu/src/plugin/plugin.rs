@@ -180,7 +180,10 @@ mod implementation {
     use super::sqlite_connection_url;
     use crate::{
         config::PluginConfig,
-        plugin::{plugin::binary_path, proto::{self, plugin_client::PluginClient}},
+        plugin::{
+            plugin::binary_path,
+            proto::{self, plugin_client::PluginClient},
+        },
     };
 
     /// A plugin that is not initialised until [`Self::get_and_init`] is called.
@@ -237,7 +240,7 @@ mod implementation {
 
                     let bin_path = binary_path(&self.config.name);
 
-                    Ok(PluginInner::new(bin_path).await?)
+                    PluginInner::new(bin_path).await
                 })
                 .await;
 

@@ -5,6 +5,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
+use az::CheckedAs;
 use parking_lot::Mutex;
 
 use crate::{list::ListItemCallbacks, proto, Icon, List, ListItem, ListStyle};
@@ -126,7 +127,11 @@ struct QueryListItemStore {
 impl QueryListItemStore {
     pub fn callback_of_id(&self, id: u64) -> Option<&ListItemCallbacks> {
         let offset = id - self.first_id;
-        self.callbacks.get(offset as usize)
+        self.callbacks.get(
+            offset
+                .checked_as::<usize>()
+                .expect("there should not be way too many callbacks stored (over u32::MAX)"),
+        )
     }
 }
 

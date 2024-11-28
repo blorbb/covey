@@ -19,16 +19,19 @@ impl List {
         Self { items, style: None }
     }
 
+    #[must_use = "builder method consumes self"]
     pub fn as_grid_with_columns(mut self, columns: u32) -> Self {
         self.style = Some(ListStyle::GridWithColumns(columns));
         self
     }
 
+    #[must_use = "builder method consumes self"]
     pub fn as_grid(mut self) -> Self {
         self.style = Some(ListStyle::Grid);
         self
     }
 
+    #[must_use = "builder method consumes self"]
     pub fn as_rows(mut self) -> Self {
         self.style = Some(ListStyle::Rows);
         self
@@ -72,21 +75,25 @@ impl ListItem {
         }
     }
 
+    #[must_use = "builder method consumes self"]
     pub fn with_description(mut self, desc: impl Into<String>) -> Self {
         self.description = desc.into();
         self
     }
 
+    #[must_use = "builder method consumes self"]
     pub fn with_icon(mut self, icon: Option<Icon>) -> Self {
         self.icon = icon;
         self
     }
 
+    #[must_use = "builder method consumes self"]
     pub fn with_icon_name(mut self, name: impl Into<String>) -> Self {
         self.icon = Some(Icon::Name(name.into()));
         self
     }
 
+    #[must_use = "builder method consumes self"]
     pub fn with_icon_text(mut self, text: impl Into<String>) -> Self {
         self.icon = Some(Icon::Text(text.into()));
         self
@@ -95,6 +102,7 @@ impl ListItem {
     /// Add a callback to run on activation.
     ///
     /// This should be called after everything else is initialised.
+    #[must_use = "builder method consumes self"]
     pub fn on_activate<Fut>(mut self, callback: impl Fn() -> Fut + Send + Sync + 'static) -> Self
     where
         Fut: Future<Output = Result<Vec<Action>>> + Send + Sync + 'static,
@@ -109,6 +117,7 @@ impl ListItem {
     /// Add a callback to run on alt-activate.
     ///
     /// This should be called after everything else is initialised.
+    #[must_use = "builder method consumes self"]
     pub fn on_alt_activate<Fut>(
         mut self,
         callback: impl Fn() -> Fut + Send + Sync + 'static,
@@ -126,6 +135,7 @@ impl ListItem {
     /// Add a callback to run when a hotkey fires.
     ///
     /// This should be called after everything else is initialised.
+    #[must_use = "builder method consumes self"]
     pub fn on_hotkey_activate<Fut>(
         mut self,
         callback: impl Fn(Hotkey) -> Fut + Send + Sync + 'static,
@@ -143,6 +153,7 @@ impl ListItem {
     /// Add a callback to run on tab completion.
     ///
     /// This should be called after everything else is initialised.
+    #[must_use = "builder method consumes self"]
     pub fn on_complete<Fut>(mut self, callback: impl Fn() -> Fut + Send + Sync + 'static) -> Self
     where
         Fut: Future<Output = Result<Option<Input>>> + Send + Sync + 'static,

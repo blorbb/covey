@@ -15,6 +15,10 @@ impl Hotkey {
     }
 }
 
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "simpler to use than bitflags"
+)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Modifiers {
     pub ctrl: bool,

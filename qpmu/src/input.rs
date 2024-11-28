@@ -25,7 +25,7 @@ impl Input {
             contents: il.query,
             selection: (il.range_lb.saturating_as(), il.range_ub.saturating_as()),
         };
-        input.prefix_with(&plugin.prefix());
+        input.prefix_with(plugin.prefix());
         input
     }
 }

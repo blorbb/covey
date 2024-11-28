@@ -42,7 +42,7 @@ impl Config {
             match Plugin::new(plugin) {
                 Ok(plugin) => {
                     debug!("found plugin {plugin:?}");
-                    v.push(plugin)
+                    v.push(plugin);
                 }
                 Err(e) => error!("error finding plugin: {e}"),
             }

@@ -1,3 +1,22 @@
 [workspace]
 members = ["qpmu-plugin", "qpmu", "qpmu-gtk"]
 resolver = "2"
+
+[workspace.dependencies]
+az = "1.2.1"
+dirs = "5.0.1"
+color-eyre = "0.6.3"
+tokio = "1.41.0"
+futures = "0.3.31"
+tracing = "0.1.41"
+serde = { version = "1", features = ["derive"] }
+prost = "0.13.3"
+tonic = "0.12.3"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+items_after_statements = "allow"
+semicolon_if_nothing_returned = "allow"

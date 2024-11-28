@@ -30,13 +30,13 @@ pub fn run_server<T: Plugin>() -> ! {
     match result {
         Ok(()) => process::exit(0),
         Err(e) => {
-            print_error(e);
+            print_error(&e);
             process::exit(1)
         }
     }
 }
 
-fn print_error(e: anyhow::Error) {
+fn print_error(e: &anyhow::Error) {
     let err_string = e
         .chain()
         .map(ToString::to_string)

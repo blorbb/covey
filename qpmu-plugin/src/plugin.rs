@@ -119,6 +119,10 @@ fn map_result<T>(result: Result<T>) -> TonicResult<T> {
     }
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "easier to only use path when mapping"
+)]
 fn into_tonic_status(e: anyhow::Error) -> tonic::Status {
     tonic::Status::unknown(
         e.chain()

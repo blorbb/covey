@@ -19,12 +19,14 @@ impl Input {
         }
     }
 
+    #[must_use = "builder method consumes self"]
     pub fn select(mut self, sel: SelectionRange) -> Self {
         self.range_lb = sel.lower_bound;
         self.range_ub = sel.lower_bound;
         self
     }
 
+    #[must_use = "builder method consumes self"]
     pub(crate) fn into_proto(self) -> proto::Input {
         proto::Input {
             query: self.query,
@@ -34,6 +36,7 @@ impl Input {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct SelectionRange {
     lower_bound: u16,
     upper_bound: u16,

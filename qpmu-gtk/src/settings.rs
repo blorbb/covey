@@ -1,4 +1,5 @@
-use color_eyre::eyre::Result;
+#![allow(unused)]
+
 use qpmu::plugin::Plugin;
 use relm4::{
     gtk::{self, prelude::GtkWindowExt},

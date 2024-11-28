@@ -3,18 +3,22 @@ name = "qpmu-gtk"
 version = "0.1.0"
 edition = "2021"
 
+[lints]
+workspace = true
+
 [[bin]]
 name = "qpmu"
 path = "src/main.rs"
 
 [dependencies]
-dirs = "5.0.1"
+dirs.workspace = true
+color-eyre.workspace = true
+tracing.workspace = true
+tokio = { workspace = true, features = ["full"] }
+az.workspace = true
 qpmu = { path = "../qpmu" }
-color-eyre = "0.6.3"
-tokio = { version = "1.41.0", features = ["full"] }
 relm4 = "0.9.1"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-tracing = "0.1.40"
 arboard = { version = "3.4.1", features = ["wayland-data-control"] }
 clap = { version = "4.5.20", features = ["derive"] }
-tray-item = { version = "0.10", features = ["ksni"]}
+tray-item = { version = "0.10", features = ["ksni"] }

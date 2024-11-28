@@ -38,6 +38,7 @@ pub async fn rank<'iter>(
 
     let now = OffsetDateTime::now_utc();
 
+    #[expect(clippy::cast_precision_loss, reason = "precision isn't needed")]
     let mut scored: Vec<_> = items
         .into_iter()
         .filter_map(|item| {
@@ -107,21 +108,25 @@ impl Weights {
         }
     }
 
+    #[must_use = "builder method consumes self"]
     pub fn title(mut self, title: f32) -> Self {
         self.title = title;
         self
     }
 
+    #[must_use = "builder method consumes self"]
     pub fn description(mut self, description: f32) -> Self {
         self.description = description;
         self
     }
 
+    #[must_use = "builder method consumes self"]
     pub fn frequency(mut self, frequency: f32) -> Self {
         self.frequency = frequency;
         self
     }
 
+    #[must_use = "builder method consumes self"]
     pub fn recency(mut self, recency: f32) -> Self {
         self.recency = recency;
         self

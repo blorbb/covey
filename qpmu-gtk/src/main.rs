@@ -8,13 +8,13 @@ use relm4::RelmApp;
 use tracing::{info, level_filters::LevelFilter};
 use tracing_subscriber::EnvFilter;
 
+mod hotkey;
 mod install;
 mod model;
-mod styles;
-mod ui;
-mod hotkey;
-mod tray_icon;
 mod settings;
+mod styles;
+mod tray_icon;
+mod ui;
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -49,13 +49,13 @@ fn main() -> Result<()> {
         }
         None => new_instance(),
     }
+
+    Ok(())
 }
 
-fn new_instance() -> Result<()> {
+fn new_instance() {
     info!("starting up app");
 
     let app = RelmApp::new("blorbb.qpmu");
     app.run::<Launcher>(());
-
-    Ok(())
 }

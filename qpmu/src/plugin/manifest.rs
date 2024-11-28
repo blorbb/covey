@@ -1,9 +1,7 @@
 use std::{
     collections::HashMap,
     fmt::{self, Debug},
-    i64,
     marker::PhantomData,
-    u64,
 };
 
 use serde::{
@@ -152,11 +150,11 @@ impl FromStrVariants for __ConfigTypeSerdeDerive {
         Self: Sized,
     {
         Some(match s {
-            "int" => Self::Int(Default::default()),
-            "str" => Self::Str(Default::default()),
-            "bool" => Self::Bool(Default::default()),
-            "file-path" => Self::FilePath(Default::default()),
-            "folder-path" => Self::FolderPath(Default::default()),
+            "int" => Self::Int(ConfigInt::default()),
+            "str" => Self::Str(ConfigStr::default()),
+            "bool" => Self::Bool(ConfigBool::default()),
+            "file-path" => Self::FilePath(ConfigFilePath::default()),
+            "folder-path" => Self::FolderPath(ConfigFolderPath::default()),
             _ => return None,
         })
     }
@@ -323,7 +321,7 @@ mod tests {
                 min: 0,
                 ..Default::default()
             })
-        )
+        );
     }
 
     #[test]
@@ -344,7 +342,7 @@ mod tests {
                     unique: true,
                 })
             }
-        )
+        );
     }
 
     #[test]

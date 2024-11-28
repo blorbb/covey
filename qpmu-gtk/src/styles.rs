@@ -2,7 +2,6 @@ use qpmu::CONFIG_DIR;
 use relm4::gtk::{self, gdk::Display, CssProvider};
 use tracing::instrument;
 
-
 #[instrument]
 pub fn load_css() {
     let display = Display::default().expect("could not connect to a display");

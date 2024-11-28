@@ -16,6 +16,7 @@ pub use server::run_server as main;
 mod plugin_lock;
 mod store;
 
+#[allow(clippy::pedantic)]
 mod proto {
     tonic::include_proto!("plugin");
 }

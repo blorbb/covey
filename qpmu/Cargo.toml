@@ -3,18 +3,20 @@ name = "qpmu"
 version = "0.1.0"
 edition = "2021"
 
+[lints]
+workspace = true
+
 [dependencies]
-color-eyre = "0.6.3"
+color-eyre.workspace = true
 toml = "0.8.19"
-serde = { version = "1.0.214", features = ["derive"] }
-futures = "0.3.31"
-sublime_fuzzy = "0.7.0"
-tracing = "0.1.40"
-tokio = { version = "1.41.1", features = ["fs", "process"] }
-dirs = "5.0.1"
-tonic = "0.12.3"
-prost = "0.13.3"
-az = "1.2.1"
+serde.workspace = true
+futures.workspace = true
+tracing.workspace = true
+tokio = { workspace = true, features = ["fs", "process"] }
+tonic.workspace = true
+prost.workspace = true
+az.workspace = true
+dirs.workspace = true
 
 [build-dependencies]
 tonic-build = "0.12.3"

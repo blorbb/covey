@@ -1,8 +1,9 @@
 //! API for interacting with plugins.
 
 mod action;
-mod plugin;
 pub mod manifest;
+#[expect(clippy::module_inception, reason = "private")]
+mod plugin;
 
 use core::fmt;
 
@@ -11,6 +12,7 @@ pub use plugin::Plugin;
 
 use crate::ResultList;
 
+#[allow(clippy::pedantic)]
 pub(crate) mod proto {
     tonic::include_proto!("plugin");
 }

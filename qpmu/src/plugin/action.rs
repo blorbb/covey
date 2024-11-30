@@ -10,7 +10,7 @@ pub enum Action {
     SetInput(Input),
 }
 
-pub(super) fn map_actions(plugin: Plugin, actions: Vec<proto::Action>) -> Vec<Action> {
+pub(super) fn map_actions(plugin: &Plugin, actions: Vec<proto::Action>) -> Vec<Action> {
     use proto::action::Action as PAction;
 
     actions

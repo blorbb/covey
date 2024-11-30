@@ -21,8 +21,8 @@ impl ListItem {
         Self { plugin, item }
     }
 
-    pub fn plugin(&self) -> Plugin {
-        self.plugin
+    pub fn plugin(&self) -> &Plugin {
+        &self.plugin
     }
 
     pub fn title(&self) -> &str {

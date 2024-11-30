@@ -20,7 +20,7 @@ impl Input {
         self.selection = (a.saturating_add(prefix_len), b.saturating_add(prefix_len));
     }
 
-    pub(crate) fn from_proto(plugin: Plugin, il: proto::Input) -> Self {
+    pub(crate) fn from_proto(plugin: &Plugin, il: proto::Input) -> Self {
         let mut input = Self {
             contents: il.query,
             selection: (il.range_lb.saturating_as(), il.range_ub.saturating_as()),

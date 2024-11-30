@@ -1,34 +1,34 @@
 use core::fmt;
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use color_eyre::eyre::{ContextCompat, Result};
 use tokio::fs;
 
-use super::action;
+use super::{action, manifest::PluginManifest};
 use crate::{
     config::PluginConfig,
     plugin::{proto, Action},
     Input, ResultList, DATA_DIR,
 };
 
-/// A static reference to a plugin instance.
+/// A ref-counted reference to a plugin instance.
 ///
 /// This can be constructed using [`Config::load_plugins`].
 ///
+/// This needs to be ref-counted instead of leaked so that the
+/// list of plugins can be changed.
+///
 /// [`Config::load_plugins`]: crate::config::Config::load_plugins
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Plugin {
-    plugin: &'static implementation::LazyPlugin,
+    plugin: Arc<implementation::LazyPlugin>,
 }
 
 impl Plugin {
     /// Initialises a plugin from it's configuration.
-    ///
-    /// Note that this will leak the plugin and configuration, as they should
-    /// be active for the entire program.
     pub fn new(config: PluginConfig) -> Result<Self> {
         Ok(Self {
-            plugin: Box::leak(Box::new(implementation::LazyPlugin::new(config))),
+            plugin: Arc::new(implementation::LazyPlugin::new(config)),
         })
     }
 
@@ -60,9 +60,13 @@ impl Plugin {
         database_path(self.name())
     }
 
+    pub fn manifest(&self) -> Result<&PluginManifest> {
+        self.plugin.manifest()
+    }
+
     pub(crate) async fn query(&self, query: impl Into<String>) -> Result<ResultList> {
         Ok(ResultList::from_proto(
-            *self,
+            self,
             self.plugin
                 .get_and_init()
                 .await?
@@ -73,7 +77,7 @@ impl Plugin {
 
     pub(crate) async fn activate(&self, selection_id: u64) -> Result<Vec<Action>> {
         Ok(action::map_actions(
-            *self,
+            self,
             self.plugin
                 .get_and_init()
                 .await?
@@ -84,7 +88,7 @@ impl Plugin {
 
     pub(crate) async fn alt_activate(&self, selection_id: u64) -> Result<Vec<Action>> {
         Ok(action::map_actions(
-            *self,
+            self,
             self.plugin
                 .get_and_init()
                 .await?
@@ -99,7 +103,7 @@ impl Plugin {
         hotkey: proto::Hotkey,
     ) -> Result<Vec<Action>> {
         Ok(action::map_actions(
-            *self,
+            self,
             self.plugin
                 .get_and_init()
                 .await?
@@ -115,7 +119,7 @@ impl Plugin {
             .await?
             .call_complete(selection_id)
             .await?
-            .map(|il| Input::from_proto(*self, il)))
+            .map(|il| Input::from_proto(self, il)))
     }
 }
 
@@ -177,10 +181,11 @@ mod implementation {
     use tonic::{transport::Channel, Request};
     use tracing::info;
 
-    use super::sqlite_connection_url;
+    use super::{manifest_path, sqlite_connection_url};
     use crate::{
         config::PluginConfig,
         plugin::{
+            manifest::PluginManifest,
             plugin::binary_path,
             proto::{self, plugin_client::PluginClient},
         },
@@ -188,7 +193,9 @@ mod implementation {
 
     /// A plugin that is not initialised until [`Self::get_and_init`] is called.
     pub(super) struct LazyPlugin {
-        cell: OnceCell<Result<PluginInner>>,
+        cell: OnceCell<PluginInner>,
+        // making the manifest sync makes it easier to use in settings
+        manifest: std::sync::OnceLock<Result<PluginManifest>>,
         called_initialise: Mutex<bool>,
         pub(super) config: PluginConfig,
     }
@@ -197,6 +204,7 @@ mod implementation {
         pub(super) fn new(config: PluginConfig) -> Self {
             Self {
                 cell: OnceCell::new(),
+                manifest: std::sync::OnceLock::new(),
                 called_initialise: Mutex::new(false),
                 config,
             }
@@ -233,20 +241,26 @@ mod implementation {
         }
 
         async fn get_without_init(&self) -> Result<&PluginInner> {
-            let plugin = self
-                .cell
-                .get_or_init(|| async {
+            self.cell
+                .get_or_try_init(|| async {
                     info!("initialising plugin {}", self.config.name);
-
                     let bin_path = binary_path(&self.config.name);
-
                     PluginInner::new(bin_path).await
                 })
-                .await;
+                .await
+                .context(format!("failed to initialise plugin {}", self.config.name))
+        }
 
-            match plugin {
-                Ok(a) => Ok(a),
-                Err(e) => bail!("failed to initialise plugin {}: {e}", self.config.name),
+        pub(super) fn manifest(&self) -> Result<&PluginManifest> {
+            let result = self.manifest.get_or_init(|| {
+                let path = manifest_path(&self.config.name);
+                let toml = std::fs::read_to_string(path)?;
+                let manifest = toml::from_str(&toml)?;
+                Ok(manifest)
+            });
+            match result {
+                Ok(manifest) => Ok(manifest),
+                Err(e) => bail!("error reading manifest of {}: {e}", self.config.name),
             }
         }
     }

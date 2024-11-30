@@ -197,6 +197,10 @@ impl Model {
         }
         false
     }
+
+    pub fn reload(&mut self, new_plugins: Vec<Plugin>) {
+        self.plugins = new_plugins;
+    }
 }
 
 pub trait Frontend {

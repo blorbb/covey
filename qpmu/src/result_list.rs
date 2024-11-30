@@ -56,12 +56,12 @@ impl ResultList {
         self.style
     }
 
-    pub(crate) fn from_proto(plugin: Plugin, proto: proto::QueryResponse) -> Self {
+    pub(crate) fn from_proto(plugin: &Plugin, proto: proto::QueryResponse) -> Self {
         let style = proto.list_style.map(ListStyle::from_proto);
         let list: Vec<_> = proto
             .items
             .into_iter()
-            .map(|li| ListItem::new(plugin, li))
+            .map(|li| ListItem::new(Plugin::clone(plugin), li))
             .collect();
         Self {
             style,

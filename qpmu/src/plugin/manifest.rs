@@ -128,7 +128,7 @@ macros::make_config_subtypes! {
 /// [`ConfigType`] isn't a struct wrapper around this so that users can match
 /// on it's variants.
 #[derive(Deserialize)]
-#[serde(tag = "name", rename_all = "kebab-case", deny_unknown_fields)]
+#[serde(tag = "type-name", rename_all = "kebab-case", deny_unknown_fields)]
 enum __ConfigTypeSerdeDerive {
     Int(ConfigInt),
     Str(ConfigStr),
@@ -311,7 +311,7 @@ mod tests {
     #[test]
     fn int() {
         let input = r#"
-            name = "int"
+            type-name = "int"
             min = 0
         "#;
         let output: ConfigType = toml::from_str(input).unwrap();
@@ -328,7 +328,7 @@ mod tests {
     fn list() {
         let input = r#"
             title = "thing"
-            type = { name = "list", item-type = "int", unique = true }
+            type = { type-name = "list", item-type = "int", unique = true }
         "#;
         let output: ConfigSchema = toml::from_str(input).unwrap();
         assert_eq!(
@@ -348,7 +348,7 @@ mod tests {
     #[test]
     fn unknown_field() {
         let input = r#"
-            name = "file-path"
+            type-name = "file-path"
             default = "some/path"
             non-existent = "what"
         "#;

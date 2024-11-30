@@ -274,7 +274,9 @@ mod tests {
     use color_eyre::eyre::Result;
 
     use super::PluginManifest;
-    use crate::plugin::manifest::{ConfigInt, ConfigList, ConfigSchema, ConfigType};
+    use crate::plugin::manifest::{
+        ConfigInt, ConfigList, ConfigMap, ConfigSchema, ConfigStruct, ConfigType,
+    };
 
     #[test]
     fn full() -> Result<()> {
@@ -354,5 +356,49 @@ mod tests {
         "#;
         let output = toml::from_str::<ConfigType>(input);
         assert!(output.is_err_and(|e| e.message().contains("unknown field `non-existent`")));
+    }
+
+    #[test]
+    fn open_plugin() {
+        let input = r#"
+            name = "Open"
+            description = "Open URLs with a query"
+            repository = "https://github.com/blorbb/qpmu-plugins"
+            authors = ["blorbb"]
+
+            [schema.urls]
+            title = "List of URLs to show"
+
+            [schema.urls.type]
+            type-name = "map"
+            value-type.type-name = "struct"
+            value-type.fields = { name = "str", url = "str" }
+        "#;
+        let output: PluginManifest = toml::from_str(input).unwrap();
+        assert_eq!(
+            output,
+            PluginManifest {
+                name: "Open".to_string(),
+                description: Some("Open URLs with a query".to_string()),
+                repository: Some("https://github.com/blorbb/qpmu-plugins".to_string()),
+                authors: vec!["blorbb".to_string()],
+                schema: HashMap::from([(
+                    "urls".to_string(),
+                    ConfigSchema {
+                        title: "List of URLs to show".to_string(),
+                        description: None,
+                        r#type: ConfigType::Map(ConfigMap {
+                            value_type: Box::new(ConfigType::Struct(ConfigStruct {
+                                fields: HashMap::from([
+                                    ("name".to_string(), ConfigType::Str(Default::default())),
+                                    ("url".to_string(), ConfigType::Str(Default::default()))
+                                ])
+                            })),
+                            min_items: Default::default()
+                        })
+                    }
+                )])
+            }
+        )
     }
 }

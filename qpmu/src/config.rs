@@ -8,6 +8,7 @@ use crate::{plugin::Plugin, CONFIG_PATH};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
+    #[serde(default)]
     plugins: Vec<PluginConfig>,
 }
 

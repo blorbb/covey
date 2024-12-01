@@ -28,7 +28,7 @@ impl Plugin {
     /// Initialises a plugin from it's configuration.
     pub fn new(config: PluginConfig) -> Result<Self> {
         Ok(Self {
-            plugin: Arc::new(implementation::LazyPlugin::new(config)),
+            plugin: Arc::new(implementation::LazyPlugin::new(config)?),
         })
     }
 
@@ -60,8 +60,8 @@ impl Plugin {
         database_path(self.name())
     }
 
-    pub fn manifest(&self) -> Result<&PluginManifest> {
-        self.plugin.manifest()
+    pub fn manifest(&self) -> &PluginManifest {
+        &self.plugin.manifest
     }
 
     pub(crate) async fn query(&self, query: impl Into<String>) -> Result<ResultList> {
@@ -172,7 +172,7 @@ async fn sqlite_connection_url(plugin_name: &str) -> Result<String> {
 mod implementation {
     use std::{path::PathBuf, process::Stdio};
 
-    use color_eyre::eyre::{bail, Context as _, Result};
+    use color_eyre::eyre::{Context as _, Result};
     use tokio::{
         io::{AsyncBufReadExt as _, BufReader},
         process::Command,
@@ -192,22 +192,30 @@ mod implementation {
     };
 
     /// A plugin that is not initialised until [`Self::get_and_init`] is called.
+    ///
+    /// The manifest is loaded on construction.
     pub(super) struct LazyPlugin {
         cell: OnceCell<PluginInner>,
         // making the manifest sync makes it easier to use in settings
-        manifest: std::sync::OnceLock<Result<PluginManifest>>,
         called_initialise: Mutex<bool>,
+        pub(super) manifest: PluginManifest,
         pub(super) config: PluginConfig,
     }
 
     impl LazyPlugin {
-        pub(super) fn new(config: PluginConfig) -> Self {
-            Self {
+        pub(super) fn new(config: PluginConfig) -> Result<Self> {
+            let path = manifest_path(&config.name);
+            let toml = std::fs::read_to_string(path)
+                .context(format!("error opening manifest file of {}", config.name))?;
+            let manifest: PluginManifest = toml::from_str(&toml)
+                .context(format!("error reading manifest of {}", config.name))?;
+
+            Ok(Self {
                 cell: OnceCell::new(),
-                manifest: std::sync::OnceLock::new(),
                 called_initialise: Mutex::new(false),
+                manifest,
                 config,
-            }
+            })
         }
 
         /// Gets access to a plugin and ensures it is initialised.
@@ -249,19 +257,6 @@ mod implementation {
                 })
                 .await
                 .context(format!("failed to initialise plugin {}", self.config.name))
-        }
-
-        pub(super) fn manifest(&self) -> Result<&PluginManifest> {
-            let result = self.manifest.get_or_init(|| {
-                let path = manifest_path(&self.config.name);
-                let toml = std::fs::read_to_string(path)?;
-                let manifest = toml::from_str(&toml)?;
-                Ok(manifest)
-            });
-            match result {
-                Ok(manifest) => Ok(manifest),
-                Err(e) => bail!("error reading manifest of {}: {e}", self.config.name),
-            }
         }
     }
 

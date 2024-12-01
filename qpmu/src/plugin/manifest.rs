@@ -14,27 +14,29 @@ use serde::{
 /// This should be a TOML file stored in
 /// `data directory/qpmu/plugins/<plugin>/manifest.toml`.
 #[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+#[non_exhaustive]
+#[serde(rename_all = "kebab-case")]
 pub struct PluginManifest {
     /// User-facing name of the plugin.
-    name: String,
+    pub name: String,
     /// Plugin description. Can be multiple lines. Supports markdown.
-    description: Option<String>,
+    pub description: Option<String>,
     /// URL to the plugin's repository.
-    repository: Option<String>,
+    pub repository: Option<String>,
     /// List of authors of the plugin.
     #[serde(default)]
-    authors: Vec<String>,
+    pub authors: Vec<String>,
     /// Key is the ID of the configuration option.
     #[serde(default)]
-    schema: HashMap<String, ConfigSchema>,
+    pub schema: HashMap<String, ConfigSchema>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+#[non_exhaustive]
 pub struct ConfigSchema {
-    title: String,
-    description: Option<String>,
-    r#type: ConfigType,
+    pub title: String,
+    pub description: Option<String>,
+    pub r#type: ConfigType,
 }
 
 /// TODO: better docs
@@ -57,7 +59,7 @@ pub enum ConfigType {
 // all structs should have the same serde meta tag.
 
 #[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+#[serde(rename_all = "kebab-case")]
 pub struct ConfigList {
     item_type: Box<ConfigType>,
     #[serde(default)]
@@ -68,7 +70,7 @@ pub struct ConfigList {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+#[serde(rename_all = "kebab-case")]
 /// A map from any string to a specified value.
 pub struct ConfigMap {
     value_type: Box<ConfigType>,
@@ -78,14 +80,14 @@ pub struct ConfigMap {
 
 /// A map with specific key-value pairs.
 #[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+#[serde(rename_all = "kebab-case")]
 pub struct ConfigStruct {
     fields: HashMap<String, ConfigType>,
 }
 
 /// A selection of one of multiple strings.
 #[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+#[serde(rename_all = "kebab-case")]
 pub struct ConfigSelection {
     allowed_values: Vec<String>,
     #[serde(default)]
@@ -128,7 +130,7 @@ macros::make_config_subtypes! {
 /// [`ConfigType`] isn't a struct wrapper around this so that users can match
 /// on it's variants.
 #[derive(Deserialize)]
-#[serde(tag = "type-name", rename_all = "kebab-case", deny_unknown_fields)]
+#[serde(tag = "type-name", rename_all = "kebab-case")]
 enum __ConfigTypeSerdeDerive {
     Int(ConfigInt),
     Str(ConfigStr),
@@ -249,7 +251,7 @@ mod macros {
             $(
                 $(#[$inner_meta])*
                 #[derive(Debug, Deserialize, PartialEq)]
-                #[serde(default, rename_all = "kebab-case", deny_unknown_fields)]
+                #[serde(default, rename_all = "kebab-case")]
                 pub struct $variant {
                     $( $field_vis $field : $field_ty ),*
                 }
@@ -345,17 +347,6 @@ mod tests {
                 })
             }
         );
-    }
-
-    #[test]
-    fn unknown_field() {
-        let input = r#"
-            type-name = "file-path"
-            default = "some/path"
-            non-existent = "what"
-        "#;
-        let output = toml::from_str::<ConfigType>(input);
-        assert!(output.is_err_and(|e| e.message().contains("unknown field `non-existent`")));
     }
 
     #[test]

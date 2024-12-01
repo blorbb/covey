@@ -10,11 +10,12 @@ mod spawn;
 use std::{future::Future, path::PathBuf, sync::LazyLock};
 
 use color_eyre::eyre::{bail, Context, Result};
+use config::Config;
 use hotkey::Hotkey;
 pub use input::Input;
 pub use list_item::{Icon, ListItem};
 use plugin::{Action, Plugin, PluginEvent};
-pub use result_list::{ListStyle, ResultList};
+pub use result_list::{ListStyle, ResultList, BoundedUsize};
 use tracing::info;
 
 pub static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
@@ -198,8 +199,11 @@ impl Model {
         false
     }
 
-    pub fn reload(&mut self, new_plugins: Vec<Plugin>) {
-        self.plugins = new_plugins;
+    /// Refreshes qpmu by re-reading the config.toml file.
+    pub fn reload(&mut self) -> Result<()> {
+        let plugins = Config::load_plugins()?;
+        self.plugins = plugins;
+        Ok(())
     }
 }
 

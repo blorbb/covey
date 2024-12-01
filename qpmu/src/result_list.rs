@@ -93,7 +93,7 @@ impl ListStyle {
 ///
 /// The `bound` is always inclusive.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-struct BoundedUsize {
+pub struct BoundedUsize {
     /// The current actual value. Must always be `<= bound`.
     value: usize,
     /// The maximum possible value for `value`. This is **inclusive**.

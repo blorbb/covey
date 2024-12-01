@@ -5,7 +5,7 @@ use qpmu::{
 };
 use relm4::Controller;
 
-use crate::settings::Settings;
+use crate::settings::ui::Settings;
 
 #[derive(Debug)]
 pub struct Launcher {
@@ -48,4 +48,6 @@ pub enum LauncherMsg {
     /// Shutdown the entire application, killing all child processes.
     Shutdown,
     OpenSettings,
+    /// Reloads the plugins by calling [`Model::reload`].
+    ReloadPlugins,
 }

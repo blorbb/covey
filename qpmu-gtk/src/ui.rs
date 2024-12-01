@@ -18,7 +18,7 @@ use tracing::{error, info, instrument, warn};
 
 use crate::{
     model::{Launcher, LauncherMsg},
-    settings::{self, Settings, SettingsMsg},
+    settings::{self, messages::SettingsMsg, ui::Settings},
     styles::load_css,
     tray_icon,
 };
@@ -70,7 +70,7 @@ impl Component for Launcher {
             plugins.clone(),
             Settings::builder()
                 .launch(plugins)
-                .forward(sender.input_sender(), settings::output_transform),
+                .forward(sender.input_sender(), settings::messages::output_transform),
         );
         load_css();
 
@@ -263,6 +263,15 @@ impl Component for Launcher {
             LauncherMsg::OpenSettings => {
                 info!("opened settings");
                 self.settings.emit(SettingsMsg::Show);
+            }
+            LauncherMsg::ReloadPlugins => {
+                if let Err(e) = self.model.reload() {
+                    qpmu::Frontend::display_error(
+                        &mut Frontend { widgets, root },
+                        "Error loading qpmu",
+                        e,
+                    );
+                }
             }
         }
     }

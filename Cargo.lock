@@ -2564,7 +2564,7 @@ dependencies = [
  "relm4",
  "tap",
  "tokio",
- "toml_edit",
+ "toml",
  "tracing",
  "tracing-subscriber",
  "tray-item",

@@ -1,7 +1,5 @@
-use std::mem;
-
 use az::CheckedAs;
-use qpmu::{plugin::Plugin, BoundedUsize, CONFIG_PATH};
+use qpmu::{config::Config, plugin::Plugin, BoundedUsize, CONFIG_PATH};
 use relm4::{
     gtk::{
         self,
@@ -9,8 +7,6 @@ use relm4::{
     },
     Component, Controller, RelmContainerExt,
 };
-use tap::Tap;
-use toml_edit::{ArrayOfTables, DocumentMut, Item, Table};
 
 use super::{
     messages::{SettingsMsg, SettingsOutput},
@@ -21,7 +17,7 @@ use super::{
 pub struct Settings {
     plugins: Vec<Plugin>,
     selected_plugin: Option<BoundedUsize>,
-    document: DocumentMut,
+    config: Config,
     plugin_list_component: Controller<PluginList>,
 }
 
@@ -29,9 +25,10 @@ impl Settings {
     /// Writes the contents of the TOML document to the config file.
     ///
     /// This should be called after mutating [`Self::document`].
-    fn update_document(&self, sender: &relm4::ComponentSender<Self>) {
-        std::fs::write(&*CONFIG_PATH, self.document.to_string())
-            .expect("failed to write to config file");
+    fn update_document(config: &Config, sender: &relm4::ComponentSender<Self>) {
+        let config_toml =
+            toml::to_string_pretty(config).expect("failed to serialise configuration");
+        std::fs::write(&*CONFIG_PATH, config_toml).expect("failed to write to config file");
         sender
             .output(SettingsOutput::ReloadPlugins)
             .expect("parent receiver should not be dropped");
@@ -91,10 +88,10 @@ impl Component for Settings {
             model: Self {
                 plugins,
                 selected_plugin: None,
-                document: std::fs::read_to_string(&*CONFIG_PATH)
-                    .expect("failed to read qpmu config")
-                    .parse::<DocumentMut>()
-                    .expect("invalid configuration document"),
+                config: toml::from_str(
+                    &std::fs::read_to_string(&*CONFIG_PATH).expect("failed to read qpmu config"),
+                )
+                .expect("invalid configuration document"),
                 plugin_list_component: plugin_list,
             },
             widgets: SettingsWidgets { layout },
@@ -121,47 +118,8 @@ impl Component for Settings {
             }
             SettingsMsg::SetPluginList(plugins) => {
                 self.plugins = plugins;
-                eprintln!("new plugins are {:?}", self.plugins);
-
-                let document = &mut self.document;
-                // reorder the config file
-                let toml_list = document
-                    .entry("plugins")
-                    .or_insert(Item::ArrayOfTables(ArrayOfTables::new()))
-                    .as_array_of_tables_mut()
-                    .expect("invalid config format: key 'plugins' should be an array of tables");
-
-                // either find a table that matches each plugin name, or make a new one
-                let new_array: ArrayOfTables = self
-                    .plugins
-                    .iter()
-                    .map(|plugin| -> Table {
-                        toml_list
-                            .iter_mut()
-                            .find_map(|table| {
-                                (table.get("name")?.as_str()? == plugin.name())
-                                    .then(|| mem::take(table))
-                            })
-                            .unwrap_or_else(|| {
-                                Table::new().tap_mut(|table| {
-                                    table.insert("name", plugin.name().into());
-                                    table.insert("prefix", plugin.prefix().into());
-                                })
-                            })
-                    })
-                    // need to explicitly set the table's
-                    // position or it doesn't work properly
-                    // TODO: use toml instead of toml edit because this is still
-                    // broken. can't just enumerate, need to figure out
-                    // global positions, will be a mess.
-                    .enumerate()
-                    .map(|(i, mut table)| {
-                        table.set_position(i);
-                        table
-                    })
-                    .collect();
-                *toml_list = new_array;
-                self.update_document(&sender);
+                self.config.reorder_plugins(&self.plugins);
+                Self::update_document(&self.config, &sender);
             }
         }
     }

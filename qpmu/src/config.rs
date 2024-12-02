@@ -1,4 +1,4 @@
-use std::{fs, io::Read as _};
+use std::{fs, io::Read as _, mem};
 
 use color_eyre::eyre::Result;
 use serde::{Deserialize, Serialize};
@@ -12,7 +12,7 @@ pub struct Config {
     plugins: Vec<PluginConfig>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct PluginConfig {
     pub(crate) name: String,
     pub(crate) prefix: String,
@@ -52,5 +52,30 @@ impl Config {
         info!("found plugins {v:?}");
 
         Ok(v)
+    }
+
+    /// Modifies the `plugins` list to be ordered the same as the provided
+    /// list of plugins, preserving existing configuration.
+    pub fn reorder_plugins<'plugin>(
+        &mut self,
+        new_order: impl IntoIterator<Item = &'plugin Plugin>,
+    ) {
+        let new_plugin_configs: Vec<PluginConfig> = new_order
+            .into_iter()
+            .map(|plugin| {
+                self.plugins
+                    .iter_mut()
+                    .find_map(|existing| {
+                        (&existing.name == plugin.name()).then(|| mem::take(existing))
+                    })
+                    // insert a new config
+                    .unwrap_or_else(|| PluginConfig {
+                        name: plugin.name().to_string(),
+                        prefix: plugin.prefix().to_string(),
+                        config: toml::Table::default(),
+                    })
+            })
+            .collect();
+        self.plugins = new_plugin_configs;
     }
 }

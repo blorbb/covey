@@ -7,18 +7,22 @@ use relm4::{
         self,
         prelude::{GridExt, GtkWindowExt, ListBoxRowExt},
     },
-    Component, RelmContainerExt, RelmRemoveAllExt,
+    Component, Controller, RelmContainerExt,
 };
 use tap::Tap;
 use toml_edit::{ArrayOfTables, DocumentMut, Item, Table};
 
-use super::messages::{SettingsMsg, SettingsOutput};
+use super::{
+    messages::{SettingsMsg, SettingsOutput},
+    plugin_list::PluginList,
+};
 
 #[derive(Debug)]
 pub struct Settings {
     plugins: Vec<Plugin>,
     selected_plugin: Option<BoundedUsize>,
     document: DocumentMut,
+    plugin_list_component: Controller<PluginList>,
 }
 
 impl Settings {
@@ -36,7 +40,6 @@ impl Settings {
 
 #[derive(Debug)]
 pub struct SettingsWidgets {
-    plugin_list: gtk::ListBox,
     layout: gtk::Grid,
 }
 
@@ -59,8 +62,6 @@ impl Component for Settings {
         root: Self::Root,
         sender: relm4::ComponentSender<Self>,
     ) -> relm4::ComponentParts<Self> {
-        sender.input(SettingsMsg::SetPluginList(plugins.clone()));
-
         let plugin_list = gtk::ListBox::builder()
             .css_classes(["plugin-list"])
             .selection_mode(gtk::SelectionMode::Single)
@@ -78,7 +79,12 @@ impl Component for Settings {
         });
 
         let layout = gtk::Grid::new();
-        layout.attach(&plugin_list, 0, 0, 1, 1);
+        let plugin_list_wrapper = gtk::Box::builder().build();
+        layout.attach(&plugin_list_wrapper, 0, 0, 1, 1);
+        let plugin_list = PluginList::builder()
+            .attach_to(&plugin_list_wrapper)
+            .launch(plugins.clone())
+            .forward(sender.input_sender(), SettingsMsg::from);
         root.container_add(&layout);
 
         relm4::ComponentParts {
@@ -89,11 +95,9 @@ impl Component for Settings {
                     .expect("failed to read qpmu config")
                     .parse::<DocumentMut>()
                     .expect("invalid configuration document"),
+                plugin_list_component: plugin_list,
             },
-            widgets: SettingsWidgets {
-                plugin_list,
-                layout,
-            },
+            widgets: SettingsWidgets { layout },
         }
     }
 
@@ -117,19 +121,11 @@ impl Component for Settings {
             }
             SettingsMsg::SetPluginList(plugins) => {
                 self.plugins = plugins;
-                let list = &widgets.plugin_list;
-                list.remove_all();
-                for plugin in &self.plugins {
-                    list.append(
-                        &gtk::ListBoxRow::builder()
-                            .child(&gtk::Label::builder().label(&plugin.manifest().name).build())
-                            .build(),
-                    );
-                }
+                eprintln!("new plugins are {:?}", self.plugins);
 
+                let document = &mut self.document;
                 // reorder the config file
-                let toml_list = self
-                    .document
+                let toml_list = document
                     .entry("plugins")
                     .or_insert(Item::ArrayOfTables(ArrayOfTables::new()))
                     .as_array_of_tables_mut()
@@ -152,6 +148,16 @@ impl Component for Settings {
                                     table.insert("prefix", plugin.prefix().into());
                                 })
                             })
+                    })
+                    // need to explicitly set the table's
+                    // position or it doesn't work properly
+                    // TODO: use toml instead of toml edit because this is still
+                    // broken. can't just enumerate, need to figure out
+                    // global positions, will be a mess.
+                    .enumerate()
+                    .map(|(i, mut table)| {
+                        table.set_position(i);
+                        table
                     })
                     .collect();
                 *toml_list = new_array;

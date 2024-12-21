@@ -2542,6 +2542,7 @@ dependencies = [
  "color-eyre",
  "dirs",
  "futures",
+ "parking_lot",
  "prost",
  "serde",
  "tokio",

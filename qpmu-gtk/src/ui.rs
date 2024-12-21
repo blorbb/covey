@@ -14,7 +14,7 @@ use relm4::{
     Component, ComponentController, ComponentSender, RelmContainerExt, RelmRemoveAllExt as _,
     RelmWidgetExt,
 };
-use tracing::{error, info, instrument, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 use crate::{
     model::{Launcher, LauncherMsg},
@@ -32,6 +32,7 @@ pub struct LauncherWidgets {
     pub scroller: gtk::ScrolledWindow,
     pub results_list: gtk::FlowBox,
     pub entry_change_handler: SignalHandlerId,
+    pub list_selection_change_handler: SignalHandlerId,
 }
 
 // not using the macro because the app has a lot of custom behaviour
@@ -71,6 +72,9 @@ impl Component for Launcher {
             Settings::builder()
                 .launch(plugins)
                 .forward(sender.input_sender(), settings::messages::output_transform),
+            Frontend {
+                sender: sender.clone(),
+            },
         );
         load_css();
 
@@ -133,9 +137,13 @@ impl Component for Launcher {
             move |entry| {
                 sender.input(LauncherMsg::SetInput(Input {
                     contents: entry.text().replace('\n', ""),
-                    selection: entry
-                        .selection_bounds()
-                        .map_or((0, 0), |(a, b)| (a.saturating_as(), b.saturating_as())),
+                    selection: {
+                        let (a, b) = entry.selection_bounds().unwrap_or_else(|| {
+                            let pos = entry.position();
+                            (pos, pos)
+                        });
+                        (a.saturating_as(), b.saturating_as())
+                    },
                 }));
             }
         });
@@ -157,9 +165,10 @@ impl Component for Launcher {
             .column_spacing(0)
             .build();
 
-        list.connect_selected_children_changed({
+        let list_selection_change_handler = list.connect_selected_children_changed({
             let sender = sender.clone();
             move |flow_box| {
+                debug!("selected child changed at ui");
                 if let Some(child) = flow_box.selected_children().first() {
                     sender.input(LauncherMsg::Select(
                         child
@@ -191,7 +200,9 @@ impl Component for Launcher {
             scroller: list_scroller,
             results_list: list,
             entry_change_handler,
+            list_selection_change_handler,
         };
+
         ComponentParts { model, widgets }
     }
 
@@ -203,53 +214,16 @@ impl Component for Launcher {
         sender: ComponentSender<Self>,
         root: &Self::Root,
     ) {
+        debug!("updating ui");
         match message {
-            LauncherMsg::SetInput(input) => {
-                let fut = self.model.set_input(input);
-                sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) });
-            }
-            LauncherMsg::PluginEvent(plugin_event) => {
-                // TODO: fix this hack
-                let reset_input = self
-                    .model
-                    .handle_event(plugin_event, &mut Frontend { widgets, root });
-                if reset_input {
-                    warn!("resetting input");
-                    sender.input(LauncherMsg::SetInput(self.model.input().clone()));
-                }
-            }
-            LauncherMsg::Select(index) => {
-                self.model
-                    .set_list_selection(index, &mut Frontend { widgets, root });
-            }
-            LauncherMsg::SelectDelta(delta) => {
-                self.model
-                    .move_list_selection(delta, &mut Frontend { widgets, root });
-            }
-            LauncherMsg::Activate => {
-                let fut = self.model.activate();
-                if let Some(fut) = fut {
-                    sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) });
-                }
-            }
-            LauncherMsg::AltActivate => {
-                let fut = self.model.alt_activate();
-                if let Some(fut) = fut {
-                    sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) });
-                }
-            }
-            LauncherMsg::Hotkey(hotkey) => {
-                let fut = self.model.hotkey_activate(hotkey);
-                if let Some(fut) = fut {
-                    sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) });
-                }
-            }
-            LauncherMsg::Complete => {
-                let fut = self.model.complete();
-                if let Some(fut) = fut {
-                    sender.oneshot_command(async { LauncherMsg::PluginEvent(fut.await) });
-                }
-            }
+            LauncherMsg::SetInput(input) => self.model.lock().set_input(input),
+            LauncherMsg::Select(index) => self.model.lock().set_list_selection(index),
+            LauncherMsg::SelectDelta(delta) => self.model.lock().move_list_selection(delta),
+            LauncherMsg::Activate => self.model.lock().activate(),
+            LauncherMsg::AltActivate => self.model.lock().alt_activate(),
+            LauncherMsg::Hotkey(hotkey) => self.model.lock().hotkey_activate(hotkey),
+            LauncherMsg::Complete => self.model.lock().complete(),
+
             LauncherMsg::Focus => {
                 root.present();
                 widgets.entry.grab_focus();
@@ -265,13 +239,37 @@ impl Component for Launcher {
                 self.settings.emit(SettingsMsg::Show);
             }
             LauncherMsg::ReloadPlugins => {
-                if let Err(e) = self.model.reload() {
-                    qpmu::Frontend::display_error(
-                        &mut Frontend { widgets, root },
-                        "Error loading qpmu",
+                if let Err(e) = self.model.lock().reload() {
+                    sender.input(LauncherMsg::DisplayError(
+                        "Error loading qpmu".to_string(),
                         e,
-                    );
+                    ));
                 }
+            }
+            LauncherMsg::DisplayError(title, error) => {
+                FrontendImpl { widgets, root }.display_error(&title, error);
+            }
+            LauncherMsg::UpdateInputUi => {
+                FrontendImpl { widgets, root }.set_input(self.model.lock().input());
+            }
+            LauncherMsg::UpdateResultListUi => {
+                widgets
+                    .results_list
+                    .block_signal(&widgets.list_selection_change_handler);
+                FrontendImpl { widgets, root }.set_list(self.model.lock().results());
+                widgets
+                    .results_list
+                    .unblock_signal(&widgets.list_selection_change_handler);
+            }
+            LauncherMsg::UpdateSelected => {
+                widgets
+                    .results_list
+                    .block_signal(&widgets.list_selection_change_handler);
+                FrontendImpl { widgets, root }
+                    .set_list_selection(self.model.lock().results().selection());
+                widgets
+                    .results_list
+                    .unblock_signal(&widgets.list_selection_change_handler);
             }
         }
     }
@@ -320,16 +318,18 @@ fn key_controller(sender: ComponentSender<Launcher>) -> EventControllerKey {
     key_events
 }
 
-pub struct Frontend<'a> {
+pub struct Frontend {
+    sender: ComponentSender<Launcher>,
+}
+
+pub struct FrontendImpl<'a> {
     pub widgets: &'a mut LauncherWidgets,
     pub root: &'a gtk::Window,
 }
 
-impl qpmu::Frontend for Frontend<'_> {
+impl qpmu::Frontend for Frontend {
     fn close(&mut self) {
-        info!("closing window");
-
-        self.root.close();
+        self.sender.input(LauncherMsg::Close)
     }
 
     fn copy(&mut self, str: String) {
@@ -341,7 +341,26 @@ impl qpmu::Frontend for Frontend<'_> {
         }
     }
 
-    fn set_input(&mut self, input: Input) {
+    fn set_input(&mut self, _: &Input) {
+        self.sender.input(LauncherMsg::UpdateInputUi);
+    }
+
+    fn set_list(&mut self, _: &qpmu::ResultList) {
+        self.sender.input(LauncherMsg::UpdateResultListUi)
+    }
+
+    fn set_list_selection(&mut self, _: usize) {
+        self.sender.input(LauncherMsg::UpdateSelected);
+    }
+
+    fn display_error(&mut self, title: &str, error: color_eyre::eyre::Report) {
+        self.sender
+            .input(LauncherMsg::DisplayError(title.to_string(), error));
+    }
+}
+
+impl FrontendImpl<'_> {
+    fn set_input(&mut self, input: &Input) {
         info!(
             "set input to {:?} with selection {}..{}",
             input.contents, input.selection.0, input.selection.1
@@ -417,9 +436,7 @@ impl qpmu::Frontend for Frontend<'_> {
             .expect("missing application instance")
             .send_notification(None, &notif);
     }
-}
 
-impl Frontend<'_> {
     fn add_icon_to(icon: &Icon, to: &impl RelmContainerExt<Child = Widget>) {
         match icon {
             Icon::Name(name) => {

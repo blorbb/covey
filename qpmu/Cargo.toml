@@ -17,6 +17,7 @@ tonic.workspace = true
 prost.workspace = true
 az.workspace = true
 dirs.workspace = true
+parking_lot.workspace = true
 
 [build-dependencies]
 tonic-build = "0.12.3"

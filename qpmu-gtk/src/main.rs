@@ -35,7 +35,7 @@ fn main() -> Result<()> {
     let filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::WARN.into())
         .from_env()?
-        .add_directive("qpmu=info".parse()?);
+        .add_directive("qpmu=debug".parse()?);
     tracing_subscriber::fmt().with_env_filter(filter).init();
 
     relm4::RELM_THREADS

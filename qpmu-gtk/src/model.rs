@@ -1,22 +1,21 @@
-use color_eyre::eyre::Result;
-use qpmu::{
-    plugin::{Plugin, PluginEvent},
-    Input, Model,
-};
+use qpmu::{lock::SharedMutex, plugin::Plugin, Input, Model};
 use relm4::Controller;
 
 use crate::settings::ui::Settings;
 
-#[derive(Debug)]
 pub struct Launcher {
-    pub model: Model,
+    pub model: SharedMutex<Model<crate::ui::Frontend>>,
     pub settings: Controller<Settings>,
 }
 
 impl Launcher {
-    pub fn new(plugins: Vec<Plugin>, settings: Controller<Settings>) -> Self {
+    pub fn new(
+        plugins: Vec<Plugin>,
+        settings: Controller<Settings>,
+        fe: crate::ui::Frontend,
+    ) -> Self {
         Self {
-            model: Model::new(plugins),
+            model: Model::new(plugins, fe),
             settings,
         }
     }
@@ -26,8 +25,6 @@ impl Launcher {
 pub enum LauncherMsg {
     /// Set the query to a string
     SetInput(Input),
-    /// Set the results list
-    PluginEvent(Result<PluginEvent>),
     /// Selects a specific index of the results list
     Select(usize),
     /// Change the selection index by a certain amount
@@ -50,4 +47,12 @@ pub enum LauncherMsg {
     OpenSettings,
     /// Reloads the plugins by calling [`Model::reload`].
     ReloadPlugins,
+    /// First one is title, second one is body.
+    DisplayError(String, color_eyre::eyre::Report),
+    /// Update the input without changing the model.
+    UpdateInputUi,
+    /// Update the result list without changing the model.
+    UpdateResultListUi,
+    /// Update the selected list item without changing the model.
+    UpdateSelected,
 }

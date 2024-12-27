@@ -243,12 +243,11 @@ impl<F: Frontend> Model<F> {
         }
     }
 
-    /// Refreshes qpmu by re-reading the config.toml file.
+    /// Reloads all plugins with the new configuration.
     #[tracing::instrument(skip_all)]
-    pub fn reload(&mut self) -> Result<()> {
+    pub fn reload(&mut self, config: Config) -> Result<()> {
         debug!("reloading");
-        let plugins = Config::load_plugins()?;
-        self.plugins = plugins;
+        self.plugins = config.load();
         Ok(())
     }
 }

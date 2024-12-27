@@ -1,4 +1,4 @@
-use qpmu::plugin::Plugin;
+use qpmu::{config::Config, plugin::Plugin};
 
 use super::plugin_list;
 use crate::model::LauncherMsg;
@@ -12,12 +12,12 @@ pub enum SettingsMsg {
 
 #[derive(Debug)]
 pub enum SettingsOutput {
-    ReloadPlugins,
+    ReloadPlugins(Config),
 }
 
 pub fn output_transform(input: SettingsOutput) -> LauncherMsg {
     match input {
-        SettingsOutput::ReloadPlugins => LauncherMsg::ReloadPlugins,
+        SettingsOutput::ReloadPlugins(c) => LauncherMsg::ReloadPlugins(c),
     }
 }
 

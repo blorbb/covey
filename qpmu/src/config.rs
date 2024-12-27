@@ -9,7 +9,7 @@ use crate::{plugin::Plugin, CONFIG_PATH};
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
     #[serde(default)]
-    plugins: Vec<PluginConfig>,
+    pub(super) plugins: Vec<PluginConfig>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -21,9 +21,27 @@ pub struct PluginConfig {
 }
 
 impl Config {
+    #[tracing::instrument(skip_all)]
+    pub fn load(self) -> Vec<Plugin> {
+        info!("loading plugins from config");
+        let mut v = vec![];
+        for plugin in self.plugins {
+            match Plugin::new(plugin) {
+                Ok(plugin) => {
+                    debug!("found plugin {plugin:?}");
+                    v.push(plugin);
+                }
+                Err(e) => error!("error finding plugin: {e}"),
+            }
+        }
+
+        info!("found plugins {v:?}");
+        v
+    }
+
     #[tracing::instrument]
-    pub fn load_plugins() -> Result<Vec<Plugin>> {
-        info!("loading plugins");
+    pub fn from_file() -> Result<Self> {
+        info!("loading config from {:?}", &*CONFIG_PATH);
 
         let mut file = fs::OpenOptions::new()
             .create(true)
@@ -36,22 +54,7 @@ impl Config {
 
         file.read_to_string(&mut s)?;
         debug!("read config {s:?}");
-        let config: Self = toml::from_str(&s)?;
-
-        let mut v = vec![];
-        for plugin in config.plugins {
-            match Plugin::new(plugin) {
-                Ok(plugin) => {
-                    debug!("found plugin {plugin:?}");
-                    v.push(plugin);
-                }
-                Err(e) => error!("error finding plugin: {e}"),
-            }
-        }
-
-        info!("found plugins {v:?}");
-
-        Ok(v)
+        Ok(toml::from_str(&s)?)
     }
 
     /// Modifies the `plugins` list to be ordered the same as the provided

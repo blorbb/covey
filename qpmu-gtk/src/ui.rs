@@ -66,7 +66,7 @@ impl Component for Launcher {
     ) -> ComponentParts<Self> {
         info!("initialising new application instance");
 
-        let plugins = Config::load_plugins().expect("failed to load plugins");
+        let plugins = Config::from_file().expect("failed to read config").load();
         let model = Launcher::new(
             plugins.clone(),
             Settings::builder()
@@ -238,8 +238,8 @@ impl Component for Launcher {
                 info!("opened settings");
                 self.settings.emit(SettingsMsg::Show);
             }
-            LauncherMsg::ReloadPlugins => {
-                if let Err(e) = self.model.lock().reload() {
+            LauncherMsg::ReloadPlugins(config) => {
+                if let Err(e) = self.model.lock().reload(config) {
                     sender.input(LauncherMsg::DisplayError(
                         "Error loading qpmu".to_string(),
                         e,

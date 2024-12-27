@@ -25,13 +25,15 @@ impl Settings {
     /// Writes the contents of the TOML document to the config file.
     ///
     /// This should be called after mutating [`Self::document`].
-    fn update_document(config: &Config, sender: &relm4::ComponentSender<Self>) {
+    fn update_document(config: Config, sender: &relm4::ComponentSender<Self>) {
         let config_toml =
-            toml::to_string_pretty(config).expect("failed to serialise configuration");
-        std::fs::write(&*CONFIG_PATH, config_toml).expect("failed to write to config file");
+            toml::to_string_pretty(&config).expect("failed to serialise configuration");
+
         sender
-            .output(SettingsOutput::ReloadPlugins)
+            .output(SettingsOutput::ReloadPlugins(config))
             .expect("parent receiver should not be dropped");
+
+        std::fs::write(&*CONFIG_PATH, config_toml).expect("failed to write to config file");
     }
 }
 
@@ -107,7 +109,6 @@ impl Component for Settings {
     ) {
         match message {
             SettingsMsg::Show => root.present(),
-
             SettingsMsg::SetSelection(selection) => {
                 self.selected_plugin = selection.and_then(|selection| {
                     let mut bounded =
@@ -119,7 +120,7 @@ impl Component for Settings {
             SettingsMsg::SetPluginList(plugins) => {
                 self.plugins = plugins;
                 self.config.reorder_plugins(&self.plugins);
-                Self::update_document(&self.config, &sender);
+                Self::update_document(self.config.clone(), &sender);
             }
         }
     }

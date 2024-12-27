@@ -1,4 +1,4 @@
-use qpmu::{lock::SharedMutex, plugin::Plugin, Input, Model};
+use qpmu::{config::Config, lock::SharedMutex, plugin::Plugin, Input, Model};
 use relm4::Controller;
 
 use crate::settings::ui::Settings;
@@ -46,7 +46,7 @@ pub enum LauncherMsg {
     Shutdown,
     OpenSettings,
     /// Reloads the plugins by calling [`Model::reload`].
-    ReloadPlugins,
+    ReloadPlugins(Config),
     /// First one is title, second one is body.
     DisplayError(String, color_eyre::eyre::Report),
     /// Update the input without changing the model.

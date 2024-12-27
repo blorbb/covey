@@ -16,7 +16,7 @@ use super::{
 #[derive(Debug)]
 pub struct Settings {
     plugins: Vec<Plugin>,
-    selected_plugin: Option<BoundedUsize>,
+    selected_plugin: Option<usize>,
     config: Config,
     plugin_list_component: Controller<PluginList>,
 }
@@ -110,12 +110,7 @@ impl Component for Settings {
         match message {
             SettingsMsg::Show => root.present(),
             SettingsMsg::SetSelection(selection) => {
-                self.selected_plugin = selection.and_then(|selection| {
-                    let mut bounded =
-                        BoundedUsize::new_with_bound(self.plugins.len().checked_sub(1)?);
-                    bounded.saturating_set(selection);
-                    Some(bounded)
-                })
+                self.selected_plugin = selection;
             }
             SettingsMsg::SetPluginList(plugins) => {
                 self.plugins = plugins;

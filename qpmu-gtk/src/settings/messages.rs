@@ -25,6 +25,7 @@ impl From<plugin_list::Output> for SettingsMsg {
     fn from(value: plugin_list::Output) -> Self {
         match value {
             plugin_list::Output::SetPluginList(vec) => Self::SetPluginList(vec),
+            plugin_list::Output::SetSelection(index) => Self::SetSelection(Some(index)),
         }
     }
 }

@@ -1,4 +1,4 @@
-use az::{CheckedAs, SaturatingAs};
+use az::SaturatingAs;
 use qpmu::plugin::Plugin;
 use relm4::{
     gtk::{
@@ -6,24 +6,26 @@ use relm4::{
         prelude::{BoxExt, ButtonExt, ListBoxRowExt},
         ListBox,
     },
-    Component, ComponentParts,
+    Component, ComponentParts, RelmContainerExt,
 };
-use tracing::info;
+use tracing::{debug, info};
 
 #[derive(Debug)]
 pub struct PluginList {
     plugins: Vec<Plugin>,
+    selected: Option<usize>,
 }
 
 #[derive(Debug)]
 pub enum Msg {
-    Focus { index: usize },
-    Move { index: usize, delta: isize },
+    Focus(usize),
+    MoveSelected { delta: isize },
 }
 
 #[derive(Debug)]
 pub enum Output {
     SetPluginList(Vec<Plugin>),
+    SetSelection(usize),
 }
 
 #[derive(Debug)]
@@ -36,13 +38,13 @@ impl Component for PluginList {
     type Output = Output;
     type CommandOutput = ();
     type Init = Vec<Plugin>;
-    type Root = gtk::ListBox;
+    type Root = gtk::Box;
     type Widgets = Widgets;
 
     fn init_root() -> Self::Root {
-        gtk::ListBox::builder()
+        gtk::Box::builder()
             .css_classes(["plugin-list-wrapper"])
-            .selection_mode(gtk::SelectionMode::Single)
+            .orientation(gtk::Orientation::Vertical)
             .build()
     }
 
@@ -53,19 +55,66 @@ impl Component for PluginList {
     ) -> relm4::ComponentParts<Self> {
         let model = Self {
             plugins: plugins.clone(),
+            selected: None,
         };
 
+        let list = gtk::ListBox::builder()
+            .css_classes(["plugin-list"])
+            .selection_mode(gtk::SelectionMode::Single)
+            .build();
+
         for plugin in plugins {
-            root.append(&create_list_row(&plugin, &sender));
+            list.append(&create_list_row(&plugin));
         }
 
-        root.connect_row_activated(|_, row| {
-            info!("todo activated {}", row.index());
+        list.connect_row_activated({
+            let sender = sender.clone();
+            move |_, row| {
+                info!("activated row {}", row.index());
+                sender.input(Msg::Focus(
+                    row.index()
+                        .try_into()
+                        .expect("index should be non-negative"),
+                ));
+            }
         });
+
+        let controls = gtk::Box::builder()
+            .css_classes(["plugin-list-controls"])
+            .orientation(gtk::Orientation::Horizontal)
+            .build();
+
+        let up_button = gtk::Button::builder()
+            .child(&gtk::Image::from_icon_name("up"))
+            .build();
+        up_button.connect_clicked({
+            let sender = sender.clone();
+            move |_| {
+                debug!("clicked up button");
+                sender.input(Msg::MoveSelected { delta: -1 });
+            }
+        });
+
+        let down_button = gtk::Button::builder()
+            .child(&gtk::Image::from_icon_name("down"))
+            .build();
+        down_button.connect_clicked({
+            let sender = sender.clone();
+            move |_| {
+                debug!("clicked down button");
+                sender.input(Msg::MoveSelected { delta: 1 });
+            }
+        });
+
+        controls.container_add(&up_button);
+        controls.container_add(&down_button);
+
+        root.container_add(&list);
+        root.container_add(&controls);
 
         ComponentParts {
             model,
-            widgets: Widgets { items: root },
+            widgets: Widgets { items: list },
         }
     }
 
@@ -77,51 +126,72 @@ impl Component for PluginList {
         root: &Self::Root,
     ) {
         match message {
-            Msg::Focus { index } => info!("todo activated {index}"),
-            Msg::Move { index, delta } => {
-                if self.plugins.len() <= index {
-                    return;
-                }
-                let new_index = usize::min(
-                    index.saturating_add_signed(delta),
-                    self.plugins.len().saturating_sub(1),
-                );
-                // shift the plugin to the new location
-                if index < new_index {
-                    // e.g. existing is 'a'
-                    // [a, b, c] -> [b, c, a]
-                    // rotate left
-                    self.plugins[index..=new_index].rotate_left(1);
+            Msg::Focus(index) => {
+                debug!("focusing row {index}");
+                self.selected = Some(index);
+                sender.output(Output::SetSelection(index)).unwrap()
+            }
+            Msg::MoveSelected { delta } => {
+                if let Some(index) = self.selected {
+                    debug!("moving {index} by {delta}");
+                    self.move_plugin(index, delta, widgets, sender);
                 } else {
-                    // e.g. existing is 'c'
-                    // [a, b, c] -> [c, a, b]
-                    // rotate right
-                    self.plugins[new_index..=index].rotate_right(1);
+                    debug!("no existing selection");
                 }
-                dbg!(&self.plugins);
-
-                let target = widgets
-                    .items
-                    .row_at_index(index.saturating_as::<i32>())
-                    .expect("length checked");
-                widgets.items.remove(&target);
-                widgets
-                    .items
-                    .insert(&target, new_index.saturating_as::<i32>());
-
-                sender
-                    .output(Output::SetPluginList(self.plugins.clone()))
-                    .expect("parent should not be detached");
             }
         }
     }
 }
 
-fn create_list_row(
-    plugin: &Plugin,
-    sender: &relm4::ComponentSender<PluginList>,
-) -> gtk::ListBoxRow {
+impl PluginList {
+    fn move_plugin(
+        &mut self,
+        index: usize,
+        delta: isize,
+        widgets: &mut Widgets,
+        sender: relm4::ComponentSender<Self>,
+    ) {
+        if self.plugins.len() <= index {
+            return;
+        }
+        let new_index = usize::min(
+            index.saturating_add_signed(delta),
+            self.plugins.len().saturating_sub(1),
+        );
+        // shift the plugin to the new location
+        if index < new_index {
+            // e.g. existing is 'a'
+            // [a, b, c] -> [b, c, a]
+            // rotate left
+            self.plugins[index..=new_index].rotate_left(1);
+        } else {
+            // e.g. existing is 'c'
+            // [a, b, c] -> [c, a, b]
+            // rotate right
+            self.plugins[new_index..=index].rotate_right(1);
+        }
+        dbg!(&self.plugins);
+
+        let target = widgets
+            .items
+            .row_at_index(index.saturating_as::<i32>())
+            .expect("length checked");
+        widgets.items.remove(&target);
+        widgets
+            .items
+            .insert(&target, new_index.saturating_as::<i32>());
+
+        self.selected = Some(new_index);
+        sender
+            .output(Output::SetPluginList(self.plugins.clone()))
+            .unwrap();
+        sender.output(Output::SetSelection(new_index)).unwrap();
+    }
+}
+
+fn create_list_row(plugin: &Plugin) -> gtk::ListBoxRow {
     let list_row = gtk::ListBoxRow::new();
+    // add more stuff into this inner box later
     let inner_box = gtk::Box::builder()
         .orientation(gtk::Orientation::Horizontal)
         .build();
@@ -131,48 +201,7 @@ fn create_list_row(
         .halign(gtk::Align::Start)
         .build();
 
-    let spacer = gtk::Box::builder().hexpand(true).build();
-
-    let up_button = gtk::Button::builder()
-        .child(&gtk::Image::from_icon_name("up"))
-        .build();
-    up_button.connect_clicked({
-        let sender = sender.clone();
-        let list_row = list_row.clone();
-        move |_| {
-            let item_index = list_row
-                .index()
-                .checked_as::<usize>()
-                .expect("index should not be negative");
-            sender.input(Msg::Move {
-                index: item_index,
-                delta: -1,
-            });
-        }
-    });
-
-    let down_button = gtk::Button::builder()
-        .child(&gtk::Image::from_icon_name("down"))
-        .build();
-    down_button.connect_clicked({
-        let sender = sender.clone();
-        let list_row = list_row.clone();
-        move |_| {
-            let item_index = list_row
-                .index()
-                .checked_as::<usize>()
-                .expect("index should not be negative");
-            sender.input(Msg::Move {
-                index: item_index,
-                delta: 1,
-            });
-        }
-    });
-
     inner_box.append(&label);
-    inner_box.append(&spacer);
-    inner_box.append(&up_button);
-    inner_box.append(&down_button);
     list_row.set_child(Some(&inner_box));
 
     list_row

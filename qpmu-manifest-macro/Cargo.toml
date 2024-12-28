@@ -1,0 +1,16 @@
+[package]
+name = "qpmu-manifest-macro"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+proc-macro-error2 = "2"
+syn = "2"
+proc-macro2 = "1.0.92"
+qpmu-manifest = { path = "../qpmu-manifest" }
+
+[lib]
+proc-macro = true
+
+[lints]
+workspace = true

@@ -24,6 +24,9 @@ anyhow = "1.0.93"
 sublime_fuzzy = "0.7.0"
 time = "0.3"
 parking_lot = "0.12"
+qpmu-manifest = { path = "../qpmu-manifest" }
+qpmu-manifest-macro = { path = "../qpmu-manifest-macro" }
+serde.workspace = true
 
 [build-dependencies]
 tonic-build = "0.12.3"

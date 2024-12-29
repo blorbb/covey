@@ -2612,6 +2612,7 @@ dependencies = [
  "proc-macro-error2",
  "proc-macro2",
  "qpmu-manifest",
+ "quote",
  "syn",
 ]
 
@@ -2623,6 +2624,9 @@ dependencies = [
  "az",
  "parking_lot",
  "prost",
+ "qpmu-manifest",
+ "qpmu-manifest-macro",
+ "serde",
  "sqlx",
  "sublime_fuzzy",
  "time",

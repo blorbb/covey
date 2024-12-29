@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-proc-macro2 = "1.0.92"
-quote = "1.0.38"
+proc-macro2.workspace = true
+quote.workspace = true
 serde.workspace = true
-syn = "2.0.92"
+syn.workspace = true
 toml.workspace = true
 
 [lints]

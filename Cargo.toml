@@ -14,6 +14,9 @@ prost = "0.13.3"
 tonic = "0.12.3"
 toml = "0.8.19"
 parking_lot = "0.12"
+syn = "2"
+quote = "1"
+proc-macro2 = "1"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }

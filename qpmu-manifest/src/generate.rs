@@ -1,6 +1,6 @@
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::{Span, TokenStream, Ident};
 use quote::{ToTokens, quote};
-use syn::{Ident, ext::IdentExt};
+use syn::ext::IdentExt;
 
 use crate::{
     ConfigBool, ConfigFilePath, ConfigFolderPath, ConfigInt, ConfigList, ConfigMap, ConfigStr,
@@ -10,19 +10,14 @@ use crate::{
 /// Type alias for a [`TokenStream`]. Just for better readability.
 type Path = TokenStream;
 
-pub fn generate_config(
-    s: &str,
-    serde_path: Path,
-    toml_path: Path,
-) -> Result<TokenStream, toml::de::Error> {
+pub fn generate_config(s: &str, serde_path: Path) -> Result<TokenStream, toml::de::Error> {
     Ok(generate_types(
         PluginManifest::try_from_toml(s)?,
         serde_path,
-        toml_path,
     ))
 }
 
-fn generate_types(manifest: PluginManifest, serde_path: Path, _toml_path: Path) -> TokenStream {
+fn generate_types(manifest: PluginManifest, serde_path: Path) -> TokenStream {
     let field = FieldType::from_struct(
         ConfigStruct {
             fields: manifest
@@ -554,7 +549,7 @@ mod tests {
         value-type.fields = { name = "str", url = "str" }
         "#;
 
-        let out = generate_config(&input, quote! {::serde}, quote! {::toml}).unwrap();
+        let out = generate_config(&input, quote! {::serde}).unwrap();
         eprintln!("{out}");
     }
 }

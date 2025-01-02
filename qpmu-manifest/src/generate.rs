@@ -1,5 +1,5 @@
-use proc_macro2::{Span, TokenStream, Ident};
-use quote::{ToTokens, quote};
+use proc_macro2::{Ident, Span, TokenStream};
+use quote::{ToTokens, format_ident, quote};
 use syn::ext::IdentExt;
 
 use crate::{
@@ -248,7 +248,7 @@ impl FieldType {
             validator: inner_validator,
             default: _,
             extras,
-        } = Self::new(*item_type, paths, parent_key);
+        } = Self::new(*item_type, paths, &format_ident!("{parent_key}_item"));
 
         let length_error = paths.bail_invalid_length(
             quote!(value.len()),
@@ -296,7 +296,7 @@ impl FieldType {
             validator: inner_validator,
             default: _,
             extras,
-        } = Self::new(*value_type, paths, parent_key);
+        } = Self::new(*value_type, paths, &format_ident!("{parent_key}_value"));
 
         let length_error = paths.bail_invalid_length(
             quote!(value.len()),

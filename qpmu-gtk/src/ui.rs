@@ -421,14 +421,14 @@ impl FrontendImpl<'_> {
     }
 
     fn display_error(&mut self, title: &str, error: color_eyre::eyre::Report) {
-        error!("displaying error {title}");
-
         let notif = Notification::new(title);
         let error_body = error
             .chain()
             .map(ToString::to_string)
             .collect::<Vec<_>>()
             .join("\n");
+        error!("displaying error {title}\n{error_body}");
+
         notif.set_body(Some(&error_body));
 
         self.root

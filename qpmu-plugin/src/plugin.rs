@@ -1,12 +1,17 @@
 use std::future::Future;
 
 use crate::{
-    list::ListItemCallbacks, plugin_lock::PluginLock, proto, sql, store, Action, Hotkey, Input,
-    List, Result,
+    list::ListItemCallbacks, manifest::ManifestDeserialization, plugin_lock::PluginLock, proto,
+    sql, store, Action, Hotkey, Input, List, Result,
 };
 
 pub trait Plugin: Sized + Send + Sync + 'static {
-    fn new(toml: String) -> impl Future<Output = Result<Self>> + Send;
+    /// The user's configuration for this plugin.
+    ///
+    /// Use `()` if this plugin has no configuration.
+    type Config: ManifestDeserialization;
+
+    fn new(config: Self::Config) -> impl Future<Output = Result<Self>> + Send;
 
     fn query(&self, query: String) -> impl Future<Output = Result<List>> + Send;
 }
@@ -27,7 +32,10 @@ where
         sql::init(&request.sqlite_url)
             .await
             .map_err(into_tonic_status)?;
-        let plugin = T::new(request.toml).await.map_err(into_tonic_status)?;
+        let config = ManifestDeserialization::try_from_input(&request.toml)
+            .map_err(|e| tonic::Status::invalid_argument(e.to_string()))?;
+
+        let plugin = T::new(config).await.map_err(into_tonic_status)?;
         *guard = Some(plugin);
 
         Ok(tonic::Response::new(()))

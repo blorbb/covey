@@ -18,6 +18,7 @@ prost.workspace = true
 az.workspace = true
 dirs.workspace = true
 parking_lot.workspace = true
+qpmu-manifest = { path = "../qpmu-manifest" }
 
 [build-dependencies]
 tonic-build = "0.12.3"

@@ -533,7 +533,7 @@ mod tests {
     use super::generate_config;
 
     #[test]
-    fn expansion() {
+    fn print_expansion() {
         let input = r#"
         name = "Open"
         description = "Open URLs with a query"

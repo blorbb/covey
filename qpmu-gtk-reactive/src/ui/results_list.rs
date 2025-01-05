@@ -1,11 +1,7 @@
 use az::{CheckedAs as _, SaturatingAs as _};
 use gtk::prelude::{BoxExt, Cast, FlowBoxChildExt as _, WidgetExt as _};
 use qpmu::{Icon, ListItem, ListStyle};
-use reactive_graph::{
-    effect::Effect,
-    traits::{Get, Read},
-    wrappers::read::Signal,
-};
+use reactive_graph::{effect::Effect, prelude::*, signal::WriteSignal, wrappers::read::Signal};
 use tracing::{debug, warn};
 
 use crate::styles;
@@ -18,7 +14,7 @@ pub fn results_list(
     /// Called after the list layout is updated.
     after_list_update: Option<impl Fn() + 'static>,
     selection: Signal<usize>,
-    set_selection: impl Fn(usize) + 'static,
+    set_selection: WriteSignal<usize>,
     on_activate: impl Fn() + 'static,
 ) -> gtk::FlowBox {
     // widgets //
@@ -30,34 +26,7 @@ pub fn results_list(
         .build();
 
     // effects //
-    // set items
-    Effect::new({
-        let list = list.clone();
-
-        move || {
-            // let span = tracing::span!(tracing::Level::WARN, "in effect");
-            // let _a = span.enter();
-            // warn!("effect 0");
-            while let Some(child) = list.last_child() {
-                list.remove(&child);
-            }
-            list.set_css_classes(&["main-list"]);
-            // warn!("effect 1");
-            // warn!("effect 2");
-            match style.get() {
-                ListStyle::Rows => set_list_rows(&list, &items.read()),
-                ListStyle::Grid => set_list_grid(&list, &items.read(), 5),
-                ListStyle::GridWithColumns(columns) => set_list_grid(&list, &items.read(), columns),
-            }
-            // warn!("effect 3");
-            if let Some(cb) = &after_list_update {
-                cb()
-            }
-        }
-    });
-
-    // set selection
-    Effect::new({
+    let update_list_selection = {
         let list = list.clone();
         move || {
             let target_row = list.child_at_index(selection.get().saturating_as::<i32>());
@@ -72,14 +41,39 @@ pub fn results_list(
                 }
             }
         }
+    };
+
+    // set items
+    Effect::new({
+        let list = list.clone();
+        let update_list_selection = update_list_selection.clone();
+
+        move || {
+            while let Some(child) = list.last_child() {
+                list.remove(&child);
+            }
+            list.set_css_classes(&["main-list"]);
+            match style.get() {
+                ListStyle::Rows => set_list_rows(&list, &items.read()),
+                ListStyle::Grid => set_list_grid(&list, &items.read(), 5),
+                ListStyle::GridWithColumns(columns) => set_list_grid(&list, &items.read(), columns),
+            }
+            // always needs to run as the selection gets cleared by resetting it
+            update_list_selection();
+            if let Some(cb) = &after_list_update {
+                cb()
+            }
+        }
     });
+
+    Effect::new(update_list_selection);
 
     // handlers //
     list.connect_selected_children_changed({
         move |flow_box| {
             debug!("selected child changed at ui");
             if let Some(child) = flow_box.selected_children().first() {
-                set_selection(
+                set_selection.set(
                     child
                         .index()
                         .checked_as::<usize>()

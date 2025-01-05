@@ -8,8 +8,8 @@ use qpmu::{config::Config, Input, ListItem, ListStyle};
 use reactive_graph::{
     effect::Effect,
     owner::StoredValue,
+    prelude::*,
     signal::{signal, Trigger, WriteSignal},
-    traits::{Get, GetUntracked, GetValue, Notify, ReadUntracked, ReadValue, Set, Track},
     wrappers::read::Signal,
 };
 use tracing::info;
@@ -43,10 +43,13 @@ pub fn root() -> gtk::ApplicationWindow {
 
     // effects //
     Effect::new(move || {
-        model.get_value().lock().set_input(input.get());
+        model.read_value().lock().set_input(input.get());
     });
     Effect::new(move || {
-        model.get_value().lock().set_list_selection(selection.get());
+        model
+            .read_value()
+            .lock()
+            .set_list_selection(selection.get());
     });
 
     // widgets //
@@ -74,22 +77,17 @@ pub fn root() -> gtk::ApplicationWindow {
     let list = results_list::results_list()
         .items(items.into())
         .selection(selection.into())
+        .set_selection(set_selection)
         .style(Signal::derive(move || {
             style.get().unwrap_or(qpmu::ListStyle::Rows)
         }))
         .after_list_update(move || {
-            scroller_ref
-                .get()
-                .map(|r| r.set_visible(!items.read_untracked().is_empty()));
-            window.read_value().set_default_height(-1)
-        })
-        .set_selection(move |new| {
-            if selection.get_untracked() != new {
-                set_selection.set(new);
-            };
+            scroller_ref.with(|r| r.set_visible(!items.read_untracked().is_empty()));
+            window.read_value().set_default_height(-1);
+            entry.read_value().grab_focus_without_selecting();
         })
         .on_activate(move || {
-            model.get_value().lock().activate();
+            model.read_value().lock().activate();
         })
         .call();
 
@@ -103,14 +101,25 @@ pub fn root() -> gtk::ApplicationWindow {
     window.read_value().connect_visible_notify(move |window| {
         if window.is_visible() {
             window.present();
-            entry.get_value().grab_focus();
+            entry.read_value().grab_focus();
         }
     });
-    {
-        let leave_controller = gtk::EventControllerFocus::new();
-        leave_controller.connect_leave(move |_| window.read_value().close());
-        window.read_value().add_controller(leave_controller);
-    }
+    window.read_value().add_controller(
+        controller::leave()
+            .on_leave(move || window.read_value().close())
+            .call(),
+    );
+    window.read_value().add_controller(
+        controller::key()
+            .on_activate(move || model.read_value().lock().activate())
+            .on_alt_activate(move || model.read_value().lock().alt_activate())
+            .on_complete(move || model.read_value().lock().complete())
+            .on_hotkey_activate(move |hotkey| model.read_value().lock().hotkey_activate(hotkey))
+            .on_selection_move(move |delta| model.read_value().lock().move_list_selection(delta))
+            .on_close(move || window.read_value().close())
+            .call(),
+    );
+
     Effect::new(move || {
         selection.track();
         entry.get_value().grab_focus_without_selecting();
@@ -149,11 +158,11 @@ impl qpmu::Frontend for Frontend {
     fn set_list(&mut self, list: &qpmu::ResultList) {
         info!("setting list to {} elements", list.len());
 
-        // for some reason style MUST be set before items
+        // for some reason this MUST be the precise order
         // otherwise a deadlock can occur
+        self.set_list_selection(0);
         self.set_style.set(list.style());
         self.set_items.set(list.items().to_vec());
-        self.set_list_selection(0);
     }
 
     fn set_list_selection(&mut self, index: usize) {
@@ -162,5 +171,54 @@ impl qpmu::Frontend for Frontend {
 
     fn display_error(&mut self, title: &str, error: color_eyre::eyre::Report) {
         todo!("{}: {}", title, error)
+    }
+}
+
+mod controller {
+    use gtk::{
+        gdk::{Key, ModifierType},
+        EventControllerFocus, EventControllerKey,
+    };
+
+    #[bon::builder]
+    pub(super) fn leave(on_leave: impl Fn() + 'static) -> EventControllerFocus {
+        let leave_controller = gtk::EventControllerFocus::new();
+        leave_controller.connect_leave(move |_| on_leave());
+        leave_controller
+    }
+
+    #[bon::builder]
+    pub(super) fn key(
+        on_close: impl Fn() + 'static,
+        on_selection_move: impl Fn(isize) + 'static,
+        on_activate: impl Fn() + 'static,
+        on_alt_activate: impl Fn() + 'static,
+        on_complete: impl Fn() + 'static,
+        on_hotkey_activate: impl Fn(qpmu::hotkey::Hotkey) + 'static,
+    ) -> EventControllerKey {
+        let key_events = EventControllerKey::builder()
+            .propagation_phase(gtk::PropagationPhase::Capture)
+            .build();
+
+        key_events.connect_key_pressed(move |_self, key, _keycode, modifiers| {
+            match key {
+                Key::Escape => on_close(),
+                Key::Down => on_selection_move(1),
+                Key::Up => on_selection_move(-1),
+                Key::Return if modifiers.contains(ModifierType::ALT_MASK) => on_alt_activate(),
+                Key::Return if modifiers.is_empty() => on_activate(),
+                Key::Tab if modifiers.is_empty() => on_complete(),
+                // try run a hotkey
+                other => {
+                    if let Some(hotkey) = crate::hotkey::to_qpmu_hotkey(other, modifiers) {
+                        on_hotkey_activate(hotkey)
+                    }
+                    return gtk::glib::Propagation::Proceed;
+                }
+            }
+            gtk::glib::Propagation::Stop
+        });
+
+        key_events
     }
 }

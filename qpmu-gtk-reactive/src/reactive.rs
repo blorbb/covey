@@ -2,7 +2,7 @@ use reactive_graph::{
     computed::Memo,
     owner::{LocalStorage, StoredValue},
     signal::{signal, ArcReadSignal, WriteSignal},
-    traits::{GetValue, WriteValue as _},
+    traits::{WithValue, WriteValue as _},
 };
 
 pub fn signal_diffed<T: Send + Sync + PartialEq + Clone + 'static>(
@@ -38,10 +38,12 @@ impl<T: 'static> WidgetRef<T> {
     pub fn set(&self, value: T) {
         self.0.write_value().get_or_insert(value);
     }
-}
 
-impl<T: Clone + 'static> WidgetRef<T> {
-    pub fn get(&self) -> Option<T> {
-        self.0.get_value()
+    pub fn with(&self, f: impl FnOnce(&T)) {
+        self.0.with_value(|v| {
+            if let Some(v) = v {
+                f(v)
+            }
+        })
     }
 }

@@ -1,6 +1,7 @@
 mod reactive;
 mod styles;
 mod ui;
+mod hotkey;
 
 use any_spawner::Executor;
 use color_eyre::eyre::Result;

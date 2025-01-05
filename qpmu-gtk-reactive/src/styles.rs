@@ -1,4 +1,8 @@
-use gtk::{gdk::Display, prelude::WidgetExt as _, CssProvider};
+use gtk::{
+    gdk::Display,
+    prelude::{IsA, WidgetExt as _},
+    CssProvider,
+};
 use qpmu::CONFIG_DIR;
 use tracing::instrument;
 
@@ -24,7 +28,7 @@ pub fn load_css() {
 }
 
 // taken from relm4 RelmWidgetExt
-pub fn add_inline_css(el: &gtk::Widget, css: &str) {
+pub fn add_inline_css(el: &impl IsA<gtk::Widget>, css: &str) {
     use gtk::prelude::StyleContextExt;
 
     let context = el.style_context();

@@ -10,12 +10,12 @@ use reactive_graph::{
     owner::StoredValue,
     prelude::*,
     signal::{signal, Trigger, WriteSignal},
-    wrappers::read::Signal,
 };
 use tap::Tap;
 use tracing::info;
 
 use crate::{
+    clone_scoped,
     gtk_utils::SetWidgetRef as _,
     reactive::{signal_diffed, WidgetRef},
 };
@@ -59,7 +59,7 @@ pub fn root() -> gtk::ApplicationWindow {
     // widgets //
     let window = WidgetRef::<gtk::ApplicationWindow>::new();
     let entry = WidgetRef::<gtk::Entry>::new();
-    let scroller_ref = WidgetRef::<gtk::ScrolledWindow>::new();
+    let scroller = WidgetRef::<gtk::ScrolledWindow>::new();
 
     gtk::ApplicationWindow::builder()
         .title("qpmu")
@@ -83,40 +83,37 @@ pub fn root() -> gtk::ApplicationWindow {
                         .items(items.into())
                         .selection(selection.into())
                         .set_selection(set_selection)
-                        .style(Signal::derive(move || {
-                            style.get().unwrap_or(qpmu::ListStyle::Rows)
-                        }))
+                        .style(move || style.get().unwrap_or(qpmu::ListStyle::Rows))
                         .after_list_update(move || {
-                            scroller_ref
-                                .with(|r| r.set_visible(!items.read_untracked().is_empty()));
-                            window.with(|window| window.set_default_height(-1));
-                            entry.with(|entry| entry.grab_focus_without_selecting());
+                            scroller.with(|s| s.set_visible(!items.read_untracked().is_empty()));
+                            window.with(|w| w.set_default_height(-1));
+                            entry.with(|e| e.grab_focus_without_selecting());
                         })
                         .on_activate(move || {
                             model.read_value().lock().activate();
                         })
                         .call(),
                 )
-                .scroller_ref(scroller_ref)
+                .scroller_ref(scroller)
                 .call(),
         )
         .widget_ref(window)
-        .tap(|window| {
-            window.connect_visible_notify(move |window| {
-                if window.is_visible() {
-                    window.present();
+        .tap(|w| {
+            w.connect_visible_notify(move |w| {
+                if w.is_visible() {
+                    w.present();
                     entry.with(|entry| entry.grab_focus());
                 }
             });
         })
-        .tap(|window| {
-            window.add_controller({
-                let window = window.clone();
-                controller::leave().on_leave(move || window.close()).call()
-            });
+        .tap(|w| {
+            w.add_controller(clone_scoped!(
+                w,
+                controller::leave().on_leave(move || w.close()).call()
+            ));
         })
-        .tap(|window| {
-            window.add_controller(
+        .tap(|w| {
+            w.add_controller(
                 controller::key()
                     .on_activate(move || model.read_value().lock().activate())
                     .on_alt_activate(move || model.read_value().lock().alt_activate())
@@ -127,10 +124,7 @@ pub fn root() -> gtk::ApplicationWindow {
                     .on_selection_move(move |delta| {
                         model.read_value().lock().move_list_selection(delta)
                     })
-                    .on_close({
-                        let window = window.clone();
-                        move || window.close()
-                    })
+                    .on_close(clone_scoped!(w, move || w.close()))
                     .call(),
             )
         })

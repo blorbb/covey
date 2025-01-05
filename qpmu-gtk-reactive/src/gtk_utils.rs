@@ -65,3 +65,23 @@ macro_rules! impl_refs {
 }
 
 impl_refs!(Box ScrolledWindow Entry FlowBox FlowBoxChild ApplicationWindow);
+
+#[macro_export]
+macro_rules! clone {
+    ($($ident:ident),* $(,)?) => {
+        $(let $ident = $ident.to_owned();)*
+    };
+}
+
+#[macro_export]
+macro_rules! clone_scoped {
+    ($ident:ident, $($tt:tt)*) => {
+        {
+            let $ident = $ident.to_owned();
+            $crate::clone_scoped!($($tt)*)
+        }
+    };
+    ($($tt:tt)*) => {
+        $($tt)*
+    }
+}

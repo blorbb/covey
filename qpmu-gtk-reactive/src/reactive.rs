@@ -1,8 +1,12 @@
+use gtk::{
+    glib::SignalHandlerId,
+    prelude::{IsA, ObjectExt as _, ObjectType},
+};
 use reactive_graph::{
     computed::Memo,
     owner::{LocalStorage, StoredValue},
     signal::{signal, ArcReadSignal, WriteSignal},
-    traits::{GetValue, WriteValue as _},
+    traits::{GetValue, WithValue, WriteValue as _},
 };
 
 pub fn signal_diffed<T: Send + Sync + PartialEq + Clone + 'static>(
@@ -49,9 +53,46 @@ impl<T: Clone + 'static> WidgetRef<T> {
     }
 
     /// Gets the widget, panicking if it hasn't been set.
-    pub fn get(&self) -> T {
+    pub fn widget(&self) -> T {
         self.0
             .get_value()
             .expect("widget reference should have been set")
+    }
+}
+
+#[derive(Debug)]
+pub struct EventHandler<T>(StoredValue<Option<(T, SignalHandlerId)>, LocalStorage>);
+
+impl<T> Clone for EventHandler<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for EventHandler<T> {}
+
+impl<T: IsA<gtk::Widget>> Default for EventHandler<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T: ObjectType> EventHandler<T> {
+    pub fn new() -> Self {
+        Self(StoredValue::new_local(None))
+    }
+
+    pub fn set(&self, widget: &T, handler: SignalHandlerId) {
+        self.0.write_value().get_or_insert((widget.clone(), handler));
+    }
+
+    pub fn suppress(&self, f: impl Fn(&T)) {
+        self.0.with_value(|opt| {
+            if let Some((widget, handler)) = opt {
+                widget.block_signal(handler);
+                f(widget);
+                widget.unblock_signal(handler);
+            };
+        })
     }
 }

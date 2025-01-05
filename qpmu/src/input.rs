@@ -3,7 +3,7 @@ use az::SaturatingAs as _;
 use crate::plugin::{proto, Plugin};
 
 /// The main text input contents and selection.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Input {
     pub contents: String,
     /// Range in terms of chars, not bytes

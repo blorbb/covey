@@ -1,5 +1,5 @@
 [workspace]
-members = ["qpmu-plugin", "qpmu", "qpmu-gtk", "qpmu-manifest", "qpmu-manifest-macro"]
+members = ["qpmu-plugin", "qpmu", "qpmu-gtk", "qpmu-manifest", "qpmu-manifest-macro", "qpmu-gtk-reactive"]
 resolver = "2"
 
 [workspace.dependencies]

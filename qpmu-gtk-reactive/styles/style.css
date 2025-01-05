@@ -1,0 +1,152 @@
+:root {
+    --window-background: rgb(0 0 0);
+
+    /* based on the rosepine theme */
+    --primary-background: #191724;
+    --primary: #c4a7e7;
+    --text-selection: rgba(255 255 255 / 0.1);
+
+    --pane-background: var(--primary-background);
+    --pane-background: radial-gradient(
+        circle 500px at var(--entry-icon-center) var(--entry-icon-center),
+        rgba(from var(--primary) r g b / 0.2) 0%,
+        var(--primary-background) 100%
+    );
+
+    --hover: rgba(255 255 255 / 0.05);
+    --selected: var(--primary);
+    --selected-text-color: var(--primary-background);
+    --selected-faded-text-color: rgba(from var(--selected-text-color) r g b calc(alpha * 0.8));
+
+    --text-color: rgba(255 255 255 / 0.9);
+    --faded-text-color: rgb(from var(--text-color) r g b / calc(alpha * 0.8));
+
+    --text-size: 1.25rem;
+    --entry-text-size: calc(var(--text-size) * 1.3);
+    --description-text-size: calc(var(--text-size) / 1.3);
+
+    --padding: 12px;
+    --window-padding: 0px;
+    --entry-padding: calc(2 * var(--padding));
+
+    --main-brad: 24px;
+    --list-item-brad: calc(var(--main-brad) - var(--padding));
+    --window-brad: calc(var(--main-brad) + var(--window-padding));
+
+    --icon-size: 48px;
+    --entry-icon-size: 48px;
+
+    --border-color: #26233a;
+    --window-border: 4px;
+
+    /* distance to center of the entry icon, relative to the main box top left */
+    --entry-icon-center: calc(var(--entry-padding) + var(--entry-icon-size) / 2);
+
+    font-size: var(--text-size);
+}
+
+* {
+    all: unset;
+}
+
+.main-box {
+    background: var(--pane-background);
+    border-radius: var(--main-brad);
+    border: var(--window-border) solid var(--border-color);
+}
+
+.window {
+    background: var(--window-background);
+    color: var(--text-color);
+    padding: var(--window-padding);
+    border-radius: var(--window-brad);
+}
+
+.main-entry {
+    font-size: var(--entry-text-size);
+    padding: var(--entry-padding);
+}
+
+.main-entry placeholder {
+    color: var(--faded-text-color);
+}
+
+.main-entry selection {
+    background: var(--text-selection);
+}
+
+.main-entry block-cursor {
+    background: var(--text-color);
+    color: var(--primary-background);
+}
+
+.main-entry image.left {
+    -gtk-icon-size: var(--entry-icon-size);
+}
+
+.main-entry image.left + * {
+    /* for some reason adding padding-right to the image makes it wonky */
+    margin-left: var(--padding);
+}
+
+.main-list {
+    --_inner-padding: var(--padding);
+    --_item-gap: var(--padding);
+    padding: calc(var(--_item-gap) / 2);
+}
+
+.main-list-grid {
+    /* less padding for grid type */
+    --_inner-padding: calc(var(--padding) / 2);
+}
+
+.list-item {
+    padding: var(--_inner-padding);
+    margin: calc(var(--_item-gap) / 2);
+    border-radius: var(--list-item-brad);
+
+    /* force equal spacing of the grid */
+    /* min-width does not include the inner padding */
+    /*
+    | window padding | item gap | inner padding | actual width | inner padding | item gap | ... | window padding |
+    */
+    --_main-list-width: calc(var(--qpmu-gtk-window-width) - var(--window-padding) * 2 - var(--window-border) * 2);
+    --_total-gap-width: calc(
+        var(--qpmu-gtk-main-list-num-columns) * (var(--_item-gap) + var(--_inner-padding) * 2) +
+            /* account for final item gap */ var(--_item-gap)
+    );
+    min-width: calc((var(--_main-list-width) - var(--_total-gap-width)) / var(--qpmu-gtk-main-list-num-columns));
+}
+
+.main-list-grid .list-item-description {
+    display: none;
+}
+
+.list-item-description {
+    font-size: var(--description-text-size);
+    color: var(--faded-text-color);
+    margin-top: 4px;
+}
+
+.list-item:hover {
+    background: var(--hover);
+}
+
+.list-item:selected {
+    background: var(--selected);
+    color: var(--selected-text-color);
+}
+
+.list-item:selected .list-item-description {
+    color: var(--selected-faded-text-color);
+}
+
+.list-item-icon {
+    -gtk-icon-size: var(--icon-size);
+    font-size: var(--icon-size);
+    line-height: calc(var(--icon-size) * 1.5);
+}
+
+.settings-window {
+    background-color: black;
+}

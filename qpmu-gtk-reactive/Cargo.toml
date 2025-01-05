@@ -27,3 +27,4 @@ reactive_graph = { version = "0.1.3", features = ["effects", "tracing"] }
 gtk = { package = "gtk4", version = "0.9", features = ["v4_6"]}
 any_spawner = { version = "0.2.0", features = ["glib"] }
 bon = "3.3.2"
+paste = "1"

@@ -2717,6 +2717,7 @@ dependencies = [
  "color-eyre",
  "dirs",
  "gtk4",
+ "paste",
  "qpmu",
  "reactive_graph",
  "tap",

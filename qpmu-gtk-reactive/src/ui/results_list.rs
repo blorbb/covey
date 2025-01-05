@@ -2,91 +2,94 @@ use az::{CheckedAs as _, SaturatingAs as _};
 use gtk::prelude::{BoxExt, Cast, FlowBoxChildExt as _, WidgetExt as _};
 use qpmu::{Icon, ListItem, ListStyle};
 use reactive_graph::{effect::Effect, prelude::*, signal::WriteSignal, wrappers::read::Signal};
+use tap::Tap;
 use tracing::{debug, warn};
 
-use crate::styles;
+use crate::{gtk_utils::SetWidgetRef as _, reactive::WidgetRef, styles};
 
 #[tracing::instrument(skip_all)]
 #[bon::builder]
 pub fn results_list(
     items: Signal<Vec<ListItem>>,
     style: Signal<ListStyle>,
-    /// Called after the list layout is updated.
-    after_list_update: Option<impl Fn() + 'static>,
+    /// Called after the UI is updated.
+    after_list_update: Option<impl Fn() + Clone + 'static>,
     selection: Signal<usize>,
     set_selection: WriteSignal<usize>,
     on_activate: impl Fn() + 'static,
 ) -> gtk::FlowBox {
     // widgets //
-    let list = gtk::FlowBox::builder()
-        .css_classes(["main-list"])
-        .selection_mode(gtk::SelectionMode::Browse)
-        .row_spacing(0)
-        .column_spacing(0)
-        .build();
+    let list = WidgetRef::<gtk::FlowBox>::new();
 
     // effects //
-    let update_list_selection = {
-        let list = list.clone();
-        move || {
-            let target_row = list.child_at_index(selection.get().saturating_as::<i32>());
-            match target_row {
-                Some(target) => {
-                    list.select_child(&target);
-                    // scroll to the target, but don't lose focus on the entry
-                    target.grab_focus();
-                }
-                None => {
-                    warn!("missing child at index {}", selection.get());
-                }
+    let update_list_selection = move || {
+        let target_row = list
+            .get()
+            .child_at_index(selection.get().saturating_as::<i32>());
+        match target_row {
+            Some(target) => {
+                list.get().select_child(&target);
+                // scroll to the target, but don't lose focus on the entry
+                target.grab_focus();
             }
+            None => {
+                warn!("missing child at index {}", selection.get());
+            }
+        }
+
+        if let Some(cb) = after_list_update.clone() {
+            cb()
         }
     };
 
-    // set items
+    // set items from list
     Effect::new({
-        let list = list.clone();
         let update_list_selection = update_list_selection.clone();
-
         move || {
-            while let Some(child) = list.last_child() {
-                list.remove(&child);
+            while let Some(child) = list.get().last_child() {
+                list.get().remove(&child);
             }
-            list.set_css_classes(&["main-list"]);
+            list.get().set_css_classes(&["main-list"]);
             match style.get() {
-                ListStyle::Rows => set_list_rows(&list, &items.read()),
-                ListStyle::Grid => set_list_grid(&list, &items.read(), 5),
-                ListStyle::GridWithColumns(columns) => set_list_grid(&list, &items.read(), columns),
+                ListStyle::Rows => set_list_rows(&list.get(), &items.read()),
+                ListStyle::Grid => set_list_grid(&list.get(), &items.read(), 5),
+                ListStyle::GridWithColumns(columns) => {
+                    set_list_grid(&list.get(), &items.read(), columns)
+                }
             }
             // always needs to run as the selection gets cleared by resetting it
             update_list_selection();
-            if let Some(cb) = &after_list_update {
-                cb()
-            }
         }
     });
 
     Effect::new(update_list_selection);
 
-    // handlers //
-    list.connect_selected_children_changed({
-        move |flow_box| {
-            debug!("selected child changed at ui");
-            if let Some(child) = flow_box.selected_children().first() {
-                set_selection.set(
-                    child
-                        .index()
-                        .checked_as::<usize>()
-                        .expect("index should never be negative"),
-                );
-            }
-        }
-    });
-    // selection will happen first, so activating the current selection works
-    // even if clicking on a row that isn't currently selected.
-    list.connect_child_activated(move |_, _| on_activate());
-
-    list
+    gtk::FlowBox::builder()
+        .css_classes(["main-list"])
+        .selection_mode(gtk::SelectionMode::Browse)
+        .row_spacing(0)
+        .column_spacing(0)
+        .widget_ref(list)
+        .tap(|list| {
+            list.connect_selected_children_changed({
+                move |flow_box| {
+                    debug!("selected child changed at ui");
+                    if let Some(child) = flow_box.selected_children().first() {
+                        set_selection.set(
+                            child
+                                .index()
+                                .checked_as::<usize>()
+                                .expect("index should never be negative"),
+                        );
+                    }
+                }
+            });
+        })
+        .tap(|list| {
+            // selection will happen first, so activating the current selection works
+            // even if clicking on a row that isn't currently selected.
+            list.connect_child_activated(move |_, _| on_activate());
+        })
 }
 
 fn add_icon_to(icon: &Icon, to: &gtk::Box) {

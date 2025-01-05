@@ -2,7 +2,7 @@ use reactive_graph::{
     computed::Memo,
     owner::{LocalStorage, StoredValue},
     signal::{signal, ArcReadSignal, WriteSignal},
-    traits::{WithValue, WriteValue as _},
+    traits::{GetValue, WriteValue as _},
 };
 
 pub fn signal_diffed<T: Send + Sync + PartialEq + Clone + 'static>(
@@ -38,12 +38,20 @@ impl<T: 'static> WidgetRef<T> {
     pub fn set(&self, value: T) {
         self.0.write_value().get_or_insert(value);
     }
+}
 
-    pub fn with(&self, f: impl FnOnce(&T)) {
-        self.0.with_value(|v| {
-            if let Some(v) = v {
-                f(v)
-            }
-        })
+impl<T: Clone + 'static> WidgetRef<T> {
+    /// Runs the function if the widget is currently filled.
+    ///
+    /// Ignores the output.
+    pub fn with<U>(&self, f: impl FnOnce(T) -> U) {
+        self.0.get_value().map(f);
+    }
+
+    /// Gets the widget, panicking if it hasn't been set.
+    pub fn get(&self) -> T {
+        self.0
+            .get_value()
+            .expect("widget reference should have been set")
     }
 }

@@ -12,9 +12,13 @@ use reactive_graph::{
     signal::{signal, Trigger, WriteSignal},
     wrappers::read::Signal,
 };
+use tap::Tap;
 use tracing::info;
 
-use crate::reactive::{signal_diffed, WidgetRef};
+use crate::{
+    gtk_utils::SetWidgetRef as _,
+    reactive::{signal_diffed, WidgetRef},
+};
 
 const WIDTH: i32 = 800;
 const HEIGHT_MAX: i32 = 600;
@@ -53,79 +57,83 @@ pub fn root() -> gtk::ApplicationWindow {
     });
 
     // widgets //
-    let window = StoredValue::new_local(
-        gtk::ApplicationWindow::builder()
-            .title("qpmu")
-            .hide_on_close(true)
-            .decorated(false)
-            .vexpand(true)
-            .css_classes(["window"])
-            .width_request(WIDTH)
-            .height_request(-1)
-            .build(),
-    );
-
-    let entry = StoredValue::new_local(
-        entry::entry()
-            .input(input.into())
-            .set_input(set_input)
-            .call(),
-    );
-
+    let window = WidgetRef::<gtk::ApplicationWindow>::new();
+    let entry = WidgetRef::<gtk::Entry>::new();
     let scroller_ref = WidgetRef::<gtk::ScrolledWindow>::new();
 
-    let list = results_list::results_list()
-        .items(items.into())
-        .selection(selection.into())
-        .set_selection(set_selection)
-        .style(Signal::derive(move || {
-            style.get().unwrap_or(qpmu::ListStyle::Rows)
-        }))
-        .after_list_update(move || {
-            scroller_ref.with(|r| r.set_visible(!items.read_untracked().is_empty()));
-            window.read_value().set_default_height(-1);
-            entry.read_value().grab_focus_without_selecting();
+    gtk::ApplicationWindow::builder()
+        .title("qpmu")
+        .hide_on_close(true)
+        .decorated(false)
+        .vexpand(true)
+        .css_classes(["window"])
+        .width_request(WIDTH)
+        .height_request(-1)
+        .child(
+            &menu::menu()
+                .entry(
+                    &entry::entry()
+                        .input(input.into())
+                        .set_input(set_input)
+                        .entry_ref(entry)
+                        .call(),
+                )
+                .list(
+                    &results_list::results_list()
+                        .items(items.into())
+                        .selection(selection.into())
+                        .set_selection(set_selection)
+                        .style(Signal::derive(move || {
+                            style.get().unwrap_or(qpmu::ListStyle::Rows)
+                        }))
+                        .after_list_update(move || {
+                            scroller_ref
+                                .with(|r| r.set_visible(!items.read_untracked().is_empty()));
+                            window.with(|window| window.set_default_height(-1));
+                            entry.with(|entry| entry.grab_focus_without_selecting());
+                        })
+                        .on_activate(move || {
+                            model.read_value().lock().activate();
+                        })
+                        .call(),
+                )
+                .scroller_ref(scroller_ref)
+                .call(),
+        )
+        .widget_ref(window)
+        .tap(|window| {
+            window.connect_visible_notify(move |window| {
+                if window.is_visible() {
+                    window.present();
+                    entry.with(|entry| entry.grab_focus());
+                }
+            });
         })
-        .on_activate(move || {
-            model.read_value().lock().activate();
+        .tap(|window| {
+            window.add_controller({
+                let window = window.clone();
+                controller::leave().on_leave(move || window.close()).call()
+            });
         })
-        .call();
-
-    let menu = menu::menu()
-        .entry(&entry.get_value())
-        .list(&list)
-        .scroller_ref(scroller_ref)
-        .call();
-
-    window.read_value().set_child(Some(&menu));
-    window.read_value().connect_visible_notify(move |window| {
-        if window.is_visible() {
-            window.present();
-            entry.read_value().grab_focus();
-        }
-    });
-    window.read_value().add_controller(
-        controller::leave()
-            .on_leave(move || window.read_value().close())
-            .call(),
-    );
-    window.read_value().add_controller(
-        controller::key()
-            .on_activate(move || model.read_value().lock().activate())
-            .on_alt_activate(move || model.read_value().lock().alt_activate())
-            .on_complete(move || model.read_value().lock().complete())
-            .on_hotkey_activate(move |hotkey| model.read_value().lock().hotkey_activate(hotkey))
-            .on_selection_move(move |delta| model.read_value().lock().move_list_selection(delta))
-            .on_close(move || window.read_value().close())
-            .call(),
-    );
-
-    Effect::new(move || {
-        selection.track();
-        entry.get_value().grab_focus_without_selecting();
-    });
-
-    window.get_value()
+        .tap(|window| {
+            window.add_controller(
+                controller::key()
+                    .on_activate(move || model.read_value().lock().activate())
+                    .on_alt_activate(move || model.read_value().lock().alt_activate())
+                    .on_complete(move || model.read_value().lock().complete())
+                    .on_hotkey_activate(move |hotkey| {
+                        model.read_value().lock().hotkey_activate(hotkey)
+                    })
+                    .on_selection_move(move |delta| {
+                        model.read_value().lock().move_list_selection(delta)
+                    })
+                    .on_close({
+                        let window = window.clone();
+                        move || window.close()
+                    })
+                    .call(),
+            )
+        })
 }
 
 struct Frontend {

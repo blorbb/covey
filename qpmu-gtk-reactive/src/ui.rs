@@ -3,13 +3,13 @@ mod menu;
 mod results_list;
 
 use color_eyre::eyre::eyre;
-use gtk::prelude::{EntryExt, GtkWindowExt, WidgetExt};
+use gtk::prelude::{ApplicationExt, EntryExt, GtkWindowExt, WidgetExt};
 use qpmu::{config::Config, Input, ListItem, ListStyle};
 use reactive_graph::{
     effect::Effect,
     owner::StoredValue,
     prelude::*,
-    signal::{signal, Trigger, WriteSignal},
+    signal::{signal, WriteSignal},
 };
 use tap::Tap;
 use tracing::info;
@@ -24,7 +24,10 @@ const WIDTH: i32 = 800;
 const HEIGHT_MAX: i32 = 600;
 
 pub fn root() -> gtk::ApplicationWindow {
-    let close_trigger = Trigger::new();
+    // widgets //
+    let window = WidgetRef::<gtk::ApplicationWindow>::new();
+    let entry = WidgetRef::<gtk::Entry>::new();
+    let scroller = WidgetRef::<gtk::ScrolledWindow>::new();
 
     // signals //
     let (input, set_input) = signal_diffed(Input::default());
@@ -36,7 +39,7 @@ pub fn root() -> gtk::ApplicationWindow {
     let model = StoredValue::new_local(qpmu::Model::new(
         plugins,
         Frontend {
-            close_trigger,
+            window,
             set_input,
             set_items,
             set_style,
@@ -55,11 +58,6 @@ pub fn root() -> gtk::ApplicationWindow {
             .lock()
             .set_list_selection(selection.get());
     });
-
-    // widgets //
-    let window = WidgetRef::<gtk::ApplicationWindow>::new();
-    let entry = WidgetRef::<gtk::Entry>::new();
-    let scroller = WidgetRef::<gtk::ScrolledWindow>::new();
 
     gtk::ApplicationWindow::builder()
         .title("qpmu")
@@ -131,7 +129,7 @@ pub fn root() -> gtk::ApplicationWindow {
 }
 
 struct Frontend {
-    close_trigger: Trigger,
+    window: WidgetRef<gtk::ApplicationWindow>,
     set_input: WriteSignal<Input>,
     set_items: WriteSignal<Vec<ListItem>>,
     set_style: WriteSignal<Option<ListStyle>>,
@@ -140,7 +138,7 @@ struct Frontend {
 
 impl qpmu::Frontend for Frontend {
     fn close(&mut self) {
-        self.close_trigger.notify();
+        self.window.widget().close();
     }
 
     fn copy(&mut self, str: String) {
@@ -170,7 +168,20 @@ impl qpmu::Frontend for Frontend {
     }
 
     fn display_error(&mut self, title: &str, error: color_eyre::eyre::Report) {
-        todo!("{}: {}", title, error)
+        let notif = gtk::gio::Notification::new(title);
+        let error_body = error
+            .chain()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        tracing::error!("displaying error:\n{title}\n{error_body}");
+
+        notif.set_body(Some(&error_body));
+        self.window
+            .widget()
+            .application()
+            .expect("application should be alive")
+            .send_notification(None, &notif);
     }
 }
 

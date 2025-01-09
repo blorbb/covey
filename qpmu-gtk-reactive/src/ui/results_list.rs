@@ -8,10 +8,12 @@ use tap::Tap;
 use tracing::{debug, warn};
 
 use crate::{
-    clone_scoped,
-    gtk_utils::SetWidgetRef as _,
-    reactive::{EventHandler, WidgetRef},
     styles,
+    utils::{
+        clone::clone_scoped,
+        stores::{EventHandler, WidgetRef},
+        widget_ext::WidgetSetRef as _,
+    },
 };
 
 #[tracing::instrument(skip_all)]

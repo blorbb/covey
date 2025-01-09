@@ -1,22 +1,13 @@
-use gtk::{
-    glib::SignalHandlerId,
-    prelude::{IsA, ObjectExt as _, ObjectType},
-};
 use reactive_graph::{
-    computed::Memo,
     owner::{LocalStorage, StoredValue},
-    signal::{signal, ArcReadSignal, WriteSignal},
-    traits::{GetValue, WithValue, WriteValue as _},
+    traits::{GetValue, WithValue as _, WriteValue as _},
 };
 
-pub fn signal_diffed<T: Send + Sync + PartialEq + Clone + 'static>(
-    value: T,
-) -> (Memo<T>, WriteSignal<T>) {
-    let (read, write) = signal(value);
-    let read_memoized = Memo::from(ArcReadSignal::from(read));
-    (read_memoized, write)
-}
-
+/// A shared reference to a widget.
+///
+/// The widget can only be set once with [`WidgetRef::set`].
+///
+/// Users can then access the widget in callbacks.
 #[derive(Debug)]
 pub struct WidgetRef<T>(StoredValue<Option<T>, LocalStorage>);
 
@@ -60,6 +51,17 @@ impl<T: Clone + 'static> WidgetRef<T> {
     }
 }
 
+use gtk::{
+    glib::SignalHandlerId,
+    prelude::{IsA, ObjectExt as _, ObjectType},
+};
+
+/// Wrapper for an event handler for a certain widget.
+///
+/// Similar to [`WidgetRef`], the event can only be set once with
+/// [`EventHandler::set`].
+///
+/// Users can then perform actions with this event handler in callbacks.
 #[derive(Debug)]
 pub struct EventHandler<T>(StoredValue<Option<(T, SignalHandlerId)>, LocalStorage>);
 
@@ -83,9 +85,12 @@ impl<T: ObjectType> EventHandler<T> {
     }
 
     pub fn set(&self, widget: &T, handler: SignalHandlerId) {
-        self.0.write_value().get_or_insert((widget.clone(), handler));
+        self.0
+            .write_value()
+            .get_or_insert((widget.clone(), handler));
     }
 
+    /// Blocks any signals to this event.
     pub fn suppress(&self, f: impl Fn(&T)) {
         self.0.with_value(|opt| {
             if let Some((widget, handler)) = opt {

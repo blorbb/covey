@@ -14,10 +14,8 @@ use reactive_graph::{
 use tap::Tap;
 use tracing::info;
 
-use crate::{
-    clone_scoped,
-    gtk_utils::SetWidgetRef as _,
-    reactive::{signal_diffed, WidgetRef},
+use crate::utils::{
+    clone::clone_scoped, reactive::signal_diffed, stores::WidgetRef, widget_ext::WidgetSetRef as _,
 };
 
 const WIDTH: i32 = 800;

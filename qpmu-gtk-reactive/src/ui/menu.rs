@@ -1,9 +1,9 @@
 use gtk::prelude::Cast as _;
 
 use super::HEIGHT_MAX;
-use crate::{
-    gtk_utils::{ManyChildren, SetWidgetRef},
-    reactive::WidgetRef,
+use crate::utils::{
+    stores::WidgetRef,
+    widget_ext::{WidgetAddChild as _, WidgetSetRef as _},
 };
 
 #[tracing::instrument]

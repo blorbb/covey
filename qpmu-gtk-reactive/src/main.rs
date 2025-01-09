@@ -1,8 +1,7 @@
-mod reactive;
+mod hotkey;
 mod styles;
 mod ui;
-mod hotkey;
-mod gtk_utils;
+mod utils;
 
 use any_spawner::Executor;
 use color_eyre::eyre::Result;

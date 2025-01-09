@@ -1,6 +1,6 @@
+pub mod manifest;
 pub mod rank;
 pub mod sql;
-pub mod manifest;
 
 mod list;
 pub use list::{Icon, List, ListItem, ListStyle};

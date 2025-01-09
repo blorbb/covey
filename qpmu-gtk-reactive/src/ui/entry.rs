@@ -9,9 +9,9 @@ use reactive_graph::{
 };
 use tap::Tap;
 
-use crate::{
-    gtk_utils::SetWidgetRef,
-    reactive::{EventHandler, WidgetRef},
+use crate::utils::{
+    stores::{EventHandler, WidgetRef},
+    widget_ext::WidgetSetRef as _,
 };
 
 #[tracing::instrument]

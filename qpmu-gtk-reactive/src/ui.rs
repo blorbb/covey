@@ -160,8 +160,6 @@ impl qpmu::Frontend for Frontend {
     fn set_list(&mut self, list: &qpmu::ResultList) {
         info!("setting list to {} elements", list.len());
 
-        // for some reason this MUST be the precise order
-        // otherwise a deadlock can occur
         self.set_list_selection(0);
         self.set_style.set(list.style());
         self.set_items.set(list.items().to_vec());

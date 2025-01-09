@@ -24,17 +24,15 @@ pub fn entry(
     let change_handler = EventHandler::<gtk::Entry>::new();
 
     Effect::new(move || {
-        let contents = &input.get().contents;
-        let selection = input.get().selection;
+        let Input {
+            contents,
+            selection,
+        } = input.get();
         let selection = (i32::from(selection.0), i32::from(selection.1));
         eprintln!("{contents} at {selection:?}");
         change_handler.suppress(|e| {
-            if &e.text() != contents {
-                e.set_text(&input.get().contents);
-            }
-            if e.selection_bounds() != Some(selection) {
-                e.select_region(selection.0, selection.1);
-            }
+            e.set_text(&contents);
+            e.select_region(selection.0, selection.1);
         });
     });
 

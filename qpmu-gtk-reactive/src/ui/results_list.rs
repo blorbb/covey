@@ -58,10 +58,10 @@ pub fn results_list(
         }
         list.widget().set_css_classes(&["main-list"]);
         match style() {
-            ListStyle::Rows => set_list_rows(&list.widget(), &items.read()),
-            ListStyle::Grid => set_list_grid(&list.widget(), &items.read(), 5),
+            ListStyle::Rows => set_list_rows(&list.widget(), &items.get()),
+            ListStyle::Grid => set_list_grid(&list.widget(), &items.get(), 5),
             ListStyle::GridWithColumns(columns) => {
-                set_list_grid(&list.widget(), &items.read(), columns)
+                set_list_grid(&list.widget(), &items.get(), columns)
             }
         }
         // always needs to run as the selection gets cleared by resetting it

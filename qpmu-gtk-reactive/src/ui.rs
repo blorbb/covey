@@ -4,7 +4,7 @@ mod results_list;
 mod state;
 
 use color_eyre::eyre::eyre;
-use gtk::prelude::{ApplicationExt, GtkWindowExt, WidgetExt};
+use gtk::prelude::{GtkWindowExt, WidgetExt};
 use qpmu::{Input, ListItem, ListStyle};
 use reactive_graph::{
     effect::Effect,
@@ -79,7 +79,9 @@ pub fn root() -> gtk::ApplicationWindow {
 }
 
 struct Frontend {
-    window: WidgetRef<gtk::ApplicationWindow>,
+    on_close: Box<dyn FnMut() + Send + 'static>,
+    /// First is title, second is body.
+    on_notification: Box<dyn FnMut(String, String) + Send + 'static>,
     set_input: WriteSignal<Input>,
     set_items: WriteSignal<Vec<ListItem>>,
     set_style: WriteSignal<Option<ListStyle>>,
@@ -88,7 +90,7 @@ struct Frontend {
 
 impl qpmu::Frontend for Frontend {
     fn close(&mut self) {
-        self.window.widget().close();
+        (self.on_close)();
     }
 
     fn copy(&mut self, str: String) {
@@ -118,7 +120,6 @@ impl qpmu::Frontend for Frontend {
     }
 
     fn display_error(&mut self, title: &str, error: color_eyre::eyre::Report) {
-        let notif = gtk::gio::Notification::new(title);
         let error_body = error
             .chain()
             .map(ToString::to_string)
@@ -126,12 +127,7 @@ impl qpmu::Frontend for Frontend {
             .join("\n");
         tracing::error!("displaying error:\n{title}\n{error_body}");
 
-        notif.set_body(Some(&error_body));
-        self.window
-            .widget()
-            .application()
-            .expect("application should be alive")
-            .send_notification(None, &notif);
+        (self.on_notification)(title.to_owned(), error_body);
     }
 }
 

@@ -1,10 +1,13 @@
+use gtk::prelude::{ApplicationExt, GtkWindowExt};
 use qpmu::{config::Config, lock::SharedMutex, plugin::Plugin, Input, ListItem, ListStyle};
 use reactive_graph::{
     computed::Memo,
+    effect::Effect,
     owner::{LocalStorage, StoredValue},
-    signal::{signal, ReadSignal, WriteSignal},
-    traits::Get,
+    signal::{signal, ReadSignal, RwSignal, Trigger, WriteSignal},
+    traits::{Get, Notify, Set, Track},
 };
+use tap::Tap;
 
 use crate::utils::{reactive::signal_diffed, stores::WidgetRef};
 
@@ -32,12 +35,33 @@ impl State {
         let (style, set_style) = signal_diffed(None);
         let (selection, set_selection) = signal_diffed(0usize);
 
+        // use watch to not immediately close the window
+        let close_trigger = Trigger::new();
+        Effect::watch(
+            move || close_trigger.track(),
+            move |_, _, _| window.widget().close(),
+            false,
+        );
+
+        let notification = RwSignal::<Option<(String, String)>>::new(None);
+        Effect::new(move || {
+            if let Some((title, body)) = notification.get() {
+                window.widget().application().unwrap().send_notification(
+                    None,
+                    &gtk::gio::Notification::new(&title).tap(|n| {
+                        n.set_body(Some(&body));
+                    }),
+                );
+            };
+        });
+
         let (plugins, set_plugins) =
             signal(Config::from_file().expect("failed to read config").load());
         let model = StoredValue::new_local(qpmu::Model::new(
             plugins.get(),
             super::Frontend {
-                window,
+                on_close: Box::new(move || close_trigger.notify()),
+                on_notification: Box::new(move |title, body| notification.set(Some((title, body)))),
                 set_input,
                 set_items,
                 set_style,

@@ -17,8 +17,8 @@ use crate::utils::{
 #[tracing::instrument]
 #[bon::builder]
 pub fn entry(
-    input: Signal<Input>,
-    set_input: WriteSignal<Input>,
+    #[builder(into)] input: Signal<Input>,
+    #[builder(into)] set_input: WriteSignal<Input>,
     #[builder(default)] entry_ref: WidgetRef<gtk::Entry>,
 ) -> gtk::Entry {
     let change_handler = EventHandler::<gtk::Entry>::new();

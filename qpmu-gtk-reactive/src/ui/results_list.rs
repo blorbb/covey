@@ -19,12 +19,12 @@ use crate::{
 #[tracing::instrument(skip_all)]
 #[bon::builder]
 pub fn results_list(
-    items: Signal<Vec<ListItem>>,
-    style: impl Fn() -> ListStyle + 'static,
+    #[builder(into)] items: Signal<Vec<ListItem>>,
+    #[builder(into)] style: Signal<ListStyle>,
     /// Called after the UI is updated.
     after_list_update: Option<impl Fn() + Clone + 'static>,
-    selection: Signal<usize>,
-    set_selection: WriteSignal<usize>,
+    #[builder(into)] selection: Signal<usize>,
+    #[builder(into)] set_selection: WriteSignal<usize>,
     on_activate: impl Fn() + 'static,
 ) -> gtk::FlowBox {
     // widgets //
@@ -59,7 +59,7 @@ pub fn results_list(
             list.widget().remove(&child);
         }
         list.widget().set_css_classes(&["main-list"]);
-        match style() {
+        match style.get() {
             ListStyle::Rows => set_list_rows(&list.widget(), &items.get()),
             ListStyle::Grid => set_list_grid(&list.widget(), &items.get(), 5),
             ListStyle::GridWithColumns(columns) => {

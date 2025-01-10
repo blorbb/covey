@@ -66,7 +66,10 @@ macro_rules! impl_widget {
     };
 }
 
-impl_widget!(Box ScrolledWindow Entry FlowBox FlowBoxChild ApplicationWindow);
+impl_widget!(
+    Box ScrolledWindow Entry FlowBox FlowBoxChild ApplicationWindow
+    ListBox ListBoxRow
+);
 
 // widget-specific extension traits //
 

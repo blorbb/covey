@@ -18,8 +18,7 @@ async fn main() -> Result<()> {
     let filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::WARN.into())
         .from_env()?
-        .add_directive("qpmu=debug".parse()?)
-        .add_directive("reactive_graph=trace".parse()?);
+        .add_directive("qpmu=debug".parse()?);
     tracing_subscriber::fmt()
         .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
         .with_env_filter(filter)

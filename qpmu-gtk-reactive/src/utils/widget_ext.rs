@@ -13,7 +13,7 @@
 //! Extension traits are then implemented for each [`gtk::Widget`] manually,
 //! and a blanket implementation for the [`WidgetBuilder`] can be created.
 
-use gtk::prelude::{BoxExt as _, IsA};
+use gtk::prelude::{BoxExt as _, IsA, WidgetExt};
 
 use super::stores::WidgetRef;
 
@@ -68,7 +68,7 @@ macro_rules! impl_widget {
 
 impl_widget!(
     Box ScrolledWindow Entry FlowBox FlowBoxChild ApplicationWindow
-    ListBox ListBoxRow
+    ListBox ListBoxRow Button
 );
 
 // widget-specific extension traits //
@@ -82,6 +82,27 @@ impl WidgetAddChild for gtk::Box {
     fn child(self, child: &impl IsA<gtk::Widget>) -> Self::Widget {
         self.append(child);
         self
+    }
+}
+
+/// Remove all children.
+pub trait WidgetRemoveAll {
+    fn remove_all(&self);
+}
+
+impl WidgetRemoveAll for gtk::ListBox {
+    fn remove_all(&self) {
+        while let Some(child) = self.last_child() {
+            self.remove(&child);
+        }
+    }
+}
+
+impl WidgetRemoveAll for gtk::FlowBox {
+    fn remove_all(&self) {
+        while let Some(child) = self.last_child() {
+            self.remove(&child);
+        }
     }
 }
 

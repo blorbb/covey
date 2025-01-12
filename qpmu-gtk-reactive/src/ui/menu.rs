@@ -4,7 +4,7 @@ use reactive_graph::{
     wrappers::read::Signal,
 };
 
-use super::{entry, results_list, state::State, HEIGHT_MAX};
+use super::{entry, results_list, settings, state::State, HEIGHT_MAX};
 use crate::utils::{
     stores::WidgetRef,
     widget_ext::{WidgetAddChild as _, WidgetSetRef as _},
@@ -13,6 +13,7 @@ use crate::utils::{
 #[tracing::instrument(skip_all)]
 pub fn menu(state: State, entry_ref: WidgetRef<gtk::Entry>) -> gtk::Widget {
     let scroller_ref = WidgetRef::<gtk::ScrolledWindow>::new();
+    let settings_window = settings::settings(state.clone());
 
     menu_layout()
         .entry(
@@ -20,6 +21,7 @@ pub fn menu(state: State, entry_ref: WidgetRef<gtk::Entry>) -> gtk::Widget {
                 .input(state.input)
                 .set_input(state.set_input)
                 .entry_ref(entry_ref)
+                .settings_window(settings_window)
                 .call(),
         )
         .list(

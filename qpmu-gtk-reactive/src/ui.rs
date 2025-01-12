@@ -2,6 +2,7 @@ mod entry;
 mod menu;
 mod results_list;
 mod state;
+mod settings;
 
 use color_eyre::eyre::eyre;
 use gtk::prelude::{GtkWindowExt, WidgetExt};

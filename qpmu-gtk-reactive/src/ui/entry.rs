@@ -1,5 +1,5 @@
 use az::SaturatingAs;
-use gtk::prelude::EditableExt;
+use gtk::prelude::{EditableExt, EntryExt, GtkWindowExt};
 use qpmu::Input;
 use reactive_graph::{
     effect::Effect,
@@ -20,6 +20,7 @@ pub fn entry(
     #[builder(into)] input: Signal<Input>,
     #[builder(into)] set_input: WriteSignal<Input>,
     #[builder(default)] entry_ref: WidgetRef<gtk::Entry>,
+    settings_window: gtk::Window,
 ) -> gtk::Entry {
     let change_handler = EventHandler::<gtk::Entry>::new();
 
@@ -62,5 +63,10 @@ pub fn entry(
                     });
                 }),
             );
+            entry.connect_icon_press(move |_, icon_position| {
+                if icon_position == gtk::EntryIconPosition::Secondary {
+                    settings_window.present();
+                }
+            });
         })
 }

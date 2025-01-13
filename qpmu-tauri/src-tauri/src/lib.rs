@@ -1,4 +1,11 @@
-use tauri::{Emitter, Manager};
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::TrayIconBuilder,
+    Emitter, Manager,
+};
+
+/// Event emitted when the window becomes focused.
+const FOCUS_WINDOW_EVENT: &str = "focus-window";
 
 // use AppHandle instead of Window so that these commands only affect
 // the main window (don't want these to affect the settings)
@@ -30,6 +37,7 @@ fn show_window(app: tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         window.show().unwrap();
         window.set_focus().unwrap();
+        app.emit(FOCUS_WINDOW_EVENT, ()).unwrap();
     } else {
         eprintln!("WARN: main window was not found");
     }
@@ -39,6 +47,20 @@ fn show_window(app: tauri::AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
+            TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&Menu::with_items(
+                    app,
+                    &[&MenuItem::with_id(app, "show", "Show", true, None::<&str>)?],
+                )?)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show" => {
+                        show_window(app.clone());
+                    }
+                    other => panic!("unknown tray menu event {other}"),
+                })
+                .build(app)?;
+
             let Some(main_window) = app.get_webview_window("main") else {
                 panic!("missing main window")
             };
@@ -52,7 +74,7 @@ pub fn run() {
                     }
                     tauri::WindowEvent::Focused(focused) => {
                         if *focused {
-                            main_window.emit("focus-input", ()).unwrap();
+                            main_window.emit(FOCUS_WINDOW_EVENT, ()).unwrap();
                         } else {
                             main_window.hide().unwrap();
                         }

@@ -1,6 +1,7 @@
 // These must match `qpmu_tauri::ipc::frontend::Event`.
 
 import { Channel, invoke } from "@tauri-apps/api/core";
+import * as commands from "./commands";
 
 export type Event = Readonly<
   | { kind: "setInput"; contents: string; selection: [number, number] }
@@ -45,6 +46,18 @@ export class Menu {
       }
     };
     void invoke("setup", { events });
+  }
+
+  public activate() {
+    commands.activate(this.items[this.selection].id);
+  }
+
+  public altActivate() {
+    commands.altActivate(this.items[this.selection].id);
+  }
+
+  public complete() {
+    commands.complete(this.items[this.selection].id);
   }
 }
 

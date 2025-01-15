@@ -170,7 +170,6 @@ impl PluginList {
             // rotate right
             self.plugins[new_index..=index].rotate_right(1);
         }
-        dbg!(&self.plugins);
 
         let target = widgets
             .items

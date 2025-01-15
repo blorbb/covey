@@ -5,6 +5,7 @@ use tauri_plugin_notification::NotificationExt;
 
 use crate::{ipc, state::AppState};
 
+#[derive(Clone)]
 pub struct EventChannel {
     pub channel: Channel<Event>,
     pub app: tauri::AppHandle,
@@ -43,7 +44,7 @@ impl qpmu::Frontend for EventChannel {
             .notification()
             .builder()
             .title(title)
-            .large_body(format!("{error:#}"))
+            .body(format!("{error:#}"))
             .show()
             .unwrap();
     }

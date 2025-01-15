@@ -5,7 +5,7 @@ use state::AppState;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Emitter, Manager,
+    Manager,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -40,12 +40,8 @@ pub fn run() {
                         main_window.hide().unwrap();
                     }
                     tauri::WindowEvent::Focused(focused) => {
-                        if *focused {
-                            main_window
-                                .emit(ipc::window::FOCUS_WINDOW_EVENT, ())
-                                .unwrap();
-                        } else {
-                            main_window.hide().unwrap();
+                        if !*focused {
+                            // main_window.hide().unwrap();
                         }
                     }
                     _ => {}

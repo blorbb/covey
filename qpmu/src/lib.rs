@@ -19,7 +19,7 @@ use lock::SharedMutex;
 use plugin::{Action, Plugin, PluginEvent};
 pub use result_list::{BoundedUsize, ListStyle, ResultList};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 pub static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     dirs::config_dir()
@@ -33,6 +33,7 @@ pub static DATA_DIR: LazyLock<PathBuf> =
 /// Main public API for interacting with qpmu.
 ///
 /// When an action is returned from a plugin, the frontend is updated.
+#[derive(Clone)]
 pub struct Model<F> {
     plugins: Vec<Plugin>,
     dispatched_actions: u64,
@@ -169,6 +170,7 @@ impl<F: Frontend> Model<F> {
                     "failed to run command `{cmd} {args}`",
                     args = args.join(" ")
                 )) {
+                    error!("Error running command: {e:#}");
                     self.fe.display_error("Error running command", e);
                 }
             }
@@ -176,6 +178,7 @@ impl<F: Frontend> Model<F> {
                 if let Err(e) = spawn::free_null("sh", ["-c", &str])
                     .context(format!("failed to run command `{str}`"))
                 {
+                    error!("Error running command: {e:#}");
                     self.fe.display_error("Error running command", e);
                 }
             }

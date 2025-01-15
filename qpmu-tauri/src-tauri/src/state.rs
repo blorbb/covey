@@ -27,9 +27,14 @@ impl AppState {
     }
 
     pub fn init(&self, model: qpmu::lock::SharedMutex<Model>) {
-        self.inner
-            .set(model)
-            .unwrap_or_else(|_| tracing::warn!("already set up"));
+        if let Some(existing) = self.inner.get() {
+            // this should never run in the real application, but it does
+            // in hot module reload.
+            tracing::warn!("setting model again");
+            *existing.lock() = model.lock().clone();
+        } else {
+            self.inner.set(model).unwrap_or_else(|_| tracing::warn!("already set up"));
+        }
     }
 
     /// # Panics

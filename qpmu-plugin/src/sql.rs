@@ -10,11 +10,10 @@ static POOL: OnceLock<SqlitePool> = OnceLock::new();
 /// This must be called before [`self::pool`] is run, or else it will panic.
 pub(crate) async fn init(url: &str) -> Result<()> {
     if Sqlite::database_exists(url).await.unwrap_or(false) {
-        eprintln!("creating database {url}");
         Sqlite::create_database(url).await?;
     }
 
-    let init_pool = dbg!(SqlitePool::connect(dbg!(url)).await)?;
+    let init_pool = SqlitePool::connect(url).await?;
     POOL.get_or_init(|| init_pool);
 
     sqlx::query(

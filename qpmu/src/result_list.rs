@@ -6,54 +6,17 @@ use crate::{
 /// A list of results to show.
 #[derive(Debug, Default)]
 pub struct ResultList {
-    items: Vec<ListItem>,
-    selection: BoundedUsize,
-    style: Option<ListStyle>,
+    pub items: Vec<ListItem>,
+    pub style: Option<ListStyle>,
 }
 
 impl ResultList {
-    pub fn items(&self) -> &[ListItem] {
-        &self.items
-    }
-
     pub fn len(&self) -> usize {
         self.items.len()
     }
 
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
-    }
-
-    pub fn selection(&self) -> usize {
-        self.selection.value()
-    }
-
-    pub fn set_selection(&mut self, value: usize) {
-        self.selection.saturating_set(value);
-    }
-
-    pub fn move_selection_signed(&mut self, delta: isize) {
-        // varying behaviour depending on the position of the selection
-        // if the selection is at the start or end of the list, wrap
-        // otherwise, saturate.
-        // this is so that large deltas (e.g. when pressing PgUp/PgDown)
-        // will jump to the top/bottom first before wrapping around.
-        if self.selection.is_at_bounds() {
-            self.selection.wrapping_add_signed(delta);
-        } else {
-            self.selection.saturating_add_signed(delta);
-        }
-    }
-
-    /// Gets the current selection.
-    ///
-    /// Returns [`None`] if the list is empty.
-    pub fn selected_item(&self) -> Option<&ListItem> {
-        self.items.get(self.selection())
-    }
-
-    pub fn style(&self) -> Option<ListStyle> {
-        self.style
     }
 
     pub(crate) fn from_proto(plugin: &Plugin, proto: proto::QueryResponse) -> Self {
@@ -65,7 +28,6 @@ impl ResultList {
             .collect();
         Self {
             style,
-            selection: BoundedUsize::new_with_bound(list.len().saturating_sub(1)),
             items: list,
         }
     }

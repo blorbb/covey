@@ -216,7 +216,7 @@ impl Component for Launcher {
     ) {
         debug!("updating ui");
         match message {
-            LauncherMsg::SetInput(input) => self.model.lock().set_input(input),
+            LauncherMsg::SetInput(input) => self.model.lock().query(input),
             LauncherMsg::Select(index) => self.model.lock().set_list_selection(index),
             LauncherMsg::SelectDelta(delta) => self.model.lock().move_list_selection(delta),
             LauncherMsg::Activate => self.model.lock().activate(),

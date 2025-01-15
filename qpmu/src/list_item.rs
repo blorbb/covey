@@ -37,22 +37,21 @@ impl ListItem {
         self.item.icon.clone().map(Icon::from_proto)
     }
 
-    pub async fn activate(self) -> Result<Vec<Action>> {
-        self.plugin.clone().activate(self.item.id).await
+    pub(crate) async fn activate(self) -> Result<Vec<Action>> {
+        self.plugin.activate(self.item.id).await
     }
 
-    pub async fn alt_activate(self) -> Result<Vec<Action>> {
-        self.plugin.clone().alt_activate(self.item.id).await
+    pub(crate) async fn alt_activate(self) -> Result<Vec<Action>> {
+        self.plugin.alt_activate(self.item.id).await
     }
 
-    pub async fn hotkey_activate(self, hotkey: Hotkey) -> Result<Vec<Action>> {
+    pub(crate) async fn hotkey_activate(self, hotkey: Hotkey) -> Result<Vec<Action>> {
         self.plugin
-            .clone()
             .hotkey_activate(self.item.id, proto::Hotkey::from(hotkey))
             .await
     }
 
-    pub async fn complete(self) -> Result<Option<Input>> {
+    pub(crate) async fn complete(self) -> Result<Option<Input>> {
         self.plugin.clone().complete(self.item.id).await
     }
 }

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import * as commands from "../commands";
+  import { Menu } from "../setup.svelte";
 
   const observer = new ResizeObserver(() => {
     const width = document.documentElement.clientWidth;
@@ -12,35 +14,44 @@
   });
   observer.observe(document.documentElement);
 
-  let rows = $state<string[]>([]);
+  let menu = new Menu();
+
+  $effect(() => {
+    void commands.query(menu.inputText);
+  });
+
+  let mainInput = $state<HTMLInputElement>();
+  $effect(() => {
+    mainInput?.setSelectionRange(menu.textSelection[0], menu.textSelection[1]);
+  });
 </script>
 
-<main class="container">
+<main>
   <div class="input">
-    <button
-      onclick={() => {
-        rows.push("new row!");
-      }}
-    >
-      Add
-    </button>
-    <button
-      onclick={() => {
-        rows.pop();
-      }}
-    >
-      Remove
-    </button>
+    <input type="text" bind:value={menu.inputText} bind:this={mainInput} />
   </div>
 
-  <ul>
-    {#each rows as row}
-      <li>{row}</li>
+  <div class="scroller">
+    {#each menu.items as { id, description, title }, i (id)}
+      <label>
+        <input
+          type="radio"
+          name="result-list"
+          value={i}
+          bind:group={menu.selection}
+        />
+        <p><strong>{title}</strong></p>
+        <p><span>{description}</span> ({id})</p>
+      </label>
     {/each}
-  </ul>
+  </div>
 </main>
 
 <style>
+  .scroller {
+    max-height: 600px;
+  }
+
   :global(body) {
     padding: 0;
     margin: 0;
@@ -74,54 +85,10 @@
     margin: 0;
   }
 
-  .container {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    text-align: center;
-  }
-
-  button {
-    border-radius: 8px;
-    border: 1px solid transparent;
-    padding: 0.6em 1.2em;
-    font-size: 1em;
-    font-weight: 500;
-    font-family: inherit;
-    color: #0f0f0f;
-    background-color: #ffffff;
-    transition: border-color 0.25s;
-    box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-  }
-
-  button {
-    cursor: pointer;
-  }
-
-  button:hover {
-    border-color: #396cd8;
-  }
-  button:active {
-    border-color: #396cd8;
-    background-color: #e8e8e8;
-  }
-
-  button {
-    outline: none;
-  }
-
   @media (prefers-color-scheme: dark) {
     :root {
       color: #f6f6f6;
       background-color: #2f2f2f;
-    }
-
-    button {
-      color: #ffffff;
-      background-color: #0f0f0f98;
-    }
-    button:active {
-      background-color: #0f0f0f69;
     }
   }
 </style>

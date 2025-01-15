@@ -1,52 +1,19 @@
+mod ipc;
+mod state;
+
+use state::AppState;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
     Emitter, Manager,
 };
 
-/// Event emitted when the window becomes focused.
-const FOCUS_WINDOW_EVENT: &str = "focus-window";
-
-// use AppHandle instead of Window so that these commands only affect
-// the main window (don't want these to affect the settings)
-#[tauri::command]
-fn set_window_size(app: tauri::AppHandle, width: f64, height: f64) {
-    eprintln!("setting window size to {width}x{height}");
-    if let Some(window) = app.get_webview_window("main") {
-        window
-            .set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }))
-            .unwrap();
-    } else {
-        eprintln!("WARN: main window was not found");
-    }
-}
-
-#[tauri::command]
-fn hide_window(app: tauri::AppHandle) {
-    eprintln!("hiding window");
-    if let Some(window) = app.get_webview_window("main") {
-        window.hide().unwrap();
-    } else {
-        eprintln!("WARN: main window was not found");
-    }
-}
-
-#[tauri::command]
-fn show_window(app: tauri::AppHandle) {
-    eprintln!("hiding window");
-    if let Some(window) = app.get_webview_window("main") {
-        window.show().unwrap();
-        window.set_focus().unwrap();
-        app.emit(FOCUS_WINDOW_EVENT, ()).unwrap();
-    } else {
-        eprintln!("WARN: main window was not found");
-    }
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
+            app.manage(AppState::new());
+
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&Menu::with_items(
@@ -55,7 +22,7 @@ pub fn run() {
                 )?)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => {
-                        show_window(app.clone());
+                        ipc::window::show_window(app.clone());
                     }
                     other => panic!("unknown tray menu event {other}"),
                 })
@@ -74,7 +41,9 @@ pub fn run() {
                     }
                     tauri::WindowEvent::Focused(focused) => {
                         if *focused {
-                            main_window.emit(FOCUS_WINDOW_EVENT, ()).unwrap();
+                            main_window
+                                .emit(ipc::window::FOCUS_WINDOW_EVENT, ())
+                                .unwrap();
                         } else {
                             main_window.hide().unwrap();
                         }
@@ -86,10 +55,17 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
-            set_window_size,
-            hide_window,
-            show_window
+            ipc::window::set_window_size,
+            ipc::window::hide_window,
+            ipc::window::show_window,
+            ipc::model::setup,
+            ipc::model::query,
+            ipc::model::activate,
+            ipc::model::alt_activate,
+            ipc::model::complete,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -27,25 +27,30 @@ export class Menu {
   // with the actual selection when changed by UI
   public textSelection = $state<[number, number]>([0, 0]);
 
-  constructor() {
-    console.log("!!");
+  private constructor() {}
+
+  public static async new(): Promise<Menu> {
+    const self = new Menu();
+
     const events = new Channel<Event>();
     events.onmessage = (msg) => {
       switch (msg.kind) {
         case "setInput":
-          this.inputText = msg.contents;
-          this.textSelection = msg.selection;
+          self.inputText = msg.contents;
+          self.textSelection = msg.selection;
           break;
         case "setList":
-          this.items = msg.items;
-          this.style = msg.style;
-          this.selection = 0;
+          self.items = msg.items;
+          self.style = msg.style;
+          self.selection = 0;
           break;
         default:
           unreachable(msg);
       }
     };
-    void invoke("setup", { events });
+
+    await invoke("setup", { events });
+    return self;
   }
 
   public activate() {

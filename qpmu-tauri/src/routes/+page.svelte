@@ -1,11 +1,12 @@
 <script lang="ts">
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import * as commands from "../commands";
-  import { Menu } from "../setup.svelte";
   import { onDestroy } from "svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
+  import type { PageData } from "./$types";
 
-  let menu = new Menu();
+  const { data }: { data: PageData } = $props();
+  const menu = data.menu;
 
   // global keyboard events
   window.addEventListener("keydown", (ev) => {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-  import * as commands from "../commands";
+  import * as commands from "$lib/commands";
   import { onDestroy } from "svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import type { PageData } from "./$types";

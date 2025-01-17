@@ -54,15 +54,15 @@ export class Menu {
   }
 
   public activate() {
-    commands.activate(this.items[this.selection].id);
+    void commands.activate(this.items[this.selection].id);
   }
 
   public altActivate() {
-    commands.altActivate(this.items[this.selection].id);
+    void commands.altActivate(this.items[this.selection].id);
   }
 
   public complete() {
-    commands.complete(this.items[this.selection].id);
+    void commands.complete(this.items[this.selection].id);
   }
 }
 

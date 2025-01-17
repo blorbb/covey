@@ -3,9 +3,11 @@
   import * as commands from "../commands";
   import { Menu } from "../setup.svelte";
   import { onDestroy } from "svelte";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
 
   let menu = new Menu();
 
+  // global keyboard events
   window.addEventListener("keydown", (ev) => {
     switch (ev.key) {
       case "ArrowDown":
@@ -37,10 +39,12 @@
     }
   };
 
+  // query on input change
   $effect(() => {
     void commands.query(menu.inputText);
   });
 
+  // retain focus on the input element
   let mainInput = $state<HTMLInputElement>();
   $effect(() => {
     mainInput?.focus();
@@ -61,18 +65,28 @@
   }).then((f) => (unlisten = f));
 
   onDestroy(() => unlisten?.());
-</script>
 
-<div
-  class="positioner"
-  onpointerdown={(ev) => {
+  // hide window when clicking outside the menu
+  let menuWrapper = $state<HTMLElement>();
+  const onPositionerPointerDown = (ev: PointerEvent) => {
+    if (!(ev.target instanceof Node)) {
+      return;
+    }
+
     // allow clicks inside the input to work
-    if (ev.target !== mainInput) {
+    if (!mainInput?.contains(ev.target)) {
       refocusInput(ev);
     }
-  }}
->
-  <div class="menu-wrapper">
+
+    // hide window if clicked outside menu wrapper
+    if (!menuWrapper?.contains(ev.target)) {
+      getCurrentWindow().hide();
+    }
+  };
+</script>
+
+<div class="positioner" onpointerdown={onPositionerPointerDown}>
+  <div class="menu-wrapper" bind:this={menuWrapper}>
     <main class="menu">
       <div class="search-bar">
         <input
@@ -113,6 +127,7 @@
     overflow: hidden;
     position: relative;
     color: var(--color-on-surface);
+    width: 800px;
 
     // blurred background image
     // window that blurs against the desktop background isn't
@@ -195,7 +210,7 @@
 
   .positioner {
     display: grid;
-    align-items: center;
+    place-items: center;
     width: 100vw;
     height: 100vh;
   }

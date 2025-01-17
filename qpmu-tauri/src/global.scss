@@ -8,10 +8,7 @@
   --ff-mono: ui-monospace, "Source Code Pro", Menlo, Consolas,
     "DejaVu Sans Mono", monospace;
   font-family: var(--ff-body);
-  // from https://utopia.fyi/type/calculator/?c=320,12,1.2,1080,20,1.333,5,2,&s=0.75|0.5|0.25,1.5|2|3|4|6,s-l&g=s,l,xl,12
-  // can set everything else based on rem/em, don't need the others.
-  // also like the relative scale better with rem/ems instead of the given scales.
-  font-size: clamp(1rem, 14.608px + 0.4348vw, 1.25rem);
+  font-size: 1rem;
   line-height: 1.25;
 
   font-synthesis: none;

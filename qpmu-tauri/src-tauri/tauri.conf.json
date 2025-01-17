@@ -15,6 +15,7 @@
         "title": "qpmu",
         "width": 800,
         "height": 1000,
+        "maximized": true,
         "transparent": true,
         "decorations": false,
         "center": true

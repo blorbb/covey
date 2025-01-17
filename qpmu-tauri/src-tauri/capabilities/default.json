@@ -9,6 +9,7 @@
     "core:default",
     "opener:default",
     "clipboard-manager:allow-write-text",
-    "notification:default"
+    "notification:default",
+    "core:window:allow-hide"
   ]
 }

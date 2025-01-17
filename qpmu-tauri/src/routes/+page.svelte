@@ -43,8 +43,15 @@
     mainInput?.setSelectionRange(menu.textSelection[0], menu.textSelection[1]);
   });
 
+  // needs to be put on the onpointerdown event
+  // just being on the onblur doesn't work for some reason
+  const refocusInput = (ev: Event) => {
+    ev.preventDefault();
+    mainInput?.focus();
+  };
+
   let unlisten: UnlistenFn | undefined;
-  listen("tauri://focus", (e) => {
+  listen("tauri://focus", () => {
     mainInput?.focus();
     mainInput?.setSelectionRange(0, mainInput.value.length);
   }).then((f) => (unlisten = f));
@@ -52,7 +59,7 @@
   onDestroy(() => unlisten?.());
 </script>
 
-<div class="positioner">
+<div class="positioner" onpointerdown={refocusInput}>
   <div class="menu-wrapper">
     <main class="menu">
       <div class="search-bar">
@@ -62,6 +69,7 @@
           bind:value={menu.inputText}
           bind:this={mainInput}
           placeholder="Search..."
+          onblur={refocusInput}
         />
       </div>
       <div class="list-scroller">

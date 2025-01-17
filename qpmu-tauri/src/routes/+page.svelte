@@ -63,7 +63,15 @@
   onDestroy(() => unlisten?.());
 </script>
 
-<div class="positioner" onpointerdown={refocusInput}>
+<div
+  class="positioner"
+  onpointerdown={(ev) => {
+    // allow clicks inside the input to work
+    if (ev.target !== mainInput) {
+      refocusInput(ev);
+    }
+  }}
+>
   <div class="menu-wrapper">
     <main class="menu">
       <div class="search-bar">

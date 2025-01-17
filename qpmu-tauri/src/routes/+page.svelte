@@ -31,7 +31,18 @@
     ev.preventDefault();
   });
 
-  const activateListItem = (altKey: boolean) => {
+  /**
+   * Activates the currently selected list item.
+   * @param altKey Whether alt is pressed.
+   * @param selection An index that was selected, to override the current selection.
+   *                  Activates the current selection if this is not defined.
+   */
+  const activateListItem = (altKey: boolean, selection?: number) => {
+    // in bind:group={menu.selection}, the selection is not set soon enough
+    // for this to be updated correctly.
+    if (selection !== undefined) {
+      menu.selection = selection;
+    }
     if (altKey) {
       menu.altActivate();
     } else {
@@ -108,7 +119,7 @@
                 name="result-list"
                 value={i}
                 bind:group={menu.selection}
-                onclick={(e) => activateListItem(e.altKey)}
+                onclick={(e) => activateListItem(e.altKey, i)}
               />
               <p class="title"><strong>{title}</strong></p>
               <p class="description"><span>{description}</span> ({id})</p>

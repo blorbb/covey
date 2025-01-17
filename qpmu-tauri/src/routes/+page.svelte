@@ -16,11 +16,7 @@
         break;
       case "Enter":
       case "Return":
-        if (ev.altKey) {
-          menu.altActivate();
-        } else {
-          menu.activate();
-        }
+        activateListItem(ev.altKey);
         break;
       case "Tab":
         menu.complete();
@@ -32,6 +28,14 @@
     // break instead of return, captured something
     ev.preventDefault();
   });
+
+  const activateListItem = (altKey: boolean) => {
+    if (altKey) {
+      menu.altActivate();
+    } else {
+      menu.activate();
+    }
+  };
 
   $effect(() => {
     void commands.query(menu.inputText);
@@ -82,6 +86,7 @@
                 name="result-list"
                 value={i}
                 bind:group={menu.selection}
+                onclick={(e) => activateListItem(e.altKey)}
               />
               <p class="title"><strong>{title}</strong></p>
               <p class="description"><span>{description}</span> ({id})</p>

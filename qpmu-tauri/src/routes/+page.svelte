@@ -52,21 +52,20 @@
   onDestroy(() => unlisten?.());
 </script>
 
-<div class="center">
-  <main>
-    <div class="input-wrapper">
-      <input
-        class="input"
-        type="text"
-        bind:value={menu.inputText}
-        bind:this={mainInput}
-        placeholder="Search..."
-      />
-    </div>
-
-    {#if menu.items.length > 0}
-      <div class="scroller">
-        <div class="main-list">
+<div class="positioner">
+  <div class="menu-wrapper">
+    <main class="menu">
+      <div class="search-bar">
+        <input
+          class="search-input"
+          type="text"
+          bind:value={menu.inputText}
+          bind:this={mainInput}
+          placeholder="Search..."
+        />
+      </div>
+      <div class="list-scroller">
+        <div class="list">
           {#each menu.items as { id, description, title }, i (id)}
             <label class="list-item">
               <input
@@ -82,167 +81,106 @@
           {/each}
         </div>
       </div>
-    {/if}
-  </main>
+    </main>
+  </div>
 </div>
 
-<style>
-  :root {
-    --window-background: rgb(0 0 0);
-
-    /* based on the rosepine theme */
-    --primary-background: #191724;
-    --primary: #c4a7e7;
-    --text-selection: rgba(255 255 255 / 0.2);
-
-    --pane-background: var(--primary-background);
-    --pane-background: radial-gradient(
-      circle 500px at var(--entry-icon-center) var(--entry-icon-center),
-      color-mix(in oklab, var(--primary) 10%, var(--primary-background)) 0%,
-      var(--primary-background) 100%
-    );
-
-    --hover: rgba(255 255 255 / 0.05);
-    --selected: var(--primary);
-    --selected-text-color: var(--primary-background);
-    --selected-faded-text-color: rgba(
-      from var(--selected-text-color) r g b calc(alpha * 0.8)
-    );
-
-    --text-color: rgba(255 255 255 / 0.9);
-    --faded-text-color: rgb(from var(--text-color) r g b / calc(alpha * 0.8));
-
-    --text-size: 24px;
-    --entry-text-size: calc(var(--text-size) * 1.3);
-    --description-text-size: calc(var(--text-size) / 1.3);
-
-    --padding: 12px;
-    --window-padding: 0px;
-    --entry-padding: calc(2 * var(--padding));
-
-    --main-brad: 24px;
-    --list-item-brad: calc(var(--main-brad) - var(--padding));
-    --window-brad: calc(var(--main-brad) + var(--window-padding));
-
-    --icon-size: 48px;
-    --entry-icon-size: 48px;
-
-    --border-color: #26233a;
-    --window-border: 4px;
-
-    /* distance to center of the entry icon, relative to the main box top left */
-    --entry-icon-center: calc(
-      var(--entry-padding) + var(--entry-icon-size) / 2
-    );
-
-    font-size: var(--text-size);
-    color: var(--text-color);
-  }
-
-  main {
-    background: var(--pane-background);
-    border-radius: var(--main-brad);
-    border: var(--window-border) solid var(--border-color);
+<style lang="scss">
+  .menu-wrapper {
+    border-radius: var(--brad-standard);
+    border: 0.25rem solid var(--color-outline);
     overflow: hidden;
+    position: relative;
+    color: var(--color-on-surface);
+
+    // blurred background image
+    // window that blurs against the desktop background isn't
+    // well supported, so background image looks nicer.
+    &::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+
+      // credit: https://unsplash.com/photos/worms-eye-view-of-mountain-during-daytime-ii5JY_46xH0
+      background-image: url("background.jpg");
+      background-size: cover;
+      filter: blur(2vw);
+    }
   }
 
-  .input-wrapper {
-    font-size: var(--entry-text-size);
-    padding: var(--entry-padding);
+  .menu {
+    background: var(--color-surface);
+    opacity: 0.93;
   }
 
-  .input {
+  .search-bar {
+    font-size: var(--fs-large);
+    padding: 2rem;
+  }
+
+  .search-input {
     width: 100%;
-    font: inherit;
-    color: inherit;
-    background: transparent;
-    border: none;
-    outline: none;
+    color: var(--color-on-surface);
 
     &::placeholder {
-      color: var(--faded-text-color);
-    }
-
-    &::selection {
-      background: var(--text-selection);
+      color: var(--color-on-surface-variant);
     }
   }
 
-  .scroller {
+  .list-scroller {
     max-height: 500px;
     overflow: auto;
   }
 
-  .main-list {
+  .list {
     display: grid;
-    gap: calc(var(--padding) / 2);
-    padding: calc(var(--padding));
+    gap: 1rem;
+    padding: 1rem;
+
+    &:empty {
+      display: none;
+    }
   }
 
   .list-item {
-    padding: var(--padding);
-    border-radius: var(--list-item-brad);
+    padding: 1rem;
+    border-radius: var(--brad-standard);
 
     display: grid;
     gap: 4px;
 
     .description {
-      font-size: var(--description-text-size);
-      color: var(--faded-text-color);
+      font-size: var(--fs-small);
+      color: var(--color-on-surface-variant);
     }
 
     &:hover {
-      background: var(--hover);
-    }
-
-    .list-item-radio {
-      display: none;
+      background: var(--color-surface-bright);
     }
 
     &:has(.list-item-radio:checked) {
-      background: var(--selected);
-      color: var(--selected-text-color);
-
-      /* force this color */
+      background: var(--color-primary-container);
+      // description should have this colour too
       * {
-        color: var(--selected-text-color);
+        color: var(--color-on-primary-container);
       }
     }
   }
 
-  :global(body) {
-    padding: 0;
-    margin: 0;
+  .list-item-radio {
+    display: none;
   }
 
-  :root {
-    box-sizing: border-box;
-
-    font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-    font-weight: 400;
-
-    font-synthesis: none;
-    text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    -webkit-text-size-adjust: 100%;
-
-    overflow: hidden;
-  }
-
-  .center {
+  .positioner {
     display: grid;
     align-items: center;
+    width: 100vw;
     height: 100vh;
   }
 
-  *,
-  *::before,
-  *::after {
-    box-sizing: inherit;
-    padding: 0;
-    margin: 0;
+  // text in the menu should not be selectable
+  .menu-wrapper * {
     user-select: none;
-    -webkit-user-select: none;
   }
 </style>

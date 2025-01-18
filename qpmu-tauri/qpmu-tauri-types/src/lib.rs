@@ -6,10 +6,10 @@
 
 use std::path::PathBuf;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// This must have an equivalent type on the frontend
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "build", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", tag = "kind")]
 pub enum Event {
@@ -23,17 +23,25 @@ pub enum Event {
     },
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "build", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ListItem {
     pub title: String,
     pub description: String,
     pub icon: Option<Icon>,
-    pub id: u64,
+    pub id: ListItemId,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "build", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct ListItemId {
+    pub local_id: u64,
+    pub plugin_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "build", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", tag = "kind")]
 pub enum Icon {
@@ -41,7 +49,7 @@ pub enum Icon {
     Text { text: String },
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "build", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", tag = "kind")]
 pub enum ListStyle {

@@ -14,9 +14,9 @@ use color_eyre::eyre::{bail, Context, Result};
 use config::Config;
 use hotkey::Hotkey;
 pub use input::Input;
-pub use list_item::{Icon, ListItem};
+pub use list_item::{Icon, ListItem, ListItemId};
 use lock::SharedMutex;
-use plugin::{Action, Plugin, PluginEvent};
+use plugin::{proto, Action, Plugin, PluginEvent};
 pub use result_list::{BoundedUsize, ListStyle, ResultList};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error, info};
@@ -73,32 +73,42 @@ impl<F: Frontend> Model<F> {
     }
 
     #[tracing::instrument(skip_all)]
-    pub fn activate(&mut self, item: ListItem) {
+    pub fn activate(&mut self, item: ListItemId) {
         debug!("activating {item:?}");
 
-        self.send_event(async move { item.activate().await.map(PluginEvent::Run) });
+        self.send_event(async move { item.plugin.activate(item.local_id).await.map(PluginEvent::Run) });
     }
 
     #[tracing::instrument(skip_all)]
-    pub fn alt_activate(&mut self, item: ListItem) {
+    pub fn alt_activate(&mut self, item: ListItemId) {
         debug!("alt-activating {item:?}");
 
-        self.send_event(async move { item.alt_activate().await.map(PluginEvent::Run) });
+        self.send_event(async move {
+            item.plugin
+                .alt_activate(item.local_id)
+                .await
+                .map(PluginEvent::Run)
+        });
     }
 
     #[tracing::instrument(skip_all)]
-    pub fn hotkey_activate(&mut self, item: ListItem, hotkey: Hotkey) {
+    pub fn hotkey_activate(&mut self, item: ListItemId, hotkey: Hotkey) {
         debug!("hotkey-activating {item:?}");
 
-        self.send_event(async move { item.hotkey_activate(hotkey).await.map(PluginEvent::Run) });
+        self.send_event(async move {
+            item.plugin
+                .hotkey_activate(item.local_id, proto::Hotkey::from(hotkey))
+                .await
+                .map(PluginEvent::Run)
+        });
     }
 
     #[tracing::instrument(skip_all)]
-    pub fn complete(&mut self, item: ListItem) {
+    pub fn complete(&mut self, item: ListItemId) {
         debug!("completing {item:?}");
 
         self.send_event(async move {
-            if let Some(new) = item.complete().await? {
+            if let Some(new) = item.plugin.complete(item.local_id).await? {
                 Ok(PluginEvent::Run(vec![Action::SetInput(new)]))
             } else {
                 // do nothing
@@ -198,6 +208,11 @@ impl<F: Frontend> Model<F> {
         debug!("reloading");
         self.plugins = config.load();
         Ok(())
+    }
+
+    /// List of all plugins.
+    pub fn plugins(&self) -> &[Plugin] {
+        &self.plugins
     }
 }
 

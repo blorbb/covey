@@ -1,4 +1,5 @@
 use color_eyre::eyre::Result;
+use qpmu_tauri_types::ListItemId;
 use tauri::{ipc::Channel, State};
 
 use super::frontend::{Event, EventChannel};
@@ -31,30 +32,30 @@ pub fn query(state: State<'_, AppState>, text: String) {
 }
 
 #[tauri::command]
-pub fn activate(state: State<'_, AppState>, list_item_id: u64) {
-    find_or_warn(state.clone(), list_item_id).map(|item| state.lock().activate(item));
+pub fn activate(state: State<'_, AppState>, list_item_id: ListItemId) {
+    find_or_warn(&state, list_item_id).map(|item| state.lock().activate(item));
 }
 
 #[tauri::command]
-pub fn alt_activate(state: State<'_, AppState>, list_item_id: u64) {
-    find_or_warn(state.clone(), list_item_id).map(|item| state.lock().alt_activate(item));
+pub fn alt_activate(state: State<'_, AppState>, list_item_id: ListItemId) {
+    find_or_warn(&state, list_item_id).map(|item| state.lock().alt_activate(item));
 }
 
 // TODO: how to pass this in
 // #[tauri::command]
-// pub fn hotkey_activate(state: State<'_, AppState>, list_item_id: u64) {
-//     find_or_warn(state.clone(), list_item_id).map(|item| state.lock().hotkey_activate(item, Hotkey {}));
+// pub fn hotkey_activate(state: State<'_, AppState>, list_item_id: ListItemId) {
+//     find_or_warn(&state, list_item_id).map(|item| state.lock().hotkey_activate(item, Hotkey {}));
 // }
 
 #[tauri::command]
-pub fn complete(state: State<'_, AppState>, list_item_id: u64) {
-    find_or_warn(state.clone(), list_item_id).map(|item| state.lock().complete(item));
+pub fn complete(state: State<'_, AppState>, list_item_id: ListItemId) {
+    find_or_warn(&state, list_item_id).map(|item| state.lock().complete(item));
 }
 
-fn find_or_warn(state: State<'_, AppState>, id: u64) -> Option<qpmu::ListItem> {
-    let item = state.find_list_item(id);
+fn find_or_warn(state: &AppState, id: ListItemId) -> Option<qpmu::ListItemId> {
+    let item = state.find_list_item(&id);
     if item.is_none() {
-        tracing::warn!("list item with id {id} not found")
+        tracing::warn!("list item with id {id:?} not found")
     }
     item
 }

@@ -1,13 +1,7 @@
 use core::fmt;
 
-use color_eyre::eyre::Result;
-
 use super::Plugin;
-use crate::{
-    hotkey::Hotkey,
-    plugin::{proto, Action},
-    Input,
-};
+use crate::plugin::proto;
 
 /// A row in the results list.
 #[derive(Clone)]
@@ -37,22 +31,11 @@ impl ListItem {
         self.item.icon.clone().map(Icon::from_proto)
     }
 
-    pub(crate) async fn activate(self) -> Result<Vec<Action>> {
-        self.plugin.activate(self.item.id).await
-    }
-
-    pub(crate) async fn alt_activate(self) -> Result<Vec<Action>> {
-        self.plugin.alt_activate(self.item.id).await
-    }
-
-    pub(crate) async fn hotkey_activate(self, hotkey: Hotkey) -> Result<Vec<Action>> {
-        self.plugin
-            .hotkey_activate(self.item.id, proto::Hotkey::from(hotkey))
-            .await
-    }
-
-    pub(crate) async fn complete(self) -> Result<Option<Input>> {
-        self.plugin.clone().complete(self.item.id).await
+    pub fn id(&self) -> ListItemId {
+        ListItemId {
+            plugin: Plugin::clone(&self.plugin),
+            local_id: self.item.id,
+        }
     }
 }
 
@@ -65,6 +48,20 @@ impl fmt::Debug for ListItem {
             .field("icon", &self.item.icon)
             .finish()
     }
+}
+
+/// A list item without rendering details (description, etc).
+///
+/// Used by the model to call functions on this list item.
+///
+/// This should usually be constructed by [`ListItem::id`]. However,
+/// all fields are public, so it can be constructed elsewhere. This
+/// struct does not guarantee that the local ID is known to the plugin.
+#[derive(Debug, Clone)]
+pub struct ListItemId {
+    pub plugin: Plugin,
+    /// ID unique within the plugin.
+    pub local_id: u64,
 }
 
 #[derive(Debug, Clone)]

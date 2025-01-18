@@ -1,10 +1,6 @@
-use std::{
-    collections::HashMap,
-    sync::{atomic::AtomicU64, OnceLock},
-};
+use std::sync::OnceLock;
 
-use parking_lot::Mutex;
-use qpmu_tauri_types::Icon;
+use qpmu_tauri_types::{Icon, ListItemId};
 
 use crate::ipc::frontend::{EventChannel, ListItem};
 
@@ -13,17 +9,12 @@ type Model = qpmu::Model<EventChannel>;
 /// Must be initialised exactly once with [`AppState::init`].
 pub struct AppState {
     inner: OnceLock<qpmu::lock::SharedMutex<Model>>,
-    id_counter: AtomicU64,
-    // TODO: make this actually efficient
-    list_items: Mutex<HashMap<u64, qpmu::ListItem>>,
 }
 
 impl AppState {
     pub fn new() -> Self {
         Self {
             inner: OnceLock::new(),
-            id_counter: AtomicU64::new(0),
-            list_items: Mutex::new(HashMap::new()),
         }
     }
 
@@ -53,13 +44,9 @@ impl AppState {
         &self,
         lis: impl ExactSizeIterator<Item = qpmu::ListItem>,
     ) -> Vec<ListItem> {
-        let mut list_items = self.list_items.lock();
-        list_items.clear();
         lis.map(|li| {
-            let id = self
-                .id_counter
-                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-
+            let title = li.title().to_owned();
+            let description = li.description().to_owned();
             let icon: Option<Icon> = match li.icon() {
                 Some(qpmu::Icon::Name(name)) => freedesktop_icons::lookup(&name)
                     .with_cache()
@@ -69,20 +56,30 @@ impl AppState {
                 Some(qpmu::Icon::Text(text)) => Some(Icon::Text { text }),
                 None => None,
             };
-
-            let new = ListItem {
-                title: li.title().to_owned(),
-                description: li.description().to_owned(),
-                icon,
-                id,
+            let id = ListItemId {
+                local_id: li.id().local_id,
+                plugin_name: li.id().plugin.name().to_owned(),
             };
-            list_items.insert(id, li);
-            new
+
+            ListItem {
+                title,
+                description,
+                icon,
+                id: id.clone(),
+            }
         })
         .collect()
     }
 
-    pub fn find_list_item(&self, id: u64) -> Option<qpmu::ListItem> {
-        self.list_items.lock().get(&id).cloned()
+    pub fn find_list_item(&self, id: &ListItemId) -> Option<qpmu::ListItemId> {
+        Some(qpmu::ListItemId {
+            plugin: self
+                .lock()
+                .plugins()
+                .iter()
+                .find(|plugin| plugin.name() == id.plugin_name)?
+                .clone(),
+            local_id: id.local_id,
+        })
     }
 }

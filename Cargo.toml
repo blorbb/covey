@@ -2,7 +2,6 @@
 members = [
     "qpmu-plugin",
     "qpmu",
-    "qpmu-gtk",
     "qpmu-manifest",
     "qpmu-manifest-macro",
     "qpmu-tauri/src-tauri",

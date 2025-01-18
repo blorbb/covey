@@ -24,11 +24,10 @@
   </div>
 </div>
 
-<style lang="scss" module>
+<style lang="scss">
   .scroll-wrapper {
     position: relative;
     display: grid;
-    min-height: 0;
   }
 
   .scroll-with-shadows {

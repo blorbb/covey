@@ -5,6 +5,8 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import type { PageData } from "./$types";
   import ScrollShadow from "$lib/components/scroll_shadow.svelte";
+  import { UnreachableError } from "$lib/utils";
+  import type { ListStyle } from "$lib/bindings/ListStyle";
 
   const { data }: { data: PageData } = $props();
   const menu = data.menu;
@@ -97,6 +99,33 @@
       getCurrentWindow().hide();
     }
   };
+
+  // menu.style with `undefined` configured to some default.
+  // TODO: take the default from some setting
+  let configuredListStyle: ListStyle = $derived(menu.style ?? { kind: "rows" });
+  let listKind: "rows" | "grid" = $derived.by(() => {
+    switch (configuredListStyle.kind) {
+      case "rows":
+      case "grid":
+        return configuredListStyle.kind;
+      case "gridWithColumns":
+        return "grid";
+      default:
+        throw new UnreachableError(configuredListStyle);
+    }
+  });
+  let listColumns = $derived.by(() => {
+    switch (configuredListStyle.kind) {
+      case "rows":
+        return 1;
+      case "grid":
+        return 4; // TODO: make this configurable
+      case "gridWithColumns":
+        return configuredListStyle.columns;
+      default:
+        throw new UnreachableError(configuredListStyle);
+    }
+  });
 </script>
 
 <svelte:document bind:activeElement />
@@ -115,7 +144,11 @@
         />
       </div>
       <ScrollShadow>
-        <div class="list">
+        <div
+          class="list"
+          style:--list-columns={listColumns}
+          data-list-style={listKind}
+        >
           {#each menu.items as { id, description, title, icon }, i (id)}
             <label class="list-item">
               <input
@@ -150,6 +183,19 @@
 </div>
 
 <style lang="scss">
+  /// Grid with direct children that adapt to the size
+  /// of this element instead of overflowing.
+  @mixin grid-container {
+    display: grid;
+
+    > :global(*) {
+      min-width: 0;
+      min-height: 0;
+      max-width: 100%;
+      max-height: 100%;
+    }
+  }
+
   .menu-wrapper {
     border-radius: var(--brad-standard);
     border: 0.25rem solid var(--color-outline);
@@ -179,7 +225,7 @@
 
     width: 800px;
     max-height: 600px;
-    display: grid;
+    @include grid-container();
     grid-template-rows: auto 1fr;
   }
 
@@ -198,9 +244,10 @@
   }
 
   .list {
-    display: grid;
+    @include grid-container();
     gap: 1rem;
     padding: 1rem;
+    grid-template-columns: repeat(var(--list-columns, 1), 1fr);
 
     &:empty {
       display: none;
@@ -208,15 +255,38 @@
   }
 
   .list-item {
+    // don't make these actual gap properties as each
+    // area may not be defined. use margins instead.
     --_row-gap: 0.5rem;
+    --_icon-gap: 1rem;
 
     padding: 1rem;
     border-radius: var(--brad-standard);
 
-    display: grid;
+    @include grid-container();
     grid-template-areas: "icon title" "icon description";
     grid-template-columns: auto 1fr;
-    row-gap: var(--_row-gap);
+
+    // grid style
+    .list[data-list-style="grid"] & {
+      grid-template-areas: "icon" "title" "description";
+      grid-template-columns: unset;
+      justify-items: center;
+      // align to top so that if some items in a row have
+      // titles/descriptions that wrap across multiple lines,
+      // shorter items generally align better vertically.
+      align-content: start;
+
+      .icon {
+        margin-right: 0;
+        margin-bottom: var(--_icon-gap);
+      }
+
+      // item with no icon looks better if centered
+      &:has(.icon:empty, .icon-text:empty) {
+        align-content: center;
+      }
+    }
 
     .icon {
       // make it take up the same size as a list item
@@ -228,11 +298,11 @@
 
       grid-area: icon;
       display: grid;
-      place-items: center;
+      place-content: center;
       width: var(--_icon-size);
       // needs to be a margin here instead of column-gap
       // so that no icon doesn't add a column
-      margin-right: 1rem;
+      margin-right: var(--_icon-gap);
 
       .icon-img {
         width: var(--_icon-size);
@@ -242,7 +312,8 @@
         font-size: calc(var(--_icon-size) / var(--line-height));
       }
 
-      &:empty {
+      &:empty,
+      &:has(.icon-text:empty) {
         display: none;
       }
     }
@@ -256,6 +327,11 @@
       grid-area: description;
       font-size: var(--fs-small);
       color: var(--color-on-surface-variant);
+      margin-top: var(--_row-gap);
+
+      &:empty {
+        display: none;
+      }
     }
 
     &:hover {
@@ -283,7 +359,7 @@
   }
 
   // text in the menu should not be selectable
-  .menu-wrapper * {
+  .menu-wrapper :global(*) {
     user-select: none;
   }
 </style>

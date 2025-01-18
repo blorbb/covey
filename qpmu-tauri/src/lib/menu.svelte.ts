@@ -7,6 +7,7 @@ import type { ListStyle } from "./bindings/ListStyle";
 import type { Event } from "./bindings/Event";
 import type { Hotkey } from "./bindings/Hotkey";
 import type { Key } from "./bindings/Key";
+import { UnreachableError } from "./utils";
 
 export class Menu {
   public items = $state<ListItem[]>([]);
@@ -35,7 +36,7 @@ export class Menu {
           self.selection = 0;
           break;
         default:
-          unreachable(msg);
+          throw new UnreachableError(msg);
       }
     };
 
@@ -72,8 +73,6 @@ export class Menu {
     void commands.hotkeyActivate(this.items[this.selection].id, hotkey);
   }
 }
-
-const unreachable = (x: never): never => x;
 
 const keyNameToKey = (keyCased: string): Key | undefined => {
   const key = keyCased.toLowerCase();

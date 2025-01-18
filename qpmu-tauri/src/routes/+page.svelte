@@ -137,8 +137,8 @@
                   {/await}
                 {/if}
               </div>
-              <p class="title"><strong>{title}</strong></p>
-              <p class="description"><span>{description}</span> ({id})</p>
+              <p class="title">{title}</p>
+              <p class="description">{description}</p>
             </label>
           {/each}
         </div>
@@ -247,6 +247,7 @@
 
     .title {
       grid-area: title;
+      font-weight: bold;
     }
 
     .description {

@@ -46,7 +46,6 @@ pub fn alt_activate(state: State<'_, AppState>, list_item_id: u64) {
 //     find_or_warn(state.clone(), list_item_id).map(|item| state.lock().hotkey_activate(item, Hotkey {}));
 // }
 
-
 #[tauri::command]
 pub fn complete(state: State<'_, AppState>, list_item_id: u64) {
     find_or_warn(state.clone(), list_item_id).map(|item| state.lock().complete(item));

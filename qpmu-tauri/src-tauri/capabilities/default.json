@@ -2,14 +2,43 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": [
-    "main"
-  ],
+  "windows": ["main"],
   "permissions": [
     "core:default",
     "opener:default",
     "clipboard-manager:allow-write-text",
     "notification:default",
-    "core:window:allow-hide"
+    "core:window:allow-hide",
+    "fs:default",
+    "fs:read-files",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "/**/*" },
+        { "path": "$APPCONFIG/**/*" },
+        { "path": "$APPDATA/**/*" },
+        { "path": "$APPLOCALDATA/**/*" },
+        { "path": "$APPCACHE/**/*" },
+        { "path": "$APPLOG/**/*" },
+        { "path": "$AUDIO/**/*" },
+        { "path": "$CACHE/**/*" },
+        { "path": "$CONFIG/**/*" },
+        { "path": "$DATA/**/*" },
+        { "path": "$LOCALDATA/**/*" },
+        { "path": "$DESKTOP/**/*" },
+        { "path": "$DOCUMENT/**/*" },
+        { "path": "$DOWNLOAD/**/*" },
+        { "path": "$EXE/**/*" },
+        { "path": "$FONT/**/*" },
+        { "path": "$HOME/**/*" },
+        { "path": "$PICTURE/**/*" },
+        { "path": "$PUBLIC/**/*" },
+        { "path": "$RUNTIME/**/*" },
+        { "path": "$TEMPLATE/**/*" },
+        { "path": "$VIDEO/**/*" },
+        { "path": "$RESOURCE/**/*" },
+        { "path": "$TEMP/**/*" }
+      ]
+    }
   ]
 }

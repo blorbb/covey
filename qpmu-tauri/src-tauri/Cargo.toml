@@ -27,6 +27,8 @@ tracing.workspace = true
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tokio.workspace = true
 qpmu-tauri-types = { path = "../qpmu-tauri-types" }
+freedesktop-icons = "0.2.6"
+tauri-plugin-fs = "2"
 
 [lints]
 workspace = true

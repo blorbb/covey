@@ -7,9 +7,31 @@
   // https://modernfontstacks.com/
   --ff-mono: ui-monospace, "Source Code Pro", Menlo, Consolas,
     "DejaVu Sans Mono", monospace;
+  --line-height: 1.25;
+
+  // https://tailwindcss.com/docs/box-shadow
+  --shadow-small: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-large: 0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+  --brad-large: 2rem;
+  --brad-standard: 1rem;
+  --brad-small: 0.5rem;
+
+  --fs-large: calc(4rem / 3);
+  --fs-standard: 1rem;
+  --fs-small: 0.75rem;
+
+  // other stuff //
+
+  --time-transition: 160ms;
+  --scrollbar-size: 0.5rem;
+
+  // global stuff //
+
   font-family: var(--ff-body);
-  font-size: 1rem;
-  line-height: 1.25;
+  font-size: var(--fs-standard);
+  line-height: var(--line-height);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -224,25 +246,4 @@ h3 {
   --color-surface-container: rgb(38 29 32);
   --color-surface-container-high: rgb(49 40 42);
   --color-surface-container-highest: rgb(60 50 53);
-}
-
-:root {
-  // https://tailwindcss.com/docs/box-shadow
-  --shadow-small: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-large: 0 10px 15px -3px rgb(0 0 0 / 0.1),
-    0 4px 6px -4px rgb(0 0 0 / 0.1);
-
-  --brad-large: 2rem;
-  --brad-standard: 1rem;
-  --brad-small: 0.5rem;
-
-  --fs-large: calc(4rem / 3);
-  --fs-standard: 1rem;
-  --fs-small: 0.75rem;
-
-  // other stuff //
-
-  --time-transition: 160ms;
-  --outline: 2px solid var(--accent);
-  --scrollbar-size: 0.5rem;
 }

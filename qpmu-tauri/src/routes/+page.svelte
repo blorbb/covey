@@ -7,6 +7,7 @@
 
   const { data }: { data: PageData } = $props();
   const menu = data.menu;
+  const iconCache = data.iconCache;
 
   // global keyboard events
   window.addEventListener("keydown", (ev) => {
@@ -112,7 +113,7 @@
       </div>
       <div class="list-scroller">
         <div class="list">
-          {#each menu.items as { id, description, title }, i (id)}
+          {#each menu.items as { id, description, title, icon }, i (id)}
             <label class="list-item">
               <input
                 class="list-item-radio"
@@ -122,6 +123,21 @@
                 bind:group={menu.selection}
                 onclick={(e) => activateListItem(e.altKey, i)}
               />
+
+              <div class="icon">
+                {#if icon?.kind === "text"}
+                  <span class="icon-text">{icon.text}</span>
+                {:else if icon?.kind === "file"}
+                  {#await iconCache.open(icon.path) then src}
+                    <img class="icon-img" {src} alt={`icon of ${title}`} />
+                  {:catch err}
+                    <div class="icon-error">
+                      <!-- TODO: something here? -->
+                    </div>
+                  {/await}
+                {/if}
+              </div>
+
               <p class="title"><strong>{title}</strong></p>
               <p class="description"><span>{description}</span> ({id})</p>
             </label>
@@ -192,13 +208,51 @@
   }
 
   .list-item {
+    --_row-gap: 0.5rem;
+
     padding: 1rem;
     border-radius: var(--brad-standard);
 
     display: grid;
-    gap: 4px;
+    grid-template-areas: "icon title" "icon description";
+    grid-template-columns: auto 1fr;
+    row-gap: var(--_row-gap);
+
+    .icon {
+      // make it take up the same size as a list item
+      // with one row for the title + description
+      --_icon-size: calc(
+        (var(--fs-standard) + var(--fs-small)) * var(--line-height) +
+          var(--_row-gap)
+      );
+
+      grid-area: icon;
+      display: grid;
+      place-items: center;
+      width: var(--_icon-size);
+      // needs to be a margin here instead of column-gap
+      // so that no icon doesn't add a column
+      margin-right: 1rem;
+
+      .icon-img {
+        width: var(--_icon-size);
+      }
+
+      .icon-text {
+        font-size: calc(var(--_icon-size) / var(--line-height));
+      }
+
+      &:empty {
+        display: none;
+      }
+    }
+
+    .title {
+      grid-area: title;
+    }
 
     .description {
+      grid-area: description;
       font-size: var(--fs-small);
       color: var(--color-on-surface-variant);
     }

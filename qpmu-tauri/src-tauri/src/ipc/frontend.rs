@@ -1,7 +1,7 @@
+pub use qpmu_tauri_types::{Event, ListItem, ListStyle};
 use tauri::{ipc::Channel, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_notification::NotificationExt;
-pub use qpmu_tauri_types::{Event, ListItem, ListStyle};
 
 use crate::{ipc, state::AppState};
 

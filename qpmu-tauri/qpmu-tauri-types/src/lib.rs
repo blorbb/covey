@@ -4,6 +4,8 @@
 //! This exposes the function [`export_ts_to`], which should be used to
 //! generate types for Typescript.
 
+use std::path::PathBuf;
+
 use serde::Serialize;
 
 /// This must have an equivalent type on the frontend
@@ -27,7 +29,16 @@ pub enum Event {
 pub struct ListItem {
     pub title: String,
     pub description: String,
+    pub icon: Option<Icon>,
     pub id: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "build", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum Icon {
+    File { path: PathBuf },
+    Text { text: String },
 }
 
 #[derive(Debug, Clone, Serialize)]

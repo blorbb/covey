@@ -4,6 +4,7 @@ use std::{
 };
 
 use parking_lot::Mutex;
+use qpmu_tauri_types::Icon;
 
 use crate::ipc::frontend::{EventChannel, ListItem};
 
@@ -33,7 +34,9 @@ impl AppState {
             tracing::warn!("setting model again");
             *existing.lock() = model.lock().clone();
         } else {
-            self.inner.set(model).unwrap_or_else(|_| tracing::warn!("already set up"));
+            self.inner
+                .set(model)
+                .unwrap_or_else(|_| tracing::warn!("already set up"));
         }
     }
 
@@ -56,9 +59,21 @@ impl AppState {
             let id = self
                 .id_counter
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+            let icon: Option<Icon> = match li.icon() {
+                Some(qpmu::Icon::Name(name)) => freedesktop_icons::lookup(&name)
+                    .with_cache()
+                    .with_size(48)
+                    .find()
+                    .map(|path| Icon::File { path }),
+                Some(qpmu::Icon::Text(text)) => Some(Icon::Text { text }),
+                None => None,
+            };
+
             let new = ListItem {
                 title: li.title().to_owned(),
                 description: li.description().to_owned(),
+                icon,
                 id,
             };
             list_items.insert(id, li);

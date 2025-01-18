@@ -4,6 +4,7 @@
   import { onDestroy, onMount } from "svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import type { PageData } from "./$types";
+  import ScrollShadow from "$lib/components/scroll_shadow.svelte";
 
   const { data }: { data: PageData } = $props();
   const menu = data.menu;
@@ -113,7 +114,7 @@
           onblur={() => mainInput?.focus()}
         />
       </div>
-      <div class="list-scroller">
+      <ScrollShadow>
         <div class="list">
           {#each menu.items as { id, description, title, icon }, i (id)}
             <label class="list-item">
@@ -125,7 +126,6 @@
                 bind:group={menu.selection}
                 onclick={(e) => activateListItem(e.altKey, i)}
               />
-
               <div class="icon">
                 {#if icon?.kind === "text"}
                   <span class="icon-text">{icon.text}</span>
@@ -139,13 +139,12 @@
                   {/await}
                 {/if}
               </div>
-
               <p class="title"><strong>{title}</strong></p>
               <p class="description"><span>{description}</span> ({id})</p>
             </label>
           {/each}
         </div>
-      </div>
+      </ScrollShadow>
     </main>
   </div>
 </div>
@@ -157,7 +156,6 @@
     overflow: hidden;
     position: relative;
     color: var(--color-on-surface);
-    width: 800px;
 
     // blurred background image
     // window that blurs against the desktop background isn't
@@ -178,6 +176,11 @@
   .menu {
     background: var(--color-surface);
     opacity: 0.93;
+
+    width: 800px;
+    max-height: 600px;
+    display: grid;
+    grid-template-rows: auto 1fr;
   }
 
   .search-bar {
@@ -192,11 +195,6 @@
     &::placeholder {
       color: var(--color-on-surface-variant);
     }
-  }
-
-  .list-scroller {
-    max-height: 500px;
-    overflow: auto;
   }
 
   .list {

@@ -3,7 +3,7 @@ use tauri::{ipc::Channel, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_notification::NotificationExt;
 
-use crate::{ipc, state::AppState};
+use crate::{state::AppState, window};
 
 #[derive(Clone)]
 pub struct EventChannel {
@@ -13,7 +13,7 @@ pub struct EventChannel {
 
 impl qpmu::Frontend for EventChannel {
     fn close(&mut self) {
-        ipc::window::hide_window(self.app.clone());
+        window::hide_menu(self.app.clone());
     }
 
     fn copy(&mut self, str: String) {

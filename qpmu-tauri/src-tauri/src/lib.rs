@@ -1,5 +1,6 @@
 mod ipc;
 mod state;
+mod window;
 
 use state::AppState;
 use tauri::{
@@ -26,7 +27,7 @@ pub fn run() {
                 )?)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => {
-                        ipc::window::show_window(app.clone());
+                        window::show_menu(app.clone());
                     }
                     other => panic!("unknown tray menu event {other}"),
                 })
@@ -55,9 +56,6 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            ipc::window::set_window_size,
-            ipc::window::hide_window,
-            ipc::window::show_window,
             ipc::model::setup,
             ipc::model::query,
             ipc::model::activate,

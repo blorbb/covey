@@ -1,7 +1,7 @@
 <script lang="ts">
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import * as commands from "$lib/commands";
-  import { onDestroy } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import type { PageData } from "./$types";
 
@@ -24,6 +24,9 @@
         break;
       case "Tab":
         menu.complete();
+        break;
+      case "Escape":
+        getCurrentWindow().hide();
         break;
       default:
         // do not prevent default
@@ -59,17 +62,15 @@
 
   // retain focus on the input element
   let mainInput = $state<HTMLInputElement>();
+
+  onMount(() => {
+    mainInput?.focus();
+  });
+
   $effect(() => {
     mainInput?.focus();
     mainInput?.setSelectionRange(menu.textSelection[0], menu.textSelection[1]);
   });
-
-  // needs to be put on the onpointerdown event
-  // just being on the onblur doesn't work for some reason
-  const refocusInput = (ev: Event) => {
-    ev.preventDefault();
-    mainInput?.focus();
-  };
 
   let unlisten: UnlistenFn | undefined;
   listen("tauri://focus", () => {
@@ -88,7 +89,8 @@
 
     // allow clicks inside the input to work
     if (!mainInput?.contains(ev.target)) {
-      refocusInput(ev);
+      ev.preventDefault();
+      mainInput?.focus();
     }
 
     // hide window if clicked outside menu wrapper
@@ -108,7 +110,7 @@
           bind:value={menu.inputText}
           bind:this={mainInput}
           placeholder="Search..."
-          onblur={refocusInput}
+          onblur={() => mainInput?.focus()}
         />
       </div>
       <div class="list-scroller">

@@ -1,7 +1,7 @@
-use serde::Serialize;
 use tauri::{ipc::Channel, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_notification::NotificationExt;
+pub use qpmu_tauri_types::{Event, ListItem, ListStyle};
 
 use crate::{ipc, state::AppState};
 
@@ -34,7 +34,7 @@ impl qpmu::Frontend for EventChannel {
         self.channel
             .send(Event::SetList {
                 items: state.register_list_items(list.items.into_iter()),
-                style: list.style.map(ListStyle::from),
+                style: list.style.map(list_style_from_qpmu),
             })
             .unwrap();
     }
@@ -50,42 +50,10 @@ impl qpmu::Frontend for EventChannel {
     }
 }
 
-/// This must have an equivalent type on the frontend
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase", tag = "kind")]
-pub enum Event {
-    SetInput {
-        contents: String,
-        selection: (u16, u16),
-    },
-    SetList {
-        items: Vec<ListItem>,
-        style: Option<ListStyle>,
-    },
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ListItem {
-    pub(crate) title: String,
-    pub(crate) description: String,
-    pub(crate) id: u64,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase", tag = "kind")]
-pub enum ListStyle {
-    Rows,
-    Grid,
-    GridWithColumns { columns: u32 },
-}
-
-impl From<qpmu::ListStyle> for ListStyle {
-    fn from(value: qpmu::ListStyle) -> Self {
-        match value {
-            qpmu::ListStyle::Rows => Self::Rows,
-            qpmu::ListStyle::Grid => Self::Grid,
-            qpmu::ListStyle::GridWithColumns(columns) => Self::GridWithColumns { columns },
-        }
+fn list_style_from_qpmu(value: qpmu::ListStyle) -> ListStyle {
+    match value {
+        qpmu::ListStyle::Rows => ListStyle::Rows,
+        qpmu::ListStyle::Grid => ListStyle::Grid,
+        qpmu::ListStyle::GridWithColumns(columns) => ListStyle::GridWithColumns { columns },
     }
 }

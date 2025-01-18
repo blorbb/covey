@@ -2,21 +2,9 @@
 
 import { Channel, invoke } from "@tauri-apps/api/core";
 import * as commands from "./commands";
-
-export type Event = Readonly<
-  | { kind: "setInput"; contents: string; selection: [number, number] }
-  | { kind: "setList"; items: ListItem[]; style?: ListStyle }
->;
-
-export type ListItem = Readonly<{
-  title: string;
-  description: string;
-  id: number;
-}>;
-
-export type ListStyle = Readonly<
-  { kind: "rows" | "grid" } | { kind: "gridWithColumns"; columns: number }
->;
+import type { ListItem } from "./bindings/ListItem";
+import type { ListStyle } from "./bindings/ListStyle";
+import type { Event } from "./bindings/Event";
 
 export class Menu {
   public items = $state<ListItem[]>([]);
@@ -41,7 +29,7 @@ export class Menu {
           break;
         case "setList":
           self.items = msg.items;
-          self.style = msg.style;
+          self.style = msg.style ?? undefined;
           self.selection = 0;
           break;
         default:

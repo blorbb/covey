@@ -11,6 +11,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+qpmu-tauri-types = { path = "../qpmu-tauri-types", features = ["build"] }
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
@@ -25,6 +26,7 @@ parking_lot.workspace = true
 tracing.workspace = true
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tokio.workspace = true
+qpmu-tauri-types = { path = "../qpmu-tauri-types" }
 
 [lints]
 workspace = true

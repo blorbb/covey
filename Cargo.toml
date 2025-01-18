@@ -6,6 +6,7 @@ members = [
     "qpmu-manifest",
     "qpmu-manifest-macro",
     "qpmu-tauri/src-tauri",
+    "qpmu-tauri/qpmu-tauri-types",
 ]
 resolver = "2"
 

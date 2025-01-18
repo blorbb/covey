@@ -12,6 +12,9 @@ use tauri::{
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            window::show_menu(app);
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
@@ -27,7 +30,7 @@ pub fn run() {
                 )?)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => {
-                        window::show_menu(app.clone());
+                        window::show_menu(app);
                     }
                     other => panic!("unknown tray menu event {other}"),
                 })

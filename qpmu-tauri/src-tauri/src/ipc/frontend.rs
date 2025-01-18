@@ -13,7 +13,7 @@ pub struct EventChannel {
 
 impl qpmu::Frontend for EventChannel {
     fn close(&mut self) {
-        window::hide_menu(self.app.clone());
+        window::hide_menu(&self.app);
     }
 
     fn copy(&mut self, str: String) {

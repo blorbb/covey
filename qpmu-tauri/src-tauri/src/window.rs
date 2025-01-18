@@ -2,7 +2,7 @@
 
 use tauri::Manager;
 
-pub fn hide_menu(app: tauri::AppHandle) {
+pub fn hide_menu(app: &tauri::AppHandle) {
     eprintln!("hiding window");
     if let Some(window) = app.get_webview_window("main") {
         window.hide().unwrap();
@@ -11,7 +11,7 @@ pub fn hide_menu(app: tauri::AppHandle) {
     }
 }
 
-pub fn show_menu(app: tauri::AppHandle) {
+pub fn show_menu(app: &tauri::AppHandle) {
     eprintln!("showing window");
     if let Some(window) = app.get_webview_window("main") {
         window.show().unwrap();

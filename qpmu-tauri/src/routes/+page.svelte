@@ -1,7 +1,7 @@
 <script lang="ts">
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import * as commands from "$lib/commands";
-  import { onDestroy, onMount } from "svelte";
+  import { onDestroy } from "svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import type { PageData } from "./$types";
   import ScrollShadow from "$lib/components/scroll_shadow.svelte";
@@ -63,19 +63,22 @@
 
   // retain focus on the input element
   let mainInput = $state<HTMLInputElement>();
-
-  onMount(() => {
-    mainInput?.focus();
-  });
+  let activeElement = $state<Element>();
 
   $effect(() => {
-    mainInput?.focus();
+    if (activeElement !== mainInput) {
+      mainInput?.focus();
+    }
+  });
+
+  // react to selection updates
+  $effect(() => {
     mainInput?.setSelectionRange(menu.textSelection[0], menu.textSelection[1]);
   });
 
+  // select full input when focussed
   let unlisten: UnlistenFn | undefined;
   listen("tauri://focus", () => {
-    mainInput?.focus();
     mainInput?.setSelectionRange(0, mainInput.value.length);
   }).then((f) => (unlisten = f));
 
@@ -88,18 +91,14 @@
       return;
     }
 
-    // allow clicks inside the input to work
-    if (!mainInput?.contains(ev.target)) {
-      ev.preventDefault();
-      mainInput?.focus();
-    }
-
     // hide window if clicked outside menu wrapper
     if (!menuWrapper?.contains(ev.target)) {
       getCurrentWindow().hide();
     }
   };
 </script>
+
+<svelte:document bind:activeElement />
 
 <div class="positioner" onpointerdown={onPositionerPointerDown}>
   <div class="menu-wrapper" bind:this={menuWrapper}>
@@ -111,7 +110,6 @@
           bind:value={menu.inputText}
           bind:this={mainInput}
           placeholder="Search..."
-          onblur={() => mainInput?.focus()}
         />
       </div>
       <ScrollShadow>

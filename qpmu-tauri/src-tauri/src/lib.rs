@@ -5,7 +5,7 @@ mod window;
 use state::AppState;
 use tauri::{
     menu::{Menu, MenuItem},
-    tray::TrayIconBuilder,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager,
 };
 
@@ -24,13 +24,31 @@ pub fn run() {
 
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
+                .show_menu_on_left_click(false)
                 .menu(&Menu::with_items(
                     app,
-                    &[&MenuItem::with_id(app, "show", "Show", true, None::<&str>)?],
+                    &[
+                        &MenuItem::with_id(app, "show", "Show", true, None::<&str>)?,
+                        &MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?,
+                    ],
                 )?)
+                .on_tray_icon_event(|tray, event| match event {
+                    TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } => {
+                        tracing::info!("left clicked on tray icon");
+                        window::show_menu(tray.app_handle());
+                    }
+                    _ => {}
+                })
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => {
                         window::show_menu(app);
+                    }
+                    "quit" => {
+                        app.exit(0);
                     }
                     other => panic!("unknown tray menu event {other}"),
                 })
@@ -49,7 +67,7 @@ pub fn run() {
                     }
                     tauri::WindowEvent::Focused(focused) => {
                         if !*focused {
-                            // main_window.hide().unwrap();
+                            main_window.hide().unwrap();
                         }
                     }
                     _ => {}

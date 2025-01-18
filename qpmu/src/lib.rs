@@ -8,18 +8,18 @@ pub mod plugin;
 mod result_list;
 mod spawn;
 
-use std::{future::Future, path::PathBuf, pin::Pin, sync::LazyLock};
+use std::{fmt, future::Future, path::PathBuf, sync::LazyLock};
 
 use color_eyre::eyre::{bail, Context, Result};
 use config::Config;
 use hotkey::Hotkey;
 pub use input::Input;
-pub use list_item::{Icon, ListItem};
+pub use list_item::{Icon, ListItem, ListItemId};
 use lock::SharedMutex;
-use plugin::{Action, Plugin, PluginEvent};
+use plugin::{proto, Action, Plugin, PluginEvent};
 pub use result_list::{BoundedUsize, ListStyle, ResultList};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 pub static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     dirs::config_dir()
@@ -32,20 +32,12 @@ pub static DATA_DIR: LazyLock<PathBuf> =
 
 /// Main public API for interacting with qpmu.
 ///
-/// Most methods here also call the front end to react to changes.
-/// Methods should only be called when a change has happened. They
-/// should not be called when updating the UI to match the current
-/// state.
-///
-/// The input string and results list may be out of sync.
+/// When an action is returned from a plugin, the frontend is updated.
+#[derive(Clone)]
 pub struct Model<F> {
-    input: Input,
-    results: ResultList,
     plugins: Vec<Plugin>,
     dispatched_actions: u64,
     activated_actions: u64,
-    // TODO: is this actually necessary?
-    task_spawner: Box<dyn FnMut(Pin<Box<dyn Future<Output = ()> + Send + 'static>>) + Send>,
     sender: UnboundedSender<Result<PluginEvent>>,
     fe: F,
 }
@@ -54,12 +46,9 @@ impl<F: Frontend> Model<F> {
     pub fn new(plugins: Vec<Plugin>, fe: F) -> SharedMutex<Model<F>> {
         let (send, mut recv) = tokio::sync::mpsc::unbounded_channel::<Result<PluginEvent>>();
         let this = Self {
-            input: Input::default(),
-            results: ResultList::default(),
             plugins,
             dispatched_actions: 0,
             activated_actions: 0,
-            task_spawner: Box::new(|fut| _ = tokio::spawn(fut)),
             sender: send,
             fe,
         };
@@ -78,76 +67,48 @@ impl<F: Frontend> Model<F> {
         this
     }
 
-    pub fn input(&self) -> &Input {
-        &self.input
-    }
-
-    pub fn results(&self) -> &ResultList {
-        &self.results
-    }
-
-    #[tracing::instrument(skip_all)]
-    pub fn set_list_selection(&mut self, selection: usize) {
-        debug!("set list selection to {selection}");
-        self.results.set_selection(selection);
-        self.fe.set_list_selection(self.results.selection());
-    }
-
-    #[tracing::instrument(skip_all)]
-    pub fn move_list_selection(&mut self, delta: isize) {
-        debug!("moving list selection by {delta}");
-        self.results.move_selection_signed(delta);
-        self.fe.set_list_selection(self.results.selection());
-    }
-
     fn send_event(&mut self, event: impl Future<Output = Result<PluginEvent>> + Send + 'static) {
         let sender = self.sender.clone();
-        (self.task_spawner)(Box::pin(async move { _ = sender.send(event.await) }))
+        tokio::spawn(async move { _ = sender.send(event.await) });
     }
 
     #[tracing::instrument(skip_all)]
-    pub fn activate(&mut self) {
-        debug!("activating current selection");
-        let Some(item) = self.results.selected_item().cloned() else {
-            return;
-        };
-        debug!("current selection is {item:?}");
+    pub fn activate(&mut self, item: ListItemId) {
+        debug!("activating {item:?}");
 
-        self.send_event(async move { item.activate().await.map(PluginEvent::Run) });
+        self.send_event(async move { item.plugin.activate(item.local_id).await.map(PluginEvent::Run) });
     }
 
     #[tracing::instrument(skip_all)]
-    pub fn alt_activate(&mut self) {
-        debug!("alt-activating current selection");
-        let Some(item) = self.results.selected_item().cloned() else {
-            return;
-        };
-        debug!("current selection is {item:?}");
-
-        self.send_event(async move { item.alt_activate().await.map(PluginEvent::Run) });
-    }
-
-    #[tracing::instrument(skip_all)]
-    pub fn hotkey_activate(&mut self, hotkey: Hotkey) {
-        debug!("hotkey-activating current selection");
-        let Some(item) = self.results.selected_item().cloned() else {
-            return;
-        };
-        debug!("current selection is {item:?}");
-
-        self.send_event(async move { item.hotkey_activate(hotkey).await.map(PluginEvent::Run) });
-    }
-
-    #[tracing::instrument(skip_all)]
-    pub fn complete(&mut self) {
-        debug!("completing current selection");
-        let Some(item) = self.results.selected_item().cloned() else {
-            return;
-        };
-        debug!("current selection is {item:?}");
+    pub fn alt_activate(&mut self, item: ListItemId) {
+        debug!("alt-activating {item:?}");
 
         self.send_event(async move {
-            if let Some(new) = item.complete().await? {
+            item.plugin
+                .alt_activate(item.local_id)
+                .await
+                .map(PluginEvent::Run)
+        });
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub fn hotkey_activate(&mut self, item: ListItemId, hotkey: Hotkey) {
+        debug!("hotkey-activating {item:?}");
+
+        self.send_event(async move {
+            item.plugin
+                .hotkey_activate(item.local_id, proto::Hotkey::from(hotkey))
+                .await
+                .map(PluginEvent::Run)
+        });
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub fn complete(&mut self, item: ListItemId) {
+        debug!("completing {item:?}");
+
+        self.send_event(async move {
+            if let Some(new) = item.plugin.complete(item.local_id).await? {
                 Ok(PluginEvent::Run(vec![Action::SetInput(new)]))
             } else {
                 // do nothing
@@ -156,21 +117,17 @@ impl<F: Frontend> Model<F> {
         });
     }
 
-    /// Sets the input string and calls a plugin with this input.
-    ///
-    /// This method calls [`Frontend::set_input`].
+    /// Calls a plugin with this input.
     #[tracing::instrument(skip_all)]
-    pub fn set_input(&mut self, input: Input) {
+    pub fn query(&mut self, input: String) {
         debug!("setting input to {input:?}");
-        self.input = input.clone();
         self.dispatched_actions += 1;
-        self.fe.set_input(&input);
 
         let plugins = self.plugins.clone();
         let actioni = self.dispatched_actions;
         self.send_event(async move {
             for plugin in plugins {
-                let Some(stripped) = input.contents.strip_prefix(plugin.prefix()) else {
+                let Some(stripped) = input.strip_prefix(plugin.prefix()) else {
                     continue;
                 };
                 debug!("querying plugin {plugin:?}");
@@ -203,8 +160,7 @@ impl<F: Frontend> Model<F> {
                     return;
                 }
                 self.activated_actions = index;
-                self.results = list;
-                self.fe.set_list(&self.results);
+                self.fe.set_list(list);
             }
             PluginEvent::Run(actions) => {
                 actions
@@ -224,6 +180,7 @@ impl<F: Frontend> Model<F> {
                     "failed to run command `{cmd} {args}`",
                     args = args.join(" ")
                 )) {
+                    error!("Error running command: {e:#}");
                     self.fe.display_error("Error running command", e);
                 }
             }
@@ -231,6 +188,7 @@ impl<F: Frontend> Model<F> {
                 if let Err(e) = spawn::free_null("sh", ["-c", &str])
                     .context(format!("failed to run command `{str}`"))
                 {
+                    error!("Error running command: {e:#}");
                     self.fe.display_error("Error running command", e);
                 }
             }
@@ -238,7 +196,8 @@ impl<F: Frontend> Model<F> {
                 self.fe.copy(str);
             }
             Action::SetInput(input) => {
-                self.set_input(input);
+                self.fe.set_input(input.clone());
+                self.query(input.contents);
             }
         }
     }
@@ -249,6 +208,22 @@ impl<F: Frontend> Model<F> {
         debug!("reloading");
         self.plugins = config.load();
         Ok(())
+    }
+
+    /// List of all plugins.
+    pub fn plugins(&self) -> &[Plugin] {
+        &self.plugins
+    }
+}
+
+impl<F> fmt::Debug for Model<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Model")
+            .field("plugins", &self.plugins)
+            .field("dispatched_actions", &self.dispatched_actions)
+            .field("activated_actions", &self.activated_actions)
+            .field("sender", &self.sender)
+            .finish()
     }
 }
 
@@ -275,15 +250,14 @@ pub trait Frontend: Send + 'static {
     ///
     /// The model will already have an updated input, so do not try to change
     /// the model here. Only modify the front end.
-    fn set_input(&mut self, input: &Input);
+    fn set_input(&mut self, input: Input);
 
     /// Set the UI results list to the provided list.
     ///
     /// The model will already have an updated list, so do not try to change
     /// the model here. Only modify the front end.
-    fn set_list(&mut self, list: &ResultList);
+    fn set_list(&mut self, list: ResultList);
 
-    fn set_list_selection(&mut self, index: usize);
-
+    // TODO: refactor this lib to have a custom error type
     fn display_error(&mut self, title: &str, error: color_eyre::eyre::Report);
 }

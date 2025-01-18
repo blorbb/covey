@@ -2,38 +2,21 @@ use crate::proto;
 
 #[derive(Debug, Clone)]
 pub struct Hotkey {
-    pub modifiers: Modifiers,
     pub key: Key,
+    pub ctrl: bool,
+    pub alt: bool,
+    pub shift: bool,
+    pub meta: bool,
 }
 
 impl Hotkey {
     pub(crate) fn from_proto(proto: proto::Hotkey) -> Self {
         Self {
-            modifiers: Modifiers::from_proto(proto.modifiers),
             key: Key::from_proto(proto.key()),
-        }
-    }
-}
-
-#[expect(
-    clippy::struct_excessive_bools,
-    reason = "simpler to use than bitflags"
-)]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Modifiers {
-    pub ctrl: bool,
-    pub alt: bool,
-    pub shift: bool,
-    pub super_: bool,
-}
-
-impl Modifiers {
-    pub(crate) fn from_proto(proto: proto::Modifiers) -> Self {
-        Self {
             ctrl: proto.ctrl,
             alt: proto.alt,
             shift: proto.shift,
-            super_: proto.super_,
+            meta: proto.meta,
         }
     }
 }

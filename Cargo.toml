@@ -1,5 +1,12 @@
 [workspace]
-members = ["qpmu-plugin", "qpmu", "qpmu-gtk", "qpmu-manifest", "qpmu-manifest-macro"]
+members = [
+    "qpmu-plugin",
+    "qpmu",
+    "qpmu-manifest",
+    "qpmu-manifest-macro",
+    "qpmu-tauri/src-tauri",
+    "qpmu-tauri/qpmu-tauri-types",
+]
 resolver = "2"
 
 [workspace.dependencies]

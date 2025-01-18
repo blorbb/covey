@@ -10,12 +10,15 @@ use serde::{
 };
 
 pub mod generate;
+#[cfg(feature = "ts-rs")]
+pub use ts_rs;
 
 /// A manifest for a single plugin.
 ///
 /// This should be a TOML file stored in
 /// `data directory/qpmu/plugins/<plugin>/manifest.toml`.
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
 #[non_exhaustive]
 #[serde(rename_all = "kebab-case")]
 pub struct PluginManifest {
@@ -40,6 +43,7 @@ impl PluginManifest {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
 #[non_exhaustive]
 pub struct ConfigSchema {
     pub title: String,
@@ -51,6 +55,11 @@ pub struct ConfigSchema {
 ///
 /// If there is no default, then this type will be *required*.
 #[derive(Debug, PartialEq)]
+#[cfg_attr(
+    feature = "ts-rs",
+    derive(ts_rs::TS),
+    ts(rename_all = "camelCase", tag = "kind")
+)]
 pub enum ConfigType {
     Int(ConfigInt),
     Str(ConfigStr),
@@ -67,6 +76,7 @@ pub enum ConfigType {
 // all structs should have the same serde meta tag.
 
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
 #[serde(rename_all = "kebab-case")]
 pub struct ConfigList {
     pub item_type: Box<ConfigType>,
@@ -78,6 +88,7 @@ pub struct ConfigList {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
 #[serde(rename_all = "kebab-case")]
 /// A map from any string to a specified value.
 pub struct ConfigMap {
@@ -88,6 +99,7 @@ pub struct ConfigMap {
 
 /// A map with specific key-value pairs.
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
 #[serde(rename_all = "kebab-case")]
 pub struct ConfigStruct {
     pub fields: HashMap<String, ConfigType>,
@@ -95,6 +107,7 @@ pub struct ConfigStruct {
 
 /// A selection of one of multiple strings.
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
 #[serde(rename_all = "kebab-case")]
 pub struct ConfigSelection {
     pub allowed_values: Vec<String>,
@@ -259,6 +272,7 @@ mod macros {
             $(
                 $(#[$inner_meta])*
                 #[derive(Debug, Deserialize, PartialEq)]
+                #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
                 #[serde(default, rename_all = "kebab-case")]
                 pub struct $variant {
                     $( $field_vis $field : $field_ty ),*

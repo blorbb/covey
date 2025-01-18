@@ -97,14 +97,12 @@ message HotkeyActivationRequest {
 
 message Hotkey {
     required Key key = 1;
-    required Modifiers modifiers = 2;
-}
-
-message Modifiers {
-    required bool ctrl = 1;
-    required bool alt = 2;
-    required bool shift = 3;
-    required bool super = 4;
+    required bool ctrl = 2;
+    required bool alt = 3;
+    required bool shift = 4;
+    // The ⌘ Command key on Mac, ⊞ Windows key on Windows,
+    // or Super key on Linux.
+    required bool meta = 5;
 }
 
 // For now, keys are all the un-shifted keys on a standard US QWERTY keyboard.

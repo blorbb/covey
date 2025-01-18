@@ -81,6 +81,7 @@ pub fn run() {
             ipc::model::query,
             ipc::model::activate,
             ipc::model::alt_activate,
+            ipc::model::hotkey_activate,
             ipc::model::complete,
         ])
         .run(tauri::generate_context!())

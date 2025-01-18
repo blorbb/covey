@@ -1,6 +1,6 @@
+pub mod manifest;
 pub mod rank;
 pub mod sql;
-pub mod manifest;
 
 mod list;
 pub use list::{Icon, List, ListItem, ListStyle};
@@ -11,7 +11,7 @@ pub use input::{Input, SelectionRange};
 mod plugin;
 pub use plugin::Plugin;
 mod hotkey;
-pub use hotkey::{Hotkey, Key, Modifiers};
+pub use hotkey::{Hotkey, Key};
 mod server;
 pub use server::run_server as main;
 mod plugin_lock;

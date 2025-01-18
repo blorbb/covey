@@ -11,7 +11,7 @@
   const iconCache = data.iconCache;
 
   // global keyboard events
-  window.addEventListener("keydown", (ev) => {
+  const windowKeyDown = (ev: KeyboardEvent) => {
     switch (ev.key) {
       case "ArrowDown":
         menu.selection = Math.min(menu.items.length - 1, menu.selection + 1);
@@ -31,11 +31,12 @@
         break;
       default:
         // do not prevent default
+        menu.maybeHotkeyActivate(ev);
         return;
     }
     // break instead of return, captured something
     ev.preventDefault();
-  });
+  };
 
   /**
    * Activates the currently selected list item.
@@ -99,6 +100,7 @@
 </script>
 
 <svelte:document bind:activeElement />
+<svelte:window onkeydown={windowKeyDown} />
 
 <div class="positioner" onpointerdown={onPositionerPointerDown}>
   <div class="menu-wrapper" bind:this={menuWrapper}>

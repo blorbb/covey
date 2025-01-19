@@ -19,9 +19,8 @@ fn setup_impl(
     state: State<'_, AppState>,
     channel: Channel<Event>,
 ) -> Result<()> {
-    let plugins = comette::config::GlobalConfig::from_file()?.load();
     let frontend = EventChannel { channel, app };
-    let model = comette::Model::new(plugins, frontend);
+    let model = comette::Model::new(frontend)?;
     state.init(model);
     Ok(())
 }

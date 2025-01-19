@@ -1,5 +1,5 @@
-use crate::plugin::proto;
-pub use crate::plugin::proto::Key;
+use crate::proto;
+pub use crate::proto::Key;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Hotkey {

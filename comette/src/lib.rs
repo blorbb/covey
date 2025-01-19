@@ -1,23 +1,21 @@
 pub mod config;
+mod event;
 pub mod hotkey;
-mod input;
-mod list_item;
 pub mod lock;
-pub mod plugin;
-mod result_list;
+mod plugin;
+mod proto;
 mod spawn;
 
-use std::{fmt, future::Future, path::PathBuf, sync::LazyLock};
+use std::{fmt, fs, future::Future, io::Read as _, path::PathBuf, sync::LazyLock};
 
 use color_eyre::eyre::{bail, Context, Result};
 use config::GlobalConfig;
+use event::{Action, PluginEvent};
+pub use event::{Icon, Input, ListItem, ListItemId, ListStyle, List};
 use hotkey::Hotkey;
 use indexmap::IndexSet;
-pub use input::Input;
-pub use list_item::{Icon, ListItem, ListItemId};
 use lock::SharedMutex;
-use plugin::{proto, Action, Plugin, PluginEvent};
-pub use result_list::{BoundedUsize, ListStyle, ResultList};
+pub use plugin::Plugin;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error, info};
 
@@ -27,8 +25,11 @@ pub static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
         .join("comette")
 });
 pub static CONFIG_PATH: LazyLock<PathBuf> = LazyLock::new(|| CONFIG_DIR.join("config.toml"));
-pub static DATA_DIR: LazyLock<PathBuf> =
-    LazyLock::new(|| dirs::data_dir().expect("data dir must exist").join("comette"));
+pub static DATA_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
+    dirs::data_dir()
+        .expect("data dir must exist")
+        .join("comette")
+});
 
 /// Main public API for interacting with comette.
 ///
@@ -43,7 +44,27 @@ pub struct Model<F> {
 }
 
 impl<F: Frontend> Model<F> {
-    pub fn new(plugins: IndexSet<Plugin>, fe: F) -> SharedMutex<Model<F>> {
+    pub fn new(fe: F) -> Result<SharedMutex<Model<F>>> {
+        info!("reading config from file: {:?}", &*CONFIG_PATH);
+
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .read(true)
+            .truncate(false)
+            .open(&*CONFIG_PATH)?;
+
+        let mut s = String::new();
+        file.read_to_string(&mut s)?;
+
+        debug!("read config:\n{s}");
+
+        let global_config: GlobalConfig = toml::from_str(&s)?;
+        let plugins = global_config.load_plugins();
+
+        info!("found plugins: {plugins:?}");
+
+        // make a channel to receive events and handle them
         let (send, mut recv) = tokio::sync::mpsc::unbounded_channel::<Result<PluginEvent>>();
         let this = Self {
             plugins,
@@ -53,6 +74,7 @@ impl<F: Frontend> Model<F> {
             fe,
         };
 
+        // TODO: spawn local instead, avoid the mutex?
         let this = SharedMutex::new(this);
 
         tokio::spawn({
@@ -64,7 +86,7 @@ impl<F: Frontend> Model<F> {
             }
         });
 
-        this
+        Ok(this)
     }
 
     fn send_event(&mut self, event: impl Future<Output = Result<PluginEvent>> + Send + 'static) {
@@ -76,7 +98,12 @@ impl<F: Frontend> Model<F> {
     pub fn activate(&mut self, item: ListItemId) {
         debug!("activating {item:?}");
 
-        self.send_event(async move { item.plugin.activate(item.local_id).await.map(PluginEvent::Run) });
+        self.send_event(async move {
+            item.plugin
+                .activate(item.local_id)
+                .await
+                .map(PluginEvent::Run)
+        });
     }
 
     #[tracing::instrument(skip(self))]
@@ -206,7 +233,7 @@ impl<F: Frontend> Model<F> {
     #[tracing::instrument(skip(self))]
     pub fn reload(&mut self, config: GlobalConfig) -> Result<()> {
         debug!("reloading");
-        self.plugins = config.load();
+        self.plugins = config.load_plugins();
         Ok(())
     }
 
@@ -257,7 +284,7 @@ pub trait Frontend: Send + 'static {
     ///
     /// The model will already have an updated list, so do not try to change
     /// the model here. Only modify the front end.
-    fn set_list(&mut self, list: ResultList);
+    fn set_list(&mut self, list: List);
 
     // TODO: refactor this lib to have a custom error type
     fn display_error(&mut self, title: &str, error: color_eyre::eyre::Report);

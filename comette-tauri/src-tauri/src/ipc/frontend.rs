@@ -29,7 +29,7 @@ impl comette::Frontend for EventChannel {
             .unwrap();
     }
 
-    fn set_list(&mut self, list: comette::ResultList) {
+    fn set_list(&mut self, list: comette::List) {
         let state = self.app.state::<AppState>();
         self.channel
             .send(Event::SetList {

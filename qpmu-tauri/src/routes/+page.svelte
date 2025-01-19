@@ -213,9 +213,9 @@
       z-index: -1;
 
       // credit: https://unsplash.com/photos/worms-eye-view-of-mountain-during-daytime-ii5JY_46xH0
-      background-image: url("background.jpg");
+      background-image: url("/background.jpg");
       background-size: cover;
-      filter: blur(2vw);
+      filter: blur(0.5vw);
     }
   }
 

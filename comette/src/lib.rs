@@ -1,5 +1,4 @@
 pub mod config;
-mod details;
 pub mod hotkey;
 mod input;
 mod list_item;
@@ -11,8 +10,9 @@ mod spawn;
 use std::{fmt, future::Future, path::PathBuf, sync::LazyLock};
 
 use color_eyre::eyre::{bail, Context, Result};
-use config::Config;
+use config::GlobalConfig;
 use hotkey::Hotkey;
+use indexmap::IndexSet;
 pub use input::Input;
 pub use list_item::{Icon, ListItem, ListItemId};
 use lock::SharedMutex;
@@ -35,7 +35,7 @@ pub static DATA_DIR: LazyLock<PathBuf> =
 /// When an action is returned from a plugin, the frontend is updated.
 #[derive(Clone)]
 pub struct Model<F> {
-    plugins: Vec<Plugin>,
+    plugins: IndexSet<Plugin>,
     dispatched_actions: u64,
     activated_actions: u64,
     sender: UnboundedSender<Result<PluginEvent>>,
@@ -43,7 +43,7 @@ pub struct Model<F> {
 }
 
 impl<F: Frontend> Model<F> {
-    pub fn new(plugins: Vec<Plugin>, fe: F) -> SharedMutex<Model<F>> {
+    pub fn new(plugins: IndexSet<Plugin>, fe: F) -> SharedMutex<Model<F>> {
         let (send, mut recv) = tokio::sync::mpsc::unbounded_channel::<Result<PluginEvent>>();
         let this = Self {
             plugins,
@@ -72,14 +72,14 @@ impl<F: Frontend> Model<F> {
         tokio::spawn(async move { _ = sender.send(event.await) });
     }
 
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip(self))]
     pub fn activate(&mut self, item: ListItemId) {
         debug!("activating {item:?}");
 
         self.send_event(async move { item.plugin.activate(item.local_id).await.map(PluginEvent::Run) });
     }
 
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip(self))]
     pub fn alt_activate(&mut self, item: ListItemId) {
         debug!("alt-activating {item:?}");
 
@@ -91,7 +91,7 @@ impl<F: Frontend> Model<F> {
         });
     }
 
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip(self))]
     pub fn hotkey_activate(&mut self, item: ListItemId, hotkey: Hotkey) {
         debug!("hotkey-activating {item:?}");
 
@@ -103,7 +103,7 @@ impl<F: Frontend> Model<F> {
         });
     }
 
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip(self))]
     pub fn complete(&mut self, item: ListItemId) {
         debug!("completing {item:?}");
 
@@ -118,7 +118,7 @@ impl<F: Frontend> Model<F> {
     }
 
     /// Calls a plugin with this input.
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip(self))]
     pub fn query(&mut self, input: String) {
         debug!("setting input to {input:?}");
         self.dispatched_actions += 1;
@@ -143,7 +143,7 @@ impl<F: Frontend> Model<F> {
         })
     }
 
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip(self))]
     fn handle_event(&mut self, event: Result<PluginEvent>) {
         debug!("handling event");
         let event = match event {
@@ -170,7 +170,7 @@ impl<F: Frontend> Model<F> {
         }
     }
 
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip(self))]
     fn handle_action(&mut self, action: Action) {
         info!("handling action {action:?}");
         match action {
@@ -203,15 +203,16 @@ impl<F: Frontend> Model<F> {
     }
 
     /// Reloads all plugins with the new configuration.
-    #[tracing::instrument(skip_all)]
-    pub fn reload(&mut self, config: Config) -> Result<()> {
+    #[tracing::instrument(skip(self))]
+    pub fn reload(&mut self, config: GlobalConfig) -> Result<()> {
         debug!("reloading");
         self.plugins = config.load();
         Ok(())
     }
 
-    /// List of all plugins.
-    pub fn plugins(&self) -> &[Plugin] {
+    /// Ordered set of all plugins.
+    #[tracing::instrument(skip(self))]
+    pub fn plugins(&self) -> &IndexSet<Plugin> {
         &self.plugins
     }
 }

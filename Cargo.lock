@@ -718,6 +718,7 @@ dependencies = [
  "comette-manifest",
  "dirs",
  "futures",
+ "indexmap 2.6.0",
  "parking_lot",
  "prost",
  "serde",
@@ -732,6 +733,7 @@ dependencies = [
 name = "comette-manifest"
 version = "0.1.0"
 dependencies = [
+ "indexmap 2.6.0",
  "proc-macro2",
  "quote",
  "serde",
@@ -5507,6 +5509,7 @@ version = "0.8.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1ed1f98e3fdc28d6d910e6737ae6ab1a93bf1985935a1193e68f93eeb68d24e"
 dependencies = [
+ "indexmap 2.6.0",
  "serde",
  "serde_spanned",
  "toml_datetime",
@@ -5754,6 +5757,7 @@ version = "10.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e640d9b0964e9d39df633548591090ab92f7a4567bc31d3891af23471a3365c6"
 dependencies = [
+ "indexmap 2.6.0",
  "lazy_static",
  "thiserror 2.0.11",
  "ts-rs-macros",

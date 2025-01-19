@@ -4,6 +4,7 @@ use std::{
     marker::PhantomData,
 };
 
+use indexmap::IndexMap;
 use serde::{
     Deserialize, Deserializer,
     de::{self, MapAccess, Visitor},
@@ -33,7 +34,7 @@ pub struct PluginManifest {
     pub authors: Vec<String>,
     /// Key is the ID of the configuration option.
     #[serde(default)]
-    pub schema: HashMap<String, ConfigSchema>,
+    pub schema: IndexMap<String, ConfigSchema>,
 }
 
 impl PluginManifest {
@@ -295,6 +296,8 @@ mod macros {
 mod tests {
     use std::collections::HashMap;
 
+    use indexmap::IndexMap;
+
     use super::{
         ConfigInt, ConfigList, ConfigMap, ConfigSchema, ConfigStruct, ConfigType, PluginManifest,
     };
@@ -315,7 +318,7 @@ mod tests {
             description: Some("my description".to_string()),
             repository: None,
             authors: vec![],
-            schema: HashMap::from([("first-option".to_string(), ConfigSchema {
+            schema: IndexMap::from([("first-option".to_string(), ConfigSchema {
                 title: "first option".to_string(),
                 description: None,
                 r#type: ConfigType::Int(ConfigInt::default())
@@ -381,7 +384,7 @@ mod tests {
             description: Some("Open URLs with a query".to_string()),
             repository: Some("https://github.com/blorbb/comette-plugins".to_string()),
             authors: vec!["blorbb".to_string()],
-            schema: HashMap::from([("urls".to_string(), ConfigSchema {
+            schema: IndexMap::from([("urls".to_string(), ConfigSchema {
                 title: "List of URLs to show".to_string(),
                 description: None,
                 r#type: ConfigType::Map(ConfigMap {

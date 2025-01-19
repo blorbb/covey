@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 comette-manifest = { path = "../../comette-manifest", optional = true }
-ts-rs = { version = "10.1", optional = true }
+ts-rs = { workspace = true, optional = true }
 serde.workspace = true
 
 [lints]

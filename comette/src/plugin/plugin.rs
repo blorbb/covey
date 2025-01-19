@@ -1,7 +1,8 @@
 use core::fmt;
-use std::{path::PathBuf, sync::Arc};
+use std::{hash::Hash, path::PathBuf, sync::Arc};
 
 use color_eyre::eyre::{ContextCompat, Result};
+use indexmap::Equivalent;
 use tokio::fs;
 
 use super::{action, manifest::PluginManifest};
@@ -13,12 +14,13 @@ use crate::{
 
 /// A ref-counted reference to a plugin instance.
 ///
-/// This can be constructed using [`Config::load_plugins`].
+/// This can be constructed using [`GlobalConfig::load`].
 ///
-/// This needs to be ref-counted instead of leaked so that the
-/// list of plugins can be changed.
+/// Comparison traits ([`Eq`], [`Hash`], etc) are in terms of
+/// this plugin's name. [`Equivalent`] is also implemented to
+/// look up this plugin based on it's name.
 ///
-/// [`Config::load_plugins`]: crate::config::Config::load_plugins
+/// [`GlobalConfig::load`]: crate::config::GlobalConfig::load
 #[derive(Clone)]
 pub struct Plugin {
     plugin: Arc<implementation::LazyPlugin>,
@@ -26,14 +28,14 @@ pub struct Plugin {
 
 impl Plugin {
     /// Initialises a plugin from it's configuration.
-    pub fn new(config: PluginConfig) -> Result<Self> {
+    pub fn new(name: String, config: PluginConfig) -> Result<Self> {
         Ok(Self {
-            plugin: Arc::new(implementation::LazyPlugin::new(config)?),
+            plugin: Arc::new(implementation::LazyPlugin::new(name, config)?),
         })
     }
 
     pub fn name(&self) -> &str {
-        &self.plugin.config.name
+        &self.plugin.name
     }
 
     pub fn prefix(&self) -> &str {
@@ -129,6 +131,47 @@ impl fmt::Debug for Plugin {
     }
 }
 
+// COMPARISON TRAITS //
+// These MUST be implemented in terms of the name.
+
+impl PartialEq for Plugin {
+    fn eq(&self, other: &Self) -> bool {
+        self.name() == other.name()
+    }
+}
+
+impl Eq for Plugin {}
+
+impl PartialOrd for Plugin {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Plugin {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.name().cmp(&other.name())
+    }
+}
+
+impl Hash for Plugin {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name().hash(state);
+    }
+}
+
+// Allow looking up a plugin in a hash set by it's name.
+// Implement `Equivalent` instead of `Borrow` as plugins should be used
+// in an indexmap. It also doesn't completely fit the `Borrow` contract.
+impl Equivalent<Plugin> for str {
+    fn equivalent(&self, key: &Plugin) -> bool {
+        self == key.name()
+    }
+}
+
+// Do not implement serde traits. Can be serialized as a string but it can't
+// be properly deserialized.
+
 fn data_directory_path(plugin_name: &str) -> PathBuf {
     DATA_DIR.join("plugins").join(plugin_name)
 }
@@ -199,20 +242,22 @@ mod implementation {
         // making the manifest sync makes it easier to use in settings
         called_initialise: Mutex<bool>,
         pub(super) manifest: PluginManifest,
+        pub(super) name: String,
         pub(super) config: PluginConfig,
     }
 
     impl LazyPlugin {
-        pub(super) fn new(config: PluginConfig) -> Result<Self> {
-            let path = manifest_path(&config.name);
+        pub(super) fn new(name: String, config: PluginConfig) -> Result<Self> {
+            let path = manifest_path(&name);
             let toml = std::fs::read_to_string(path)
-                .context(format!("error opening manifest file of {}", config.name))?;
-            let manifest: PluginManifest = toml::from_str(&toml)
-                .context(format!("error reading manifest of {}", config.name))?;
+                .context(format!("error opening manifest file of {}", name))?;
+            let manifest: PluginManifest =
+                toml::from_str(&toml).context(format!("error reading manifest of {}", name))?;
 
             Ok(Self {
                 cell: OnceCell::new(),
                 called_initialise: Mutex::new(false),
+                name,
                 manifest,
                 config,
             })
@@ -230,7 +275,7 @@ mod implementation {
             // either succeeds or fails.
             let mut initialise_guard = self.called_initialise.lock().await;
             if !*initialise_guard {
-                let db_url = sqlite_connection_url(&self.config.name).await?;
+                let db_url = sqlite_connection_url(&self.name).await?;
                 let config_toml = self.config.config.to_string();
 
                 inner
@@ -251,12 +296,12 @@ mod implementation {
         async fn get_without_init(&self) -> Result<&PluginInner> {
             self.cell
                 .get_or_try_init(|| async {
-                    info!("initialising plugin {}", self.config.name);
-                    let bin_path = binary_path(&self.config.name);
+                    info!("initialising plugin {}", self.name);
+                    let bin_path = binary_path(&self.name);
                     PluginInner::new(bin_path).await
                 })
                 .await
-                .context(format!("failed to initialise plugin {}", self.config.name))
+                .context(format!("failed to initialise plugin {}", self.name))
         }
     }
 

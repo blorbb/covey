@@ -77,12 +77,12 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            ipc::model::setup,
-            ipc::model::query,
-            ipc::model::activate,
-            ipc::model::alt_activate,
-            ipc::model::hotkey_activate,
-            ipc::model::complete,
+            ipc::setup,
+            ipc::query,
+            ipc::activate,
+            ipc::alt_activate,
+            ipc::hotkey_activate,
+            ipc::complete,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

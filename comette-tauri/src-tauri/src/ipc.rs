@@ -19,8 +19,7 @@ fn setup_impl(
     channel: Channel<Event>,
 ) -> Result<()> {
     let frontend = EventChannel { channel, app };
-    let model = comette::Host::new(frontend)?;
-    state.init(model);
+    state.init(frontend)?;
     Ok(())
 }
 

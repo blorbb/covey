@@ -1,5 +1,7 @@
 use std::sync::OnceLock;
 
+use color_eyre::eyre::Result;
+use comette::{Frontend, Host};
 pub use comette_tauri_types::{Event, ListItem, ListStyle};
 use comette_tauri_types::{Icon, ListItemId};
 use tauri::{ipc::Channel, Manager};
@@ -7,8 +9,6 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_notification::NotificationExt;
 
 use crate::window;
-
-type Host = comette::Host<EventChannel>;
 
 /// Must be initialised exactly once with [`AppState::init`].
 pub struct AppState {
@@ -22,17 +22,19 @@ impl AppState {
         }
     }
 
-    pub fn init(&self, model: comette::lock::SharedMutex<Host>) {
+    pub fn init(&self, fe: impl Frontend) -> Result<()> {
         if let Some(existing) = self.inner.get() {
             // this should never run in the real application, but it does
             // in hot module reload.
             tracing::warn!("setting model again");
-            *existing.lock() = model.lock().clone();
+            existing.lock().set_frontend(fe);
         } else {
             self.inner
-                .set(model)
+                .set(comette::Host::new(fe)?)
                 .unwrap_or_else(|_| tracing::warn!("already set up"));
         }
+
+        Ok(())
     }
 
     /// # Panics

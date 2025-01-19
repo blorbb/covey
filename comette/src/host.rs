@@ -14,22 +14,19 @@ use crate::{
     proto, Frontend, Plugin, CONFIG_PATH,
 };
 
-// TODO: remove clone
-
 /// Main public API for interacting with comette.
 ///
 /// When an action is returned from a plugin, the frontend is updated.
-#[derive(Clone)]
-pub struct Host<F> {
+pub struct Host {
     pub(crate) plugins: IndexSet<Plugin>,
     pub(crate) dispatched_actions: u64,
     pub(crate) activated_actions: u64,
     pub(crate) sender: UnboundedSender<Result<PluginEvent>>,
-    pub(crate) fe: F,
+    pub(crate) fe: Box<dyn Frontend>,
 }
 
-impl<F: Frontend> Host<F> {
-    pub fn new(fe: F) -> Result<SharedMutex<Host<F>>> {
+impl Host {
+    pub fn new(fe: impl Frontend) -> Result<SharedMutex<Self>> {
         info!("reading config from file: {:?}", &*CONFIG_PATH);
 
         let mut file = fs::OpenOptions::new()
@@ -56,7 +53,7 @@ impl<F: Frontend> Host<F> {
             dispatched_actions: 0,
             activated_actions: 0,
             sender: send,
-            fe,
+            fe: Box::new(fe),
         };
 
         // TODO: spawn local instead, avoid the mutex?
@@ -230,9 +227,16 @@ impl<F: Frontend> Host<F> {
     pub fn plugins(&self) -> &IndexSet<Plugin> {
         &self.plugins
     }
+
+    /// Swaps out the frontend used.
+    ///
+    /// Note: this is only used for hot module reloading support.
+    pub fn set_frontend(&mut self, fe: impl Frontend) {
+        self.fe = Box::new(fe);
+    }
 }
 
-impl<F> fmt::Debug for Host<F> {
+impl fmt::Debug for Host {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Model")
             .field("plugins", &self.plugins)

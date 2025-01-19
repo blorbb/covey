@@ -1,11 +1,11 @@
 [workspace]
 members = [
-    "qpmu-plugin",
-    "qpmu",
-    "qpmu-manifest",
-    "qpmu-manifest-macro",
-    "qpmu-tauri/src-tauri",
-    "qpmu-tauri/qpmu-tauri-types",
+    "comette-plugin",
+    "comette",
+    "comette-manifest",
+    "comette-manifest-macro",
+    "comette-tauri/src-tauri",
+    "comette-tauri/comette-tauri-types",
 ]
 resolver = "2"
 

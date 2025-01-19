@@ -710,6 +710,101 @@ dependencies = [
 ]
 
 [[package]]
+name = "comette"
+version = "0.1.0"
+dependencies = [
+ "az",
+ "color-eyre",
+ "comette-manifest",
+ "dirs",
+ "futures",
+ "parking_lot",
+ "prost",
+ "serde",
+ "tokio",
+ "toml 0.8.19",
+ "tonic",
+ "tonic-build",
+ "tracing",
+]
+
+[[package]]
+name = "comette-manifest"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "serde",
+ "syn 2.0.92",
+ "toml 0.8.19",
+ "ts-rs",
+]
+
+[[package]]
+name = "comette-manifest-macro"
+version = "0.1.0"
+dependencies = [
+ "comette-manifest",
+ "proc-macro-error2",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.92",
+]
+
+[[package]]
+name = "comette-plugin"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "az",
+ "comette-manifest",
+ "comette-manifest-macro",
+ "parking_lot",
+ "prost",
+ "serde",
+ "sqlx",
+ "sublime_fuzzy",
+ "time",
+ "tokio",
+ "tokio-stream",
+ "toml 0.8.19",
+ "tonic",
+ "tonic-build",
+]
+
+[[package]]
+name = "comette-tauri"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "comette",
+ "comette-tauri-types",
+ "freedesktop-icons",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-clipboard-manager",
+ "tauri-plugin-fs",
+ "tauri-plugin-notification",
+ "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "comette-tauri-types"
+version = "0.1.0"
+dependencies = [
+ "comette-manifest",
+ "serde",
+ "ts-rs",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3740,101 +3835,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4759aa0d3a6232fb8dbdb97b61de2c20047c68aca932c7ed76da9d788508d670"
 dependencies = [
  "prost",
-]
-
-[[package]]
-name = "qpmu"
-version = "0.1.0"
-dependencies = [
- "az",
- "color-eyre",
- "dirs",
- "futures",
- "parking_lot",
- "prost",
- "qpmu-manifest",
- "serde",
- "tokio",
- "toml 0.8.19",
- "tonic",
- "tonic-build",
- "tracing",
-]
-
-[[package]]
-name = "qpmu-manifest"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "serde",
- "syn 2.0.92",
- "toml 0.8.19",
- "ts-rs",
-]
-
-[[package]]
-name = "qpmu-manifest-macro"
-version = "0.1.0"
-dependencies = [
- "proc-macro-error2",
- "proc-macro2",
- "qpmu-manifest",
- "quote",
- "syn 2.0.92",
-]
-
-[[package]]
-name = "qpmu-plugin"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "az",
- "parking_lot",
- "prost",
- "qpmu-manifest",
- "qpmu-manifest-macro",
- "serde",
- "sqlx",
- "sublime_fuzzy",
- "time",
- "tokio",
- "tokio-stream",
- "toml 0.8.19",
- "tonic",
- "tonic-build",
-]
-
-[[package]]
-name = "qpmu-tauri"
-version = "0.1.0"
-dependencies = [
- "color-eyre",
- "freedesktop-icons",
- "parking_lot",
- "qpmu",
- "qpmu-tauri-types",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-clipboard-manager",
- "tauri-plugin-fs",
- "tauri-plugin-notification",
- "tauri-plugin-opener",
- "tauri-plugin-single-instance",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "qpmu-tauri-types"
-version = "0.1.0"
-dependencies = [
- "qpmu-manifest",
- "serde",
- "ts-rs",
 ]
 
 [[package]]

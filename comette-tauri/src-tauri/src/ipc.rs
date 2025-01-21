@@ -25,17 +25,17 @@ fn setup_impl(
 
 #[tauri::command]
 pub fn query(state: State<'_, AppState>, text: String) {
-    state.lock().query(text);
+    tokio::spawn(state.host().query(text));
 }
 
 #[tauri::command]
 pub fn activate(state: State<'_, AppState>, list_item_id: ListItemId) {
-    find_or_warn(&state, list_item_id).map(|item| state.lock().activate(item));
+    find_or_warn(&state, list_item_id).map(|item| tokio::spawn(state.host().activate(item)));
 }
 
 #[tauri::command]
 pub fn alt_activate(state: State<'_, AppState>, list_item_id: ListItemId) {
-    find_or_warn(&state, list_item_id).map(|item| state.lock().alt_activate(item));
+    find_or_warn(&state, list_item_id).map(|item| tokio::spawn(state.host().alt_activate(item)));
 }
 
 #[tauri::command]
@@ -49,7 +49,7 @@ pub fn hotkey_activate(state: State<'_, AppState>, list_item_id: ListItemId, hot
     } = hotkey;
 
     find_or_warn(&state, list_item_id).map(|item| {
-        state.lock().hotkey_activate(
+        tokio::spawn(state.host().hotkey_activate(
             item,
             comette::hotkey::Hotkey {
                 key: key_to_comette(key),
@@ -58,13 +58,13 @@ pub fn hotkey_activate(state: State<'_, AppState>, list_item_id: ListItemId, hot
                 shift,
                 meta,
             },
-        )
+        ))
     });
 }
 
 #[tauri::command]
 pub fn complete(state: State<'_, AppState>, list_item_id: ListItemId) {
-    find_or_warn(&state, list_item_id).map(|item| state.lock().complete(item));
+    find_or_warn(&state, list_item_id).map(|item| tokio::spawn(state.host().complete(item)));
 }
 
 fn find_or_warn(state: &AppState, id: ListItemId) -> Option<comette::ListItemId> {

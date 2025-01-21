@@ -12,7 +12,7 @@ use crate::window;
 
 /// Must be initialised exactly once with [`AppState::init`].
 pub struct AppState {
-    inner: OnceLock<comette::lock::SharedMutex<Host>>,
+    inner: OnceLock<Host>,
 }
 
 impl AppState {
@@ -27,7 +27,7 @@ impl AppState {
             // this should never run in the real application, but it does
             // in hot module reload.
             tracing::warn!("setting model again");
-            existing.lock().set_frontend(fe);
+            existing.set_frontend(fe);
         } else {
             self.inner
                 .set(comette::Host::new(fe)?)
@@ -39,11 +39,8 @@ impl AppState {
 
     /// # Panics
     /// Panics if this has not been initialised yet.
-    pub fn lock(&self) -> comette::lock::SharedMutexGuard<'_, Host> {
-        self.inner
-            .get()
-            .expect("app state has not been set up")
-            .lock()
+    pub fn host(&self) -> &Host {
+        self.inner.get().expect("app state has not been set up")
     }
 
     pub fn register_list_items(
@@ -79,12 +76,7 @@ impl AppState {
 
     pub fn find_list_item(&self, id: &ListItemId) -> Option<comette::ListItemId> {
         Some(comette::ListItemId {
-            plugin: self
-                .lock()
-                .plugins()
-                .iter()
-                .find(|plugin| plugin.name() == id.plugin_name)?
-                .clone(),
+            plugin: self.host().plugins().get(&*id.plugin_name)?.clone(),
             local_id: id.local_id,
         })
     }

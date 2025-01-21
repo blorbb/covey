@@ -1,32 +1,36 @@
-use core::fmt;
-use std::{fs, future::Future, io::Read as _};
+use std::{fs, future::Future, io::Read as _, sync::Arc};
 
 use color_eyre::eyre::{bail, Context, Result};
 use indexmap::IndexSet;
-use tokio::sync::mpsc::UnboundedSender;
+use parking_lot::Mutex;
 use tracing::{debug, error, info};
 
 use crate::{
     config::GlobalConfig,
     event::{Action, ListItemId, PluginEvent},
     hotkey::Hotkey,
-    lock::SharedMutex,
     proto, Frontend, Plugin, CONFIG_PATH,
 };
+
+pub struct HostInner {
+    pub(crate) plugins: IndexSet<Plugin>,
+    pub(crate) dispatched_actions: u64,
+    pub(crate) activated_actions: u64,
+    pub(crate) fe: Box<dyn Frontend>,
+}
 
 /// Main public API for interacting with comette.
 ///
 /// When an action is returned from a plugin, the frontend is updated.
+///
+/// This is cheap to clone.
+#[derive(Clone)]
 pub struct Host {
-    pub(crate) plugins: IndexSet<Plugin>,
-    pub(crate) dispatched_actions: u64,
-    pub(crate) activated_actions: u64,
-    pub(crate) sender: UnboundedSender<Result<PluginEvent>>,
-    pub(crate) fe: Box<dyn Frontend>,
+    inner: Arc<Mutex<HostInner>>,
 }
 
 impl Host {
-    pub fn new(fe: impl Frontend) -> Result<SharedMutex<Self>> {
+    pub fn new(fe: impl Frontend) -> Result<Self> {
         info!("reading config from file: {:?}", &*CONFIG_PATH);
 
         let mut file = fs::OpenOptions::new()
@@ -46,98 +50,92 @@ impl Host {
 
         info!("found plugins: {plugins:?}");
 
-        // make a channel to receive events and handle them
-        let (send, mut recv) = tokio::sync::mpsc::unbounded_channel::<Result<PluginEvent>>();
-        let this = Self {
-            plugins,
-            dispatched_actions: 0,
-            activated_actions: 0,
-            sender: send,
-            fe: Box::new(fe),
-        };
-
-        // TODO: spawn local instead, avoid the mutex?
-        let this = SharedMutex::new(this);
-
-        tokio::spawn({
-            let this = SharedMutex::clone(&this);
-            async move {
-                while let Some(a) = recv.recv().await {
-                    this.lock().handle_event(a);
-                }
-            }
-        });
-
-        Ok(this)
+        Ok(Self {
+            inner: Arc::new(Mutex::new(HostInner {
+                plugins,
+                dispatched_actions: 0,
+                activated_actions: 0,
+                fe: Box::new(fe),
+            })),
+        })
     }
 
-    pub(crate) fn send_event(
-        &mut self,
-        event: impl Future<Output = Result<PluginEvent>> + Send + 'static,
-    ) {
-        let sender = self.sender.clone();
-        tokio::spawn(async move { _ = sender.send(event.await) });
+    fn make_event_future<Fut>(&self, event: Fut) -> impl Future<Output = ()> + use<Fut>
+    where
+        Fut: Future<Output = Result<PluginEvent>> + Send + 'static,
+    {
+        let this = self.clone();
+        async move {
+            this.handle_event(event.await).await;
+        }
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn activate(&mut self, item: ListItemId) {
+    pub fn activate(&self, item: ListItemId) -> impl Future<Output = ()> + use<> {
         debug!("activating {item:?}");
 
-        self.send_event(async move {
+        self.make_event_future(async move {
             item.plugin
                 .activate(item.local_id)
                 .await
                 .map(PluginEvent::Run)
-        });
+        })
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn alt_activate(&mut self, item: ListItemId) {
+    pub fn alt_activate(&self, item: ListItemId) -> impl Future<Output = ()> + use<> {
         debug!("alt-activating {item:?}");
 
-        self.send_event(async move {
+        self.make_event_future(async move {
             item.plugin
                 .alt_activate(item.local_id)
                 .await
                 .map(PluginEvent::Run)
-        });
+        })
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn hotkey_activate(&mut self, item: ListItemId, hotkey: Hotkey) {
+    pub fn hotkey_activate(
+        &self,
+        item: ListItemId,
+        hotkey: Hotkey,
+    ) -> impl Future<Output = ()> + use<> {
         debug!("hotkey-activating {item:?}");
 
-        self.send_event(async move {
+        self.make_event_future(async move {
             item.plugin
                 .hotkey_activate(item.local_id, proto::Hotkey::from(hotkey))
                 .await
                 .map(PluginEvent::Run)
-        });
+        })
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn complete(&mut self, item: ListItemId) {
+    pub fn complete(&self, item: ListItemId) -> impl Future<Output = ()> + use<> {
         debug!("completing {item:?}");
 
-        self.send_event(async move {
+        self.make_event_future(async move {
             if let Some(new) = item.plugin.complete(item.local_id).await? {
                 Ok(PluginEvent::Run(vec![Action::SetInput(new)]))
             } else {
                 // do nothing
                 Ok(PluginEvent::Run(vec![]))
             }
-        });
+        })
     }
 
     /// Calls a plugin with this input.
     #[tracing::instrument(skip(self))]
-    pub fn query(&mut self, input: String) {
+    pub fn query(&self, input: String) -> impl Future<Output = ()> + use<> {
         debug!("setting input to {input:?}");
-        self.dispatched_actions += 1;
+        let (plugins, this_action_index) = {
+            let mut inner = self.inner.lock();
+            inner.dispatched_actions += 1;
 
-        let plugins = self.plugins.clone();
-        let actioni = self.dispatched_actions;
-        self.send_event(async move {
+            (inner.plugins.clone(), inner.dispatched_actions)
+        };
+
+        self.make_event_future(async move {
             for plugin in plugins {
                 let Some(stripped) = input.strip_prefix(plugin.prefix()) else {
                     continue;
@@ -147,7 +145,7 @@ impl Host {
 
                 return Ok(PluginEvent::SetList {
                     list,
-                    index: actioni,
+                    index: this_action_index,
                 });
             }
 
@@ -155,36 +153,69 @@ impl Host {
         })
     }
 
+    async fn handle_event(&self, event: Result<PluginEvent>) {
+        let chained_query = self.inner.lock().handle_event(event);
+
+        if let Some(query) = chained_query {
+            // indirection needed to avoid infinitely sized future
+            Box::pin(self.query(query)).await;
+        }
+    }
+
+    /// Reloads all plugins with the new configuration.
     #[tracing::instrument(skip(self))]
-    pub(crate) fn handle_event(&mut self, event: Result<PluginEvent>) {
+    pub fn reload(&self, config: GlobalConfig) -> Result<()> {
+        debug!("reloading");
+        self.inner.lock().plugins = config.load_plugins();
+        Ok(())
+    }
+
+    /// Ordered set of all plugins.
+    #[tracing::instrument(skip(self))]
+    pub fn plugins(&self) -> IndexSet<Plugin> {
+        self.inner.lock().plugins.clone()
+    }
+
+    /// Swaps out the frontend used.
+    ///
+    /// Note: this is only used for hot module reloading support.
+    pub fn set_frontend(&self, fe: impl Frontend) {
+        self.inner.lock().fe = Box::new(fe);
+    }
+}
+
+impl HostInner {
+    /// Optionally returns another string that should be queried.
+    #[tracing::instrument(skip(self))]
+    fn handle_event(&mut self, event: Result<PluginEvent>) -> Option<String> {
         debug!("handling event");
-        let event = match event {
-            Ok(ev) => ev,
-            Err(e) => {
-                self.fe.display_error("Error in plugin", e);
-                return;
-            }
-        };
 
         match event {
-            PluginEvent::SetList { list, index } => {
+            Ok(PluginEvent::SetList { list, index }) => {
                 if index <= self.activated_actions {
-                    return;
+                    return None;
                 }
                 self.activated_actions = index;
                 self.fe.set_list(list);
             }
-            PluginEvent::Run(actions) => {
-                actions
+            Ok(PluginEvent::Run(actions)) => {
+                return actions
                     .into_iter()
-                    .for_each(|action| self.handle_action(action));
+                    .fold(None, |opt, action| self.handle_action(action).or(opt));
+            }
+            Err(e) => {
+                self.fe.display_error("Error in plugin", e);
             }
         }
+
+        None
     }
 
+    /// Optionally returns another string that should be queried.
     #[tracing::instrument(skip(self))]
-    pub(crate) fn handle_action(&mut self, action: Action) {
+    fn handle_action(&mut self, action: Action) -> Option<String> {
         info!("handling action {action:?}");
+
         match action {
             Action::Close => self.fe.close(),
             Action::RunCommand(cmd, args) => {
@@ -209,40 +240,9 @@ impl Host {
             }
             Action::SetInput(input) => {
                 self.fe.set_input(input.clone());
-                self.query(input.contents);
+                return Some(input.contents);
             }
         }
-    }
-
-    /// Reloads all plugins with the new configuration.
-    #[tracing::instrument(skip(self))]
-    pub fn reload(&mut self, config: GlobalConfig) -> Result<()> {
-        debug!("reloading");
-        self.plugins = config.load_plugins();
-        Ok(())
-    }
-
-    /// Ordered set of all plugins.
-    #[tracing::instrument(skip(self))]
-    pub fn plugins(&self) -> &IndexSet<Plugin> {
-        &self.plugins
-    }
-
-    /// Swaps out the frontend used.
-    ///
-    /// Note: this is only used for hot module reloading support.
-    pub fn set_frontend(&mut self, fe: impl Frontend) {
-        self.fe = Box::new(fe);
-    }
-}
-
-impl fmt::Debug for Host {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Model")
-            .field("plugins", &self.plugins)
-            .field("dispatched_actions", &self.dispatched_actions)
-            .field("activated_actions", &self.activated_actions)
-            .field("sender", &self.sender)
-            .finish()
+        None
     }
 }

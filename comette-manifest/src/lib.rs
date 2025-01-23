@@ -152,7 +152,7 @@ macros::make_config_subtypes! {
 /// [`ConfigType`] isn't a struct wrapper around this so that users can match
 /// on it's variants.
 #[derive(Deserialize)]
-#[serde(tag = "type-name", rename_all = "kebab-case")]
+#[serde(rename_all = "kebab-case")]
 enum __ConfigTypeSerdeDerive {
     Int(ConfigInt),
     Str(ConfigStr),
@@ -331,10 +331,9 @@ mod tests {
     #[test]
     fn int() {
         let input = r#"
-            type-name = "int"
-            min = 0
+            int = { min = 0 }
         "#;
-        let output: ConfigType = toml::from_str(input).unwrap();
+        let output: ConfigType = toml::from_str(&input).unwrap();
         assert_eq!(
             output,
             ConfigType::Int(ConfigInt {
@@ -348,7 +347,7 @@ mod tests {
     fn list() {
         let input = r#"
             title = "thing"
-            type = { type-name = "list", item-type = "int", unique = true }
+            type = { list = { item-type = "int", unique = true } }
         "#;
         let output: ConfigSchema = toml::from_str(input).unwrap();
         assert_eq!(output, ConfigSchema {
@@ -372,11 +371,7 @@ mod tests {
 
             [schema.urls]
             title = "List of URLs to show"
-
-            [schema.urls.type]
-            type-name = "map"
-            value-type.type-name = "struct"
-            value-type.fields = { name = "str", url = "str" }
+            type.map.value-type.struct.fields = { name = "str", url = "str" }
         "#;
         let output: PluginManifest = toml::from_str(input).unwrap();
         assert_eq!(output, PluginManifest {

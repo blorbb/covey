@@ -78,11 +78,7 @@ mod tests {
 
                     [schema.urls]
                     title = "List of URLs to show"
-
-                    [schema.urls.type]
-                    type-name = "map"
-                    value-type.type-name = "struct"
-                    value-type.fields = { name = "str", url = "str" }
+                    type.map.value-type.struct.fields = { name = "str", url = "str" }
                 "#
             );
         }

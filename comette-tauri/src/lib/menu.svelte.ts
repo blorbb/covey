@@ -1,13 +1,13 @@
 // These must match `comette_tauri::ipc::frontend::Event`.
 
 import { Channel, invoke } from "@tauri-apps/api/core";
-import * as commands from "./commands";
-import type { ListItem } from "./bindings/ListItem";
-import type { ListStyle } from "./bindings/ListStyle";
+
 import type { Event } from "./bindings/Event";
 import type { Hotkey } from "./bindings/Hotkey";
 import type { Key } from "./bindings/Key";
-import { UnreachableError } from "./utils";
+import type { ListItem } from "./bindings/ListItem";
+import type { ListStyle } from "./bindings/ListStyle";
+import * as commands from "./commands";
 
 export class Menu {
   public items = $state<ListItem[]>([]);
@@ -35,8 +35,6 @@ export class Menu {
           self.style = msg.style ?? undefined;
           self.selection = 0;
           break;
-        default:
-          throw new UnreachableError(msg);
       }
     };
 
@@ -91,7 +89,7 @@ const keyNameToKey = (keyCased: string): Key | undefined => {
   // not shift+1, ..., shift+0
   const digitShiftIndex = ")!@#$%^&*(".indexOf(key);
   if (digitShiftIndex !== -1) {
-    return ("digit" + digitShiftIndex) as Key;
+    return ("digit" + digitShiftIndex.toString()) as Key;
   }
 
   // f* keys

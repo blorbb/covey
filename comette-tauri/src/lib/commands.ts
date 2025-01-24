@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+
 import type { Hotkey } from "./bindings/Hotkey";
 import type { ListItemId } from "./bindings/ListItemId";
 

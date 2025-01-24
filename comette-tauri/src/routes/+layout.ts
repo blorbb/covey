@@ -3,6 +3,7 @@
 
 import { IconCache } from "$lib/icons";
 import { Menu } from "$lib/menu.svelte";
+
 import type { LayoutLoad } from "./$types";
 
 // See: https://v2.tauri.app/start/frontend/sveltekit/ for more info

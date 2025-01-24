@@ -1,12 +1,13 @@
 <script lang="ts">
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-  import * as commands from "$lib/commands";
-  import { onDestroy } from "svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
-  import type { PageData } from "./$types";
-  import ScrollShadow from "$lib/components/scroll_shadow.svelte";
-  import { UnreachableError } from "$lib/utils";
+  import { onDestroy } from "svelte";
+
   import type { ListStyle } from "$lib/bindings/ListStyle";
+  import * as commands from "$lib/commands";
+  import ScrollShadow from "$lib/components/scroll_shadow.svelte";
+
+  import type { PageData } from "./$types";
 
   const { data }: { data: PageData } = $props();
   const menu = data.menu;
@@ -29,7 +30,7 @@
         menu.complete();
         break;
       case "Escape":
-        getCurrentWindow().hide();
+        void getCurrentWindow().hide();
         break;
       default:
         // do not prevent default
@@ -81,7 +82,7 @@
 
   // select full input when focussed
   let unlisten: UnlistenFn | undefined;
-  listen("tauri://focus", () => {
+  void listen("tauri://focus", () => {
     mainInput?.setSelectionRange(0, mainInput.value.length);
   }).then((f) => (unlisten = f));
 
@@ -96,7 +97,7 @@
 
     // hide window if clicked outside menu wrapper
     if (!menuWrapper?.contains(ev.target)) {
-      getCurrentWindow().hide();
+      void getCurrentWindow().hide();
     }
   };
 
@@ -110,8 +111,6 @@
         return configuredListStyle.kind;
       case "gridWithColumns":
         return "grid";
-      default:
-        throw new UnreachableError(configuredListStyle);
     }
   });
   let listColumns = $derived.by(() => {
@@ -122,8 +121,6 @@
         return 4; // TODO: make this configurable
       case "gridWithColumns":
         return configuredListStyle.columns;
-      default:
-        throw new UnreachableError(configuredListStyle);
     }
   });
 </script>
@@ -168,6 +165,7 @@
                   {:catch err}
                     <div class="icon-error">
                       <!-- TODO: something here? -->
+                       {err}
                     </div>
                   {/await}
                 {/if}

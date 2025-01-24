@@ -49,6 +49,10 @@ export default tseslint.config(
         "error",
         { requireDefaultForNonUnion: true },
       ],
+      "@typescript-eslint/strict-boolean-expressions": [
+        "error",
+        { allowNullableBoolean: true },
+      ],
       "simple-import-sort/imports": "warn",
       "simple-import-sort/exports": "warn",
     },

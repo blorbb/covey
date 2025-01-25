@@ -1,0 +1,15 @@
+[package]
+name = "covey-tauri-types"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+covey-manifest = { path = "../../covey-manifest", optional = true }
+ts-rs = { workspace = true, optional = true }
+serde.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+build = ["dep:covey-manifest", "dep:ts-rs", "covey-manifest/ts-rs"]

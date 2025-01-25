@@ -1,11 +1,11 @@
 [workspace]
 members = [
-    "comette-plugin",
-    "comette",
-    "comette-manifest",
-    "comette-manifest-macro",
-    "comette-tauri/src-tauri",
-    "comette-tauri/comette-tauri-types",
+    "covey-plugin",
+    "covey",
+    "covey-manifest",
+    "covey-manifest-macro",
+    "covey-tauri/src-tauri",
+    "covey-tauri/covey-tauri-types",
 ]
 resolver = "2"
 

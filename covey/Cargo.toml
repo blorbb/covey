@@ -1,0 +1,25 @@
+[package]
+name = "covey"
+version = "0.1.0"
+edition = "2021"
+
+[lints]
+workspace = true
+
+[dependencies]
+color-eyre.workspace = true
+toml.workspace = true
+serde.workspace = true
+indexmap.workspace = true
+futures.workspace = true
+tracing.workspace = true
+tokio = { workspace = true, features = ["fs", "process"] }
+tonic.workspace = true
+prost.workspace = true
+az.workspace = true
+dirs.workspace = true
+parking_lot.workspace = true
+covey-manifest = { path = "../covey-manifest" }
+
+[build-dependencies]
+tonic-build = "0.12.3"

@@ -2,7 +2,7 @@ use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
 
 use anyhow::Result;
 
-use crate::{proto, Action};
+use crate::{proto, Action, Actions};
 
 pub struct List {
     pub(crate) items: Vec<ListItem>,
@@ -129,7 +129,7 @@ impl Icon {
 }
 
 type DynFuture<T> = Pin<Box<dyn Future<Output = T> + Send + Sync>>;
-type ActivationFunction = Arc<dyn Fn() -> DynFuture<Result<Vec<Action>>> + Send + Sync>;
+type ActivationFunction = Arc<dyn Fn() -> DynFuture<Result<Actions>> + Send + Sync>;
 
 #[derive(Clone)]
 pub(crate) struct ListItemCallbacks {
@@ -154,7 +154,7 @@ impl ListItemCallbacks {
     pub(crate) async fn call_command(&self, name: &str) -> Result<Vec<Action>> {
         if let Some(cmd) = self.commands.get(name) {
             crate::sql::increment_frequency_table(&self.item_title).await?;
-            cmd().await
+            cmd().await.map(|actions| actions.list)
         } else {
             Ok(vec![])
         }

@@ -14,11 +14,13 @@ pub fn include_manifest(
     serde_path: Path,
     ext_impl_ty: Path,
     command_return_ty: Path,
+    command_return_trait: Path,
 ) -> Result<TokenStream, toml::de::Error> {
     let paths = CratePaths {
         serde: serde_path,
         ext_impl_ty,
         command_return_ty,
+        command_return_trait,
     };
     let manifest = PluginManifest::try_from_toml(s)?;
 
@@ -35,8 +37,12 @@ struct CratePaths {
     serde: Path,
     /// Path to `covey_plugin::ListItem`, to implement the extension trait.
     ext_impl_ty: Path,
-    /// The return type of a command, `Result<Vec<Action>>`.
+    /// The return type of a command, [`Result<R>`].
+    ///
+    /// The generic `R` can be used, which will be [`CratePaths::command_return_trait`]
     command_return_ty: Path,
+    /// Generic within [`CratePaths::command_return_ty`].
+    command_return_trait: Path,
 }
 
 impl CratePaths {
@@ -62,29 +68,5 @@ impl CratePaths {
                 #error::invalid_length(#length, &#exp)
             );
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use quote::quote;
-
-    use super::include_manifest;
-
-    #[test]
-    fn print_expansion() {
-        let input = r#"
-        name = "Open"
-        description = "Open URLs with a query"
-        repository = "https://github.com/blorbb/covey-plugins"
-        authors = ["blorbb"]
-
-        [schema.urls]
-        title = "List of URLs to show"
-        type.map.value-type.struct.fields = { name = "str", url = "str" }
-        "#;
-
-        // let out = generate_config(&input, quote! {::serde}).unwrap();
-        // eprintln!("{out}");
     }
 }

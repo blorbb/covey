@@ -9,6 +9,7 @@ use crate::PluginManifest;
 
 pub(super) fn generate_ext_trait(manifest: &PluginManifest, paths: &CratePaths) -> TokenStream {
     let ret = &paths.command_return_ty;
+    let ret_trait = &paths.command_return_trait;
 
     let signatures: Vec<_> = manifest
         .commands
@@ -17,13 +18,14 @@ pub(super) fn generate_ext_trait(manifest: &PluginManifest, paths: &CratePaths) 
             let method = Ident::new(&format!("on_{}", key.replace('-', "_")), Span::call_site());
 
             quote! {
-                fn #method<Fut>(
+                fn #method<Fut, R>(
                     self,
                     callback: impl Fn() -> Fut + ::core::marker::Send + ::core::marker::Sync + 'static
                 ) -> Self
                 where
                     Fut: ::core::future::Future<Output = #ret>
-                        + ::core::marker::Send + ::core::marker::Sync + 'static
+                        + ::core::marker::Send + ::core::marker::Sync + 'static,
+                    R: #ret_trait
             }
         })
         .collect();
@@ -38,12 +40,23 @@ pub(super) fn generate_ext_trait(manifest: &PluginManifest, paths: &CratePaths) 
     let command_names = manifest.commands.keys();
     let trait_impl = quote! {
         impl self::CommandExt for #ext_impl_ty {
-            #(#signatures {
-                self.add_command(
-                    #command_names,
-                    ::std::sync::Arc::new(move || ::std::boxed::Box::pin(callback()))
-                )
-            })*
+            #(
+                /// Runs when this command is activated.
+                ///
+                /// The closure can return any type that implements [`Into<Actions>`].
+                /// This includes `impl IntoIterator<Item = Action>`, a single [`Action`],
+                /// or an [`Input`].
+                #signatures {
+                    let callback = ::std::sync::Arc::new(callback);
+                    self.add_command(
+                        #command_names,
+                        ::std::sync::Arc::new(move || ::std::boxed::Box::pin({
+                            let callback = ::std::sync::Arc::clone(&callback);
+                            async move { callback().await.map(::core::convert::Into::into) }
+                        }))
+                    )
+                }
+            )*
         }
     };
 

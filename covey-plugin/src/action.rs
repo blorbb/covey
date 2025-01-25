@@ -26,3 +26,33 @@ impl Action {
         }
     }
 }
+
+/// Wrapper for a [`Vec<Action>`] with convenient conversion trait implementations.
+///
+/// [`From`] Implementations:
+/// - [`IntoIterator<Item = Action>`] -> `Vec<Action>`
+/// - [`Action`] -> `vec![Action]`
+/// - [`Input`] -> `vec![Action::SetInput(Input)]`
+pub struct Actions {
+    pub(crate) list: Vec<Action>,
+}
+
+impl<T: IntoIterator<Item = Action>> From<T> for Actions {
+    fn from(value: T) -> Self {
+        Self {
+            list: value.into_iter().collect(),
+        }
+    }
+}
+
+impl From<Action> for Actions {
+    fn from(value: Action) -> Self {
+        Self { list: vec![value] }
+    }
+}
+
+impl From<Input> for Actions {
+    fn from(value: Input) -> Self {
+        Self::from(Action::SetInput(value))
+    }
+}

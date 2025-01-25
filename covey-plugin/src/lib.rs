@@ -5,7 +5,7 @@ pub mod sql;
 mod list;
 pub use list::{Icon, List, ListItem, ListStyle};
 mod action;
-pub use action::Action;
+pub use action::{Action, Actions};
 mod input;
 pub use input::{Input, SelectionRange};
 mod plugin;

@@ -13,6 +13,7 @@ pub fn include_manifest(input: proc_macro::TokenStream) -> proc_macro::TokenStre
         input.serde_path.into_token_stream(),
         input.ext_impl_ty.into_token_stream(),
         input.command_return_ty.into_token_stream(),
+        input.command_return_trait.into_token_stream(),
     )
     .unwrap_or_else(|e| abort!(input.format.span(), "invalid manifest toml: {}", e))
     .into()
@@ -22,6 +23,7 @@ struct Input {
     serde_path: syn::Path,
     ext_impl_ty: syn::Type,
     command_return_ty: syn::Type,
+    command_return_trait: syn::TraitBound,
     format: InputFormat,
 }
 
@@ -30,6 +32,7 @@ impl Parse for Input {
         let mut serde_path = None;
         let mut ext_impl_ty = None;
         let mut command_return_ty = None;
+        let mut command_return_trait = None;
         let mut fmt = None;
 
         let entries = Punctuated::<Entry, Token![,]>::parse_terminated(input)?;
@@ -48,6 +51,11 @@ impl Parse for Input {
                 Entry::CommandReturnTy(key, path) => {
                     if command_return_ty.replace(path).is_some() {
                         abort!(key, "`command_return_ty` must be defined once")
+                    }
+                }
+                Entry::CommandReturnTrait(key, path) => {
+                    if command_return_trait.replace(path).is_some() {
+                        abort!(key, "`command_return_trait` must be defined once")
                     }
                 }
                 Entry::Inline(key, str) => {
@@ -69,6 +77,8 @@ impl Parse for Input {
                 .unwrap_or_else(|| abort!(input.span(), "`ext_impl_ty` must be defined")),
             command_return_ty: command_return_ty
                 .unwrap_or_else(|| abort!(input.span(), "`command_return_ty` must be defined")),
+            command_return_trait: command_return_trait
+                .unwrap_or_else(|| abort!(input.span(), "`command_return_trait` must be defined")),
             format: fmt.unwrap_or_else(|| {
                 abort!(
                     input.span(),
@@ -113,6 +123,7 @@ enum Entry {
     SerdePath(kw::serde_path, syn::Path),
     ExtImplTy(kw::ext_impl_ty, syn::Type),
     CommandReturnTy(kw::command_return_ty, syn::Type),
+    CommandReturnTrait(kw::command_return_trait, syn::TraitBound),
     Inline(kw::inline, syn::LitStr),
     File(kw::file, syn::LitStr),
 }
@@ -132,6 +143,10 @@ impl Parse for Entry {
             let key = input.parse::<kw::command_return_ty>()?;
             input.parse::<Token![=]>()?;
             Ok(Self::CommandReturnTy(key, input.parse::<syn::Type>()?))
+        } else if lookahead.peek(kw::command_return_trait) {
+            let key = input.parse::<kw::command_return_trait>()?;
+            input.parse::<Token![=]>()?;
+            Ok(Self::CommandReturnTrait(key, input.parse::<syn::TraitBound>()?))
         } else if lookahead.peek(kw::file) {
             let key = input.parse::<kw::file>()?;
             input.parse::<Token![=]>()?;
@@ -150,6 +165,7 @@ mod kw {
     syn::custom_keyword!(serde_path);
     syn::custom_keyword!(ext_impl_ty);
     syn::custom_keyword!(command_return_ty);
+    syn::custom_keyword!(command_return_trait);
     syn::custom_keyword!(file);
     syn::custom_keyword!(inline);
 }

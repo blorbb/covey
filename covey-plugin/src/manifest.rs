@@ -16,7 +16,8 @@ macro_rules! include_manifest {
             // this can't be $crate as it's used by serde, requires a proper path
             serde_path = covey_plugin::manifest::__private_generation::serde,
             ext_impl_ty = $crate::ListItem,
-            command_return_ty = $crate::Result<::std::vec::Vec<$crate::Action>>,
+            command_return_ty = $crate::Result<R>,
+            command_return_trait = ::core::convert::Into<$crate::Actions>,
         );
 
         impl $crate::manifest::ManifestDeserialization for self::Config {
@@ -75,7 +76,8 @@ mod tests {
             __private_generation::include_manifest!(
                 serde_path = crate::manifest::__private_generation::serde,
                 ext_impl_ty = crate::ListItem,
-                command_return_ty = crate::Result<::std::vec::Vec<crate::Action>>,
+                command_return_ty = crate::Result<R>,
+                command_return_trait = ::core::convert::Into<crate::Actions>,
                 inline = r#"
                     name = "Open"
                     description = "Open URLs with a query"

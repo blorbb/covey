@@ -4,7 +4,7 @@ use std::{
     marker::PhantomData,
 };
 
-use commands::Command;
+use commands::{Command, CommandId};
 use indexmap::IndexMap;
 use serde::{
     Deserialize, Deserializer,
@@ -45,7 +45,7 @@ pub struct PluginManifest {
     /// Several commands can have the same hotkey, but the commands that
     /// a single list item has should have different hotkeys.
     #[serde(default = "default_commands")]
-    pub commands: IndexMap<String, Command>,
+    pub commands: IndexMap<CommandId, Command>,
 }
 
 impl PluginManifest {
@@ -54,19 +54,19 @@ impl PluginManifest {
     }
 }
 
-fn default_commands() -> IndexMap<String, Command> {
+fn default_commands() -> IndexMap<CommandId, Command> {
     IndexMap::from([
-        (String::from("activate"), Command {
+        (CommandId::new("activate"), Command {
             title: String::from("Activate"),
             description: None,
             default_hotkey: Some("enter".parse().expect("enter should be a hotkey")),
         }),
-        (String::from("complete"), Command {
+        (CommandId::new("complete"), Command {
             title: String::from("Complete"),
             description: None,
             default_hotkey: Some("tab".parse().expect("tab should be a hotkey")),
         }),
-        (String::from("alt-activate"), Command {
+        (CommandId::new("alt-activate"), Command {
             title: String::from("Alt activate"),
             description: None,
             default_hotkey: Some("alt+enter".parse().expect("alt+enter should be a hotkey")),

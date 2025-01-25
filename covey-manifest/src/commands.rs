@@ -1,7 +1,11 @@
 use core::fmt;
-use std::str::FromStr;
+use std::{str::FromStr, sync::Arc};
 
 use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
+pub struct CommandId(Arc<str>);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
@@ -9,6 +13,22 @@ pub struct Command {
     pub title: String,
     pub description: Option<String>,
     pub default_hotkey: Option<Hotkey>,
+}
+
+impl CommandId {
+    pub fn new(name: &str) -> Self {
+        Self(Arc::from(name))
+    }
+
+    pub fn name(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<Arc<str>> for CommandId {
+    fn from(value: Arc<str>) -> Self {
+        Self(value)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

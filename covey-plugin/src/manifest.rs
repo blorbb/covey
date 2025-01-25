@@ -3,31 +3,35 @@ use std::fmt;
 #[doc(hidden)]
 /// Private implementation details. Do not use.
 pub mod __private_generation {
-    pub use covey_manifest_macro::generate_config;
+    pub use covey_manifest_macro::include_manifest;
     pub use serde;
+    pub use toml;
 }
 
 #[macro_export]
-macro_rules! generate_config {
+macro_rules! include_manifest {
     ($path:literal) => {
-        $crate::manifest::__private_generation::generate_config!(
+        $crate::manifest::__private_generation::include_manifest!(
             file = $path,
-            serde_path = $crate::manifest::__private_generation::serde
+            // this can't be $crate as it's used by serde, requires a proper path
+            serde_path = covey_plugin::manifest::__private_generation::serde,
+            ext_impl_ty = $crate::ListItem,
+            command_return_ty = $crate::Result<::std::vec::Vec<$crate::Action>>,
         );
 
         impl $crate::manifest::ManifestDeserialization for self::Config {
             fn try_from_input(s: &str) -> Result<Self, $crate::manifest::DeserializationError> {
-                toml::from_str(s)
+                $crate::manifest::__private_generation::toml::from_str(s)
                     .map_err(|e| $crate::manifest::DeserializationError(e.message().to_string()))
             }
         }
     };
     () => {
-        $crate::generate_config!("./manifest.toml");
+        $crate::include_manifest!("./manifest.toml");
     };
 }
 
-/// Automatically implemented by [`generate_config!`].
+/// Automatically implemented by [`include_manifest!`].
 ///
 /// The unit type `()` also implements this, ignoring the input.
 pub trait ManifestDeserialization: Sized {
@@ -68,8 +72,10 @@ mod tests {
         mod config {
             use crate::manifest::__private_generation;
 
-            __private_generation::generate_config!(
+            __private_generation::include_manifest!(
                 serde_path = crate::manifest::__private_generation::serde,
+                ext_impl_ty = crate::ListItem,
+                command_return_ty = crate::Result<::std::vec::Vec<crate::Action>>,
                 inline = r#"
                     name = "Open"
                     description = "Open URLs with a query"
@@ -92,5 +98,8 @@ mod tests {
                 },
             )]),
         };
+
+        use config::CommandExt;
+        crate::ListItem::new("ajwroiajw").on_activate(|| async { Ok(vec![]) });
     }
 }

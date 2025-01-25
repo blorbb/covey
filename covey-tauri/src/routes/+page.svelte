@@ -27,8 +27,7 @@
         activateListItem(ev.altKey);
         break;
       case "Tab":
-        // menu.complete();
-        // TODO
+        menu.activate("complete")
         break;
       case "Escape":
         void getCurrentWindow().hide();

@@ -74,7 +74,7 @@ fn default_commands() -> IndexMap<String, Command> {
     ])
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
 #[non_exhaustive]
 pub struct ConfigSchema {
@@ -86,7 +86,7 @@ pub struct ConfigSchema {
 /// TODO: better docs
 ///
 /// If there is no default, then this type will be *required*.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 #[cfg_attr(
     feature = "ts-rs",
     derive(ts_rs::TS),
@@ -107,7 +107,7 @@ pub enum ConfigType {
 // required fields.
 // all structs should have the same serde meta tag.
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
 #[serde(rename_all = "kebab-case")]
 pub struct ConfigList {
@@ -119,7 +119,7 @@ pub struct ConfigList {
     pub unique: bool,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
 #[serde(rename_all = "kebab-case")]
 /// A map from any string to a specified value.
@@ -130,7 +130,7 @@ pub struct ConfigMap {
 }
 
 /// A map with specific key-value pairs.
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
 #[serde(rename_all = "kebab-case")]
 pub struct ConfigStruct {
@@ -138,7 +138,7 @@ pub struct ConfigStruct {
 }
 
 /// A selection of one of multiple strings.
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
 #[serde(rename_all = "kebab-case")]
 pub struct ConfigSelection {
@@ -303,7 +303,7 @@ mod macros {
         ) => {
             $(
                 $(#[$inner_meta])*
-                #[derive(Debug, Deserialize, PartialEq)]
+                #[derive(Debug, Deserialize, PartialEq, Clone)]
                 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
                 #[serde(default, rename_all = "kebab-case")]
                 pub struct $variant {

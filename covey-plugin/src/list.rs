@@ -104,9 +104,9 @@ impl ListItem {
     /// Adds a command that can be called.
     ///
     /// This should not be used directly, use the extension trait generated
-    /// by [`crate::generate_config!`] instead.
+    /// by [`crate::include_manifest!`] instead.
     #[doc(hidden)]
-    pub fn add_command(mut self, name: String, callback: ActivationFunction) -> Self {
+    pub fn add_command(mut self, name: &'static str, callback: ActivationFunction) -> Self {
         self.commands.add_command(name, callback);
         self
     }
@@ -134,7 +134,7 @@ type ActivationFunction = Arc<dyn Fn() -> DynFuture<Result<Vec<Action>>> + Send 
 #[derive(Clone)]
 pub(crate) struct ListItemCallbacks {
     /// Key is the command's ID.
-    commands: HashMap<String, ActivationFunction>,
+    commands: HashMap<&'static str, ActivationFunction>,
     item_title: String,
 }
 
@@ -146,7 +146,7 @@ impl ListItemCallbacks {
         }
     }
 
-    pub(crate) fn add_command(&mut self, name: String, callback: ActivationFunction) {
+    pub(crate) fn add_command(&mut self, name: &'static str, callback: ActivationFunction) {
         self.commands.insert(name, callback);
     }
 
@@ -160,7 +160,7 @@ impl ListItemCallbacks {
         }
     }
 
-    pub(crate) fn ids(&self) -> impl Iterator<Item = &String> {
-        self.commands.keys()
+    pub(crate) fn ids(&self) -> impl Iterator<Item = &'static str> + use<'_> {
+        self.commands.keys().copied()
     }
 }

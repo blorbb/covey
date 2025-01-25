@@ -5,12 +5,14 @@ use syn::{LitStr, Token, parse::Parse, parse_quote, punctuated::Punctuated};
 
 #[proc_macro]
 #[proc_macro_error]
-pub fn generate_config(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn include_manifest(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(input as Input);
 
-    covey_manifest::generate::generate_config(
+    covey_manifest::generate::include_manifest(
         &input.format.evaluate(),
         input.serde_path.into_token_stream(),
+        input.ext_impl_ty.into_token_stream(),
+        input.command_return_ty.into_token_stream(),
     )
     .unwrap_or_else(|e| abort!(input.format.span(), "invalid manifest toml: {}", e))
     .into()
@@ -18,12 +20,16 @@ pub fn generate_config(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
 
 struct Input {
     serde_path: syn::Path,
+    ext_impl_ty: syn::Type,
+    command_return_ty: syn::Type,
     format: InputFormat,
 }
 
 impl Parse for Input {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let mut serde_path = None;
+        let mut ext_impl_ty = None;
+        let mut command_return_ty = None;
         let mut fmt = None;
 
         let entries = Punctuated::<Entry, Token![,]>::parse_terminated(input)?;
@@ -32,6 +38,16 @@ impl Parse for Input {
                 Entry::SerdePath(key, path) => {
                     if serde_path.replace(path).is_some() {
                         abort!(key, "`serde_path` must be defined once")
+                    }
+                }
+                Entry::ExtImplTy(key, path) => {
+                    if ext_impl_ty.replace(path).is_some() {
+                        abort!(key, "`ext_impl_ty` must be defined once")
+                    }
+                }
+                Entry::CommandReturnTy(key, path) => {
+                    if command_return_ty.replace(path).is_some() {
+                        abort!(key, "`command_return_ty` must be defined once")
                     }
                 }
                 Entry::Inline(key, str) => {
@@ -49,6 +65,10 @@ impl Parse for Input {
 
         Ok(Self {
             serde_path: serde_path.unwrap_or(parse_quote!(::serde)),
+            ext_impl_ty: ext_impl_ty
+                .unwrap_or_else(|| abort!(input.span(), "`ext_impl_ty` must be defined")),
+            command_return_ty: command_return_ty
+                .unwrap_or_else(|| abort!(input.span(), "`command_return_ty` must be defined")),
             format: fmt.unwrap_or_else(|| {
                 abort!(
                     input.span(),
@@ -91,6 +111,8 @@ impl InputFormat {
 
 enum Entry {
     SerdePath(kw::serde_path, syn::Path),
+    ExtImplTy(kw::ext_impl_ty, syn::Type),
+    CommandReturnTy(kw::command_return_ty, syn::Type),
     Inline(kw::inline, syn::LitStr),
     File(kw::file, syn::LitStr),
 }
@@ -102,6 +124,14 @@ impl Parse for Entry {
             let key = input.parse::<kw::serde_path>()?;
             input.parse::<Token![=]>()?;
             Ok(Self::SerdePath(key, input.parse::<syn::Path>()?))
+        } else if lookahead.peek(kw::ext_impl_ty) {
+            let key = input.parse::<kw::ext_impl_ty>()?;
+            input.parse::<Token![=]>()?;
+            Ok(Self::ExtImplTy(key, input.parse::<syn::Type>()?))
+        } else if lookahead.peek(kw::command_return_ty) {
+            let key = input.parse::<kw::command_return_ty>()?;
+            input.parse::<Token![=]>()?;
+            Ok(Self::CommandReturnTy(key, input.parse::<syn::Type>()?))
         } else if lookahead.peek(kw::file) {
             let key = input.parse::<kw::file>()?;
             input.parse::<Token![=]>()?;
@@ -118,6 +148,8 @@ impl Parse for Entry {
 
 mod kw {
     syn::custom_keyword!(serde_path);
+    syn::custom_keyword!(ext_impl_ty);
+    syn::custom_keyword!(command_return_ty);
     syn::custom_keyword!(file);
     syn::custom_keyword!(inline);
 }

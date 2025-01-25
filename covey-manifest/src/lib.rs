@@ -4,6 +4,7 @@ use std::{
     marker::PhantomData,
 };
 
+use commands::Command;
 use indexmap::IndexMap;
 use serde::{
     Deserialize, Deserializer,
@@ -13,6 +14,7 @@ use serde::{
 pub mod generate;
 #[cfg(feature = "ts-rs")]
 pub use ts_rs;
+pub mod commands;
 
 /// A manifest for a single plugin.
 ///
@@ -35,12 +37,41 @@ pub struct PluginManifest {
     /// Key is the ID of the configuration option.
     #[serde(default)]
     pub schema: IndexMap<String, ConfigSchema>,
+    /// All commands that the user can run on some list item.
+    ///
+    /// The key an ID for the command, which is used when calling commands
+    /// on the plugin.
+    ///
+    /// Several commands can have the same hotkey, but the commands that
+    /// a single list item has should have different hotkeys.
+    #[serde(default = "default_commands")]
+    pub commands: IndexMap<String, Command>,
 }
 
 impl PluginManifest {
     pub fn try_from_toml(s: &str) -> Result<Self, toml::de::Error> {
         toml::from_str(s)
     }
+}
+
+fn default_commands() -> IndexMap<String, Command> {
+    IndexMap::from([
+        (String::from("activate"), Command {
+            title: String::from("Activate"),
+            description: None,
+            default_hotkey: Some("enter".parse().expect("enter should be a hotkey")),
+        }),
+        (String::from("complete"), Command {
+            title: String::from("Complete"),
+            description: None,
+            default_hotkey: Some("tab".parse().expect("tab should be a hotkey")),
+        }),
+        (String::from("alt-activate"), Command {
+            title: String::from("Alt activate"),
+            description: None,
+            default_hotkey: Some("alt+enter".parse().expect("alt+enter should be a hotkey")),
+        }),
+    ])
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -301,6 +332,7 @@ mod tests {
     use super::{
         ConfigInt, ConfigList, ConfigMap, ConfigSchema, ConfigStruct, ConfigType, PluginManifest,
     };
+    use crate::default_commands;
 
     #[test]
     fn full() -> Result<(), toml::de::Error> {
@@ -322,7 +354,8 @@ mod tests {
                 title: "first option".to_string(),
                 description: None,
                 r#type: ConfigType::Int(ConfigInt::default())
-            })])
+            })]),
+            commands: default_commands(),
         });
 
         Ok(())
@@ -391,7 +424,8 @@ mod tests {
                     })),
                     min_items: Default::default()
                 })
-            })])
+            })]),
+            commands: default_commands(),
         })
     }
 }

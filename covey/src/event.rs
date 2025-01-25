@@ -143,6 +143,10 @@ impl ListItem {
             local_id: self.item.id,
         }
     }
+
+    pub fn available_commands(&self) -> &[String] {
+        &self.item.available_commands
+    }
 }
 
 impl fmt::Debug for ListItem {

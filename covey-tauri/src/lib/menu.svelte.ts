@@ -42,18 +42,15 @@ export class Menu {
     return self;
   }
 
-  public activate() {
-    void commands.activate(this.items[this.selection].id);
+  public activate(name: string) {
+    void invoke("activate", {
+      listItemId: this.items[this.selection].id,
+      commandName: name,
+    });
   }
 
-  public altActivate() {
-    void commands.altActivate(this.items[this.selection].id);
-  }
-
-  public complete() {
-    void commands.complete(this.items[this.selection].id);
-  }
-
+  // TODO: retrieve command settings from rust side
+  // make left click = enter.
   public maybeHotkeyActivate(ev: KeyboardEvent) {
     // require one of ctrl/alt/meta to be pressed to be considered a hotkey
     if (!(ev.ctrlKey || ev.altKey || ev.metaKey)) return;

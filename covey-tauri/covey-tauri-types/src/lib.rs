@@ -31,6 +31,7 @@ pub struct ListItem {
     pub description: String,
     pub icon: Option<Icon>,
     pub id: ListItemId,
+    pub available_commands: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]

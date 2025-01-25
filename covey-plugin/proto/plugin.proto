@@ -11,9 +11,6 @@ service Plugin {
     rpc Initialise (InitialiseRequest) returns (google.protobuf.Empty);
     rpc Query (QueryRequest) returns (QueryResponse);
     rpc Activate (ActivationRequest) returns (ActivationResponse);
-    rpc AltActivate (ActivationRequest) returns (ActivationResponse);
-    rpc HotkeyActivate (HotkeyActivationRequest) returns (ActivationResponse);
-    rpc Complete (ActivationRequest) returns (CompletionResponse);
 }
 
 message InitialiseRequest {
@@ -54,6 +51,8 @@ message ListItem {
         // Just some text. It should be very short.
         string TEXT = 5;
     }
+    // The command IDs that can be activated on this list item.
+    repeated string available_commands = 6;
 }
 
 message ActivationResponse {
@@ -84,101 +83,5 @@ message Input {
 
 message ActivationRequest {
     required uint64 selection_id = 1;
-}
-
-message CompletionResponse {
-    optional Input input = 1;
-}
-
-message HotkeyActivationRequest {
-    required ActivationRequest request = 1;
-    required Hotkey hotkey = 2;
-}
-
-message Hotkey {
-    required Key key = 1;
-    required bool ctrl = 2;
-    required bool alt = 3;
-    required bool shift = 4;
-    // The ⌘ Command key on Mac, ⊞ Windows key on Windows,
-    // or Super key on Linux.
-    required bool meta = 5;
-}
-
-// For now, keys are all the un-shifted keys on a standard US QWERTY keyboard.
-// I may implement proper cross-keyboard support later.
-enum Key {
-    DIGIT0 = 0;
-    DIGIT1 = 1;
-    DIGIT2 = 2;
-    DIGIT3 = 3;
-    DIGIT4 = 4;
-    DIGIT5 = 5;
-    DIGIT6 = 6;
-    DIGIT7 = 7;
-    DIGIT8 = 8;
-    DIGIT9 = 9;
-    A = 10;
-    B = 11;
-    C = 12;
-    D = 13;
-    E = 14;
-    F = 15;
-    G = 16;
-    H = 17;
-    I = 18;
-    J = 19;
-    K = 20;
-    L = 21;
-    M = 22;
-    N = 23;
-    O = 24;
-    P = 25;
-    Q = 26;
-    R = 27;
-    S = 28;
-    T = 29;
-    U = 30;
-    V = 31;
-    W = 32;
-    X = 33;
-    Y = 34;
-    Z = 35;
-    F1 = 36;
-    F2 = 37;
-    F3 = 38;
-    F4 = 39;
-    F5 = 40;
-    F6 = 41;
-    F7 = 42;
-    F8 = 43;
-    F9 = 44;
-    F10 = 45;
-    F11 = 46;
-    F12 = 47;
-    F13 = 48;
-    F14 = 49;
-    F15 = 50;
-    F16 = 51;
-    F17 = 52;
-    F18 = 53;
-    F19 = 54;
-    F20 = 55;
-    F21 = 56;
-    F22 = 57;
-    F23 = 58;
-    F24 = 59;
-    BACKTICK = 60;
-    HYPHEN = 61;
-    EQUAL = 62;
-    TAB = 63;
-    LEFT_BRACKET = 64;
-    RIGHT_BRACKET = 65;
-    BACKSLASH = 66;
-    SEMICOLON = 67;
-    APOSTROPHE = 68;
-    ENTER = 69;
-    COMMA = 70;
-    PERIOD = 71;
-    SLASH = 72;
+    required string command_name = 2;
 }

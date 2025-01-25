@@ -1,7 +1,6 @@
 pub mod config;
 mod event;
 mod host;
-pub mod hotkey;
 mod plugin;
 mod proto;
 mod spawn;

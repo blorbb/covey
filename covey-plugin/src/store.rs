@@ -90,8 +90,9 @@ impl ListItemStore {
                     title: item.title,
                     description: item.description,
                     icon: item.icon.map(Icon::into_proto),
+                    available_commands: item.commands.ids().cloned().collect(),
                 });
-                callbacks.push(item.callbacks);
+                callbacks.push(item.commands);
             }
 
             (items, callbacks)

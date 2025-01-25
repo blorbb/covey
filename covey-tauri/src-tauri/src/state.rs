@@ -48,8 +48,6 @@ impl AppState {
         lis: impl ExactSizeIterator<Item = covey::ListItem>,
     ) -> Vec<ListItem> {
         lis.map(|li| {
-            let title = li.title().to_owned();
-            let description = li.description().to_owned();
             let icon: Option<Icon> = match li.icon() {
                 Some(covey::Icon::Name(name)) => freedesktop_icons::lookup(&name)
                     .with_cache()
@@ -65,10 +63,11 @@ impl AppState {
             };
 
             ListItem {
-                title,
-                description,
+                title: li.title().to_owned(),
+                description: li.description().to_owned(),
                 icon,
-                id: id.clone(),
+                id,
+                available_commands: li.available_commands().to_vec(),
             }
         })
         .collect()

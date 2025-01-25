@@ -10,8 +10,6 @@ mod input;
 pub use input::{Input, SelectionRange};
 mod plugin;
 pub use plugin::Plugin;
-mod hotkey;
-pub use hotkey::{Hotkey, Key};
 mod server;
 pub use server::run_server as main;
 mod plugin_lock;

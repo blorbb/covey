@@ -1,8 +1,8 @@
 use std::future::Future;
 
 use crate::{
-    list::ListItemCallbacks, manifest::ManifestDeserialization, plugin_lock::PluginLock, proto,
-    sql, store, Action, Hotkey, Input, List, Result,
+    manifest::ManifestDeserialization, plugin_lock::PluginLock, proto, sql, store, Action, List,
+    Result,
 };
 
 pub trait Plugin: Sized + Send + Sync + 'static {
@@ -59,71 +59,23 @@ where
         &self,
         request: tonic::Request<proto::ActivationRequest>,
     ) -> TonicResult<proto::ActivationResponse> {
-        activate_using(request.into_inner(), ListItemCallbacks::activate).await
-    }
-
-    async fn alt_activate(
-        &self,
-        request: tonic::Request<proto::ActivationRequest>,
-    ) -> TonicResult<proto::ActivationResponse> {
-        activate_using(request.into_inner(), ListItemCallbacks::alt_activate).await
-    }
-
-    async fn hotkey_activate(
-        &self,
-        request: tonic::Request<proto::HotkeyActivationRequest>,
-    ) -> TonicResult<proto::ActivationResponse> {
         let request = request.into_inner();
-        let hotkey = request.hotkey;
-        let cx = request.request;
-        activate_using(cx, |callback| {
-            callback.hotkey_activate(Hotkey::from_proto(hotkey))
-        })
-        .await
-    }
-
-    async fn complete(
-        &self,
-        request: tonic::Request<proto::ActivationRequest>,
-    ) -> TonicResult<proto::CompletionResponse> {
-        let id = request.into_inner().selection_id;
-        let callback = store::fetch_callbacks_of(id).ok_or(tonic::Status::data_loss(format!(
+        let id = request.selection_id;
+        let callbacks = store::fetch_callbacks_of(id).ok_or(tonic::Status::data_loss(format!(
             "failed to fetch callback of list item with id {id}"
         )))?;
 
-        let new_input = callback
-            .complete()
+        let response = callbacks
+            .call_command(&request.command_name)
             .await
-            .map(|input| proto::CompletionResponse {
-                input: input.map(Input::into_proto),
+            .map(|a| proto::ActivationResponse {
+                actions: a.into_iter().map(Action::into_proto).collect(),
             });
 
-        map_result(new_input)
-    }
-}
-
-async fn activate_using<Fut>(
-    request: proto::ActivationRequest,
-    function: impl FnOnce(ListItemCallbacks) -> Fut,
-) -> TonicResult<proto::ActivationResponse>
-where
-    Fut: Future<Output = Result<Vec<Action>>>,
-{
-    let id = request.selection_id;
-    let callback = store::fetch_callbacks_of(id).ok_or(tonic::Status::data_loss(format!(
-        "failed to fetch callback of list item with id {id}"
-    )))?;
-    let response = function(callback).await.map(|a| proto::ActivationResponse {
-        actions: a.into_iter().map(Action::into_proto).collect(),
-    });
-
-    map_result(response)
-}
-
-fn map_result<T>(result: Result<T>) -> TonicResult<T> {
-    match result {
-        Ok(response) => Ok(tonic::Response::new(response)),
-        Err(err) => Err(into_tonic_status(err)),
+        match response {
+            Ok(response) => Ok(tonic::Response::new(response)),
+            Err(err) => Err(into_tonic_status(err)),
+        }
     }
 }
 

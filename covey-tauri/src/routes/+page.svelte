@@ -27,7 +27,8 @@
         activateListItem(ev.altKey);
         break;
       case "Tab":
-        menu.complete();
+        // menu.complete();
+        // TODO
         break;
       case "Escape":
         void getCurrentWindow().hide();
@@ -54,9 +55,9 @@
       menu.selection = selection;
     }
     if (altKey) {
-      menu.altActivate();
+      menu.activate("alt-activate");
     } else {
-      menu.activate();
+      menu.activate("activate");
     }
   };
 

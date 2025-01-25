@@ -8,8 +8,7 @@ use tracing::{debug, error, info};
 use crate::{
     config::GlobalConfig,
     event::{Action, ListItemId, PluginEvent},
-    hotkey::Hotkey,
-    proto, Frontend, Plugin, CONFIG_PATH,
+    Frontend, Plugin, CONFIG_PATH,
 };
 
 pub struct HostInner {
@@ -71,56 +70,18 @@ impl Host {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn activate(&self, item: ListItemId) -> impl Future<Output = ()> + use<> {
+    pub fn activate(
+        &self,
+        item: ListItemId,
+        command_name: String,
+    ) -> impl Future<Output = ()> + use<> {
         debug!("activating {item:?}");
 
         self.make_event_future(async move {
             item.plugin
-                .activate(item.local_id)
+                .activate(item.local_id, command_name)
                 .await
                 .map(PluginEvent::Run)
-        })
-    }
-
-    #[tracing::instrument(skip(self))]
-    pub fn alt_activate(&self, item: ListItemId) -> impl Future<Output = ()> + use<> {
-        debug!("alt-activating {item:?}");
-
-        self.make_event_future(async move {
-            item.plugin
-                .alt_activate(item.local_id)
-                .await
-                .map(PluginEvent::Run)
-        })
-    }
-
-    #[tracing::instrument(skip(self))]
-    pub fn hotkey_activate(
-        &self,
-        item: ListItemId,
-        hotkey: Hotkey,
-    ) -> impl Future<Output = ()> + use<> {
-        debug!("hotkey-activating {item:?}");
-
-        self.make_event_future(async move {
-            item.plugin
-                .hotkey_activate(item.local_id, proto::Hotkey::from(hotkey))
-                .await
-                .map(PluginEvent::Run)
-        })
-    }
-
-    #[tracing::instrument(skip(self))]
-    pub fn complete(&self, item: ListItemId) -> impl Future<Output = ()> + use<> {
-        debug!("completing {item:?}");
-
-        self.make_event_future(async move {
-            if let Some(new) = item.plugin.complete(item.local_id).await? {
-                Ok(PluginEvent::Run(vec![Action::SetInput(new)]))
-            } else {
-                // do nothing
-                Ok(PluginEvent::Run(vec![]))
-            }
         })
     }
 

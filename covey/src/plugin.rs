@@ -73,48 +73,18 @@ impl Plugin {
         ))
     }
 
-    pub(crate) async fn activate(&self, selection_id: u64) -> Result<Vec<Action>> {
-        Ok(self.map_proto_actions(
-            self.plugin
-                .get_and_init()
-                .await?
-                .call_activate(selection_id)
-                .await?,
-        ))
-    }
-
-    pub(crate) async fn alt_activate(&self, selection_id: u64) -> Result<Vec<Action>> {
-        Ok(self.map_proto_actions(
-            self.plugin
-                .get_and_init()
-                .await?
-                .call_alt_activate(selection_id)
-                .await?,
-        ))
-    }
-
-    pub(crate) async fn hotkey_activate(
+    pub(crate) async fn activate(
         &self,
         selection_id: u64,
-        hotkey: proto::Hotkey,
+        command_name: String,
     ) -> Result<Vec<Action>> {
         Ok(self.map_proto_actions(
             self.plugin
                 .get_and_init()
                 .await?
-                .call_hotkey_activate(selection_id, hotkey)
+                .call_activate(selection_id, command_name)
                 .await?,
         ))
-    }
-
-    pub(crate) async fn complete(&self, selection_id: u64) -> Result<Option<Input>> {
-        Ok(self
-            .plugin
-            .get_and_init()
-            .await?
-            .call_complete(selection_id)
-            .await?
-            .map(|il| Input::from_proto(self, il)))
     }
 
     fn map_proto_actions(&self, actions: Vec<proto::Action>) -> Vec<Action> {
@@ -369,57 +339,21 @@ mod implementation {
                 .into_inner())
         }
 
-        pub(super) async fn call_activate(&self, selection_id: u64) -> Result<Vec<proto::Action>> {
-            Ok(self
-                .plugin
-                .clone()
-                .activate(Request::new(proto::ActivationRequest { selection_id }))
-                .await?
-                .into_inner()
-                .actions)
-        }
-
-        pub(super) async fn call_alt_activate(
+        pub(super) async fn call_activate(
             &self,
             selection_id: u64,
+            command_name: String,
         ) -> Result<Vec<proto::Action>> {
             Ok(self
                 .plugin
                 .clone()
-                .alt_activate(Request::new(proto::ActivationRequest { selection_id }))
-                .await?
-                .into_inner()
-                .actions)
-        }
-
-        pub(super) async fn call_hotkey_activate(
-            &self,
-            selection_id: u64,
-            hotkey: proto::Hotkey,
-        ) -> Result<Vec<proto::Action>> {
-            Ok(self
-                .plugin
-                .clone()
-                .hotkey_activate(Request::new(proto::HotkeyActivationRequest {
-                    request: proto::ActivationRequest { selection_id },
-                    hotkey,
+                .activate(Request::new(proto::ActivationRequest {
+                    selection_id,
+                    command_name,
                 }))
                 .await?
                 .into_inner()
                 .actions)
-        }
-
-        pub(super) async fn call_complete(
-            &self,
-            selection_id: u64,
-        ) -> Result<Option<proto::Input>> {
-            Ok(self
-                .plugin
-                .clone()
-                .complete(Request::new(proto::ActivationRequest { selection_id }))
-                .await?
-                .into_inner()
-                .input)
         }
     }
 }

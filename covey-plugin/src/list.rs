@@ -1,8 +1,8 @@
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
 
 use anyhow::Result;
 
-use crate::{proto, Action, Hotkey, Input};
+use crate::{proto, Action};
 
 pub struct List {
     pub(crate) items: Vec<ListItem>,
@@ -62,16 +62,18 @@ pub struct ListItem {
     pub title: String,
     pub description: String,
     pub icon: Option<Icon>,
-    pub(crate) callbacks: ListItemCallbacks,
+    /// Key is the command's ID.
+    pub(crate) commands: ListItemCallbacks,
 }
 
 impl ListItem {
     pub fn new(title: impl Into<String>) -> Self {
+        let title = title.into();
         Self {
-            title: title.into(),
+            title: title.clone(),
             icon: None,
             description: String::new(),
-            callbacks: ListItemCallbacks::default(),
+            commands: ListItemCallbacks::new(title),
         }
     }
 
@@ -99,66 +101,13 @@ impl ListItem {
         self
     }
 
-    /// Add a callback to run on activation.
+    /// Adds a command that can be called.
     ///
-    /// This should be called after everything else is initialised.
-    #[must_use = "builder method consumes self"]
-    pub fn on_activate<Fut>(mut self, callback: impl Fn() -> Fut + Send + Sync + 'static) -> Self
-    where
-        Fut: Future<Output = Result<Vec<Action>>> + Send + Sync + 'static,
-    {
-        self.callbacks.activate = Some(Arc::new(move || Box::pin(callback())));
-        self.callbacks
-            .item_title
-            .get_or_insert_with(|| self.title.clone());
-        self
-    }
-
-    /// Add a callback to run on alt-activate.
-    ///
-    /// This should be called after everything else is initialised.
-    #[must_use = "builder method consumes self"]
-    pub fn on_alt_activate<Fut>(
-        mut self,
-        callback: impl Fn() -> Fut + Send + Sync + 'static,
-    ) -> Self
-    where
-        Fut: Future<Output = Result<Vec<Action>>> + Send + Sync + 'static,
-    {
-        self.callbacks.alt_activate = Some(Arc::new(move || Box::pin(callback())));
-        self.callbacks
-            .item_title
-            .get_or_insert_with(|| self.title.clone());
-        self
-    }
-
-    /// Add a callback to run when a hotkey fires.
-    ///
-    /// This should be called after everything else is initialised.
-    #[must_use = "builder method consumes self"]
-    pub fn on_hotkey_activate<Fut>(
-        mut self,
-        callback: impl Fn(Hotkey) -> Fut + Send + Sync + 'static,
-    ) -> Self
-    where
-        Fut: Future<Output = Result<Vec<Action>>> + Send + Sync + 'static,
-    {
-        self.callbacks.hotkey_activate = Some(Arc::new(move |hotkey| Box::pin(callback(hotkey))));
-        self.callbacks
-            .item_title
-            .get_or_insert_with(|| self.title.clone());
-        self
-    }
-
-    /// Add a callback to run on tab completion.
-    ///
-    /// This should be called after everything else is initialised.
-    #[must_use = "builder method consumes self"]
-    pub fn on_complete<Fut>(mut self, callback: impl Fn() -> Fut + Send + Sync + 'static) -> Self
-    where
-        Fut: Future<Output = Result<Option<Input>>> + Send + Sync + 'static,
-    {
-        self.callbacks.complete = Some(Arc::new(move || Box::pin(callback())));
+    /// This should not be used directly, use the extension trait generated
+    /// by [`crate::generate_config!`] instead.
+    #[doc(hidden)]
+    pub fn add_command(mut self, name: String, callback: ActivationFunction) -> Self {
+        self.commands.add_command(name, callback);
         self
     }
 }
@@ -179,44 +128,39 @@ impl Icon {
     }
 }
 
-type ReturnFuture<T> = Pin<Box<dyn Future<Output = Result<T>> + Send + Sync>>;
-type ActionsFuture = ReturnFuture<Vec<Action>>;
-type ActivationFunction = Arc<dyn Fn() -> ActionsFuture + Send + Sync>;
+type DynFuture<T> = Pin<Box<dyn Future<Output = T> + Send + Sync>>;
+type ActivationFunction = Arc<dyn Fn() -> DynFuture<Result<Vec<Action>>> + Send + Sync>;
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub(crate) struct ListItemCallbacks {
-    activate: Option<ActivationFunction>,
-    alt_activate: Option<ActivationFunction>,
-    hotkey_activate: Option<Arc<dyn Fn(Hotkey) -> ActionsFuture + Send + Sync>>,
-    complete: Option<Arc<dyn Fn() -> ReturnFuture<Option<Input>> + Send + Sync>>,
-    item_title: Option<String>,
-}
-
-macro_rules! generate_call_for {
-    ($( $name:ident($($arg:ident : $ty:ty),*) ),*) => {
-        $(
-            pub(crate) async fn $name(self, $($arg: $ty),*) -> Result<Vec<Action>> {
-                if let Some(callback) = &self.$name {
-                    if let Some(title) = &self.item_title {
-                        crate::sql::increment_frequency_table(title).await?;
-                    }
-                    callback($($arg),*).await
-                } else {
-                    Ok(vec![])
-                }
-            }
-        )*
-    };
+    /// Key is the command's ID.
+    commands: HashMap<String, ActivationFunction>,
+    item_title: String,
 }
 
 impl ListItemCallbacks {
-    generate_call_for!(activate(), alt_activate(), hotkey_activate(hotkey: Hotkey));
-
-    pub(crate) async fn complete(self) -> Result<Option<Input>> {
-        if let Some(callback) = self.complete {
-            callback().await
-        } else {
-            Ok(None)
+    pub(crate) fn new(title: String) -> Self {
+        Self {
+            commands: HashMap::default(),
+            item_title: title,
         }
+    }
+
+    pub(crate) fn add_command(&mut self, name: String, callback: ActivationFunction) {
+        self.commands.insert(name, callback);
+    }
+
+    /// Calls a command by name, returning an empty vec if the command is not found.
+    pub(crate) async fn call_command(&self, name: &str) -> Result<Vec<Action>> {
+        if let Some(cmd) = self.commands.get(name) {
+            crate::sql::increment_frequency_table(&self.item_title).await?;
+            cmd().await
+        } else {
+            Ok(vec![])
+        }
+    }
+
+    pub(crate) fn ids(&self) -> impl Iterator<Item = &String> {
+        self.commands.keys()
     }
 }

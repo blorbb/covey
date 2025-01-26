@@ -3,7 +3,7 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { onDestroy } from "svelte";
 
-  import type { ListStyle } from "$lib/bindings/ListStyle";
+  import type { ListStyle } from "$lib/bindings";
   import ScrollShadow from "$lib/components/scroll_shadow.svelte";
 
   import type { PageData } from "./$types";
@@ -26,7 +26,7 @@
         activateListItem(ev.altKey);
         break;
       case "Tab":
-        menu.activate("complete")
+        menu.activate("complete");
         break;
       case "Escape":
         void getCurrentWindow().hide();
@@ -123,6 +123,10 @@
         return configuredListStyle.columns;
     }
   });
+
+  const navSettings = () => {
+    menu.showSettingsWindow();
+  };
 </script>
 
 <svelte:document bind:activeElement />
@@ -139,6 +143,9 @@
           bind:this={mainInput}
           placeholder="Search..."
         />
+        <button class="settings-button" type="button" onclick={navSettings}>
+          S
+        </button>
       </div>
       <ScrollShadow>
         <div
@@ -165,7 +172,7 @@
                   {:catch err}
                     <div class="icon-error">
                       <!-- TODO: something here? -->
-                       {err}
+                      {err}
                     </div>
                   {/await}
                 {/if}
@@ -230,14 +237,27 @@
   .search-bar {
     font-size: var(--fs-large);
     padding: 2rem;
+    gap: 1rem;
+    display: flex;
+    flex-direction: row;
   }
 
   .search-input {
-    width: 100%;
+    flex-grow: 1;
     color: var(--color-on-surface);
 
     &::placeholder {
       color: var(--color-on-surface-variant);
+    }
+  }
+
+  .settings-button {
+    width: 1lh;
+    height: 1lh;
+    border-radius: 1lh;
+    &:hover {
+      background-color: var(--color-secondary-container);
+      color: var(--color-on-secondary-container);
     }
   }
 

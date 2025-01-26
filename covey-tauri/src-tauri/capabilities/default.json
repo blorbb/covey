@@ -9,6 +9,8 @@
     "clipboard-manager:allow-write-text",
     "notification:default",
     "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-create",
     "fs:default",
     "fs:read-files",
     {

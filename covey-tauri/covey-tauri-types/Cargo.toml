@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 covey-manifest = { path = "../../covey-manifest", optional = true }
+covey = { path = "../../covey", optional = true }
 ts-rs = { workspace = true, optional = true }
 serde.workspace = true
 
@@ -12,4 +13,4 @@ serde.workspace = true
 workspace = true
 
 [features]
-build = ["dep:covey-manifest", "dep:ts-rs", "covey-manifest/ts-rs"]
+build = ["dep:covey-manifest", "dep:covey", "dep:ts-rs", "covey-manifest/ts-rs", "covey/ts-rs"]

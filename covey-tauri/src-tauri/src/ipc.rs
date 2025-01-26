@@ -1,6 +1,8 @@
 use color_eyre::eyre::Result;
+use covey::config::GlobalConfig;
+use covey_manifest::PluginManifest;
 use covey_tauri_types::{Event, ListItemId};
-use tauri::{ipc::Channel, State};
+use tauri::{ipc::Channel, State, WebviewWindowBuilder};
 
 use crate::state::{AppState, EventChannel};
 
@@ -39,4 +41,42 @@ pub fn activate(state: State<'_, AppState>, list_item_id: ListItemId, command_na
     } else {
         tracing::warn!("list item with id {id:?} not found")
     }
+}
+
+#[tauri::command]
+pub fn show_settings_window(app: tauri::AppHandle) {
+    let settings_window = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|window| window.label == "settings")
+        .expect("app config should have settings window");
+
+    let window = WebviewWindowBuilder::from_config(&app, settings_window)
+        .unwrap()
+        .build()
+        .unwrap();
+    window.show().unwrap();
+}
+
+#[tauri::command]
+pub fn get_global_config(state: State<'_, AppState>) -> GlobalConfig {
+    state.host().config()
+}
+
+#[tauri::command]
+pub fn set_global_config(state: State<'_, AppState>, config: GlobalConfig) {
+    tracing::debug!("received global config {config:#?}");
+    state.host().reload(config)
+}
+
+#[tauri::command]
+pub fn get_manifest(state: State<'_, AppState>, plugin_name: String) -> Option<PluginManifest> {
+    state
+        .host()
+        .plugins()
+        .get(&*plugin_name)
+        .map(|plugin| plugin.manifest())
+        .cloned()
 }

@@ -37,6 +37,9 @@ export default tseslint.config(
       parserOptions: {
         extraFileExtensions: [".svelte"],
         parser: tseslint.parser,
+        svelteFeatures: {
+          experimentalGenerics: true
+        },
         svelteConfig,
       },
     },
@@ -44,7 +47,9 @@ export default tseslint.config(
   {
     plugins: { "simple-import-sort": simpleImportSort },
     rules: {
-      "@typescript-eslint/no-unused-vars": "warn",
+      "@typescript-eslint/no-unused-vars": ["warn", {
+        argsIgnorePattern: "^_"
+      }],
       "@typescript-eslint/switch-exhaustiveness-check": [
         "error",
         { requireDefaultForNonUnion: true },
@@ -55,6 +60,10 @@ export default tseslint.config(
       ],
       "simple-import-sort/imports": "warn",
       "simple-import-sort/exports": "warn",
+      // these are falsely erroring when using generic components
+      "@typescript-eslint/no-unsafe-return": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
     },
   },
 );

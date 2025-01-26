@@ -154,6 +154,7 @@ pub fn export_ts_to(path: impl AsRef<std::path::Path>) {
     use ts_rs::TS;
     let path = path.as_ref();
 
+    covey::config::GlobalConfig::export_all_to(&path).unwrap();
     covey_manifest::PluginManifest::export_all_to(&path).unwrap();
     crate::Event::export_all_to(&path).unwrap();
     crate::Hotkey::export_all_to(&path).unwrap();

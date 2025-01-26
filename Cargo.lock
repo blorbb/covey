@@ -907,6 +907,7 @@ version = "0.1.0"
 dependencies = [
  "color-eyre",
  "covey",
+ "covey-manifest",
  "covey-tauri-types",
  "freedesktop-icons",
  "parking_lot",
@@ -928,6 +929,7 @@ dependencies = [
 name = "covey-tauri-types"
 version = "0.1.0"
 dependencies = [
+ "covey",
  "covey-manifest",
  "serde",
  "ts-rs",
@@ -5761,6 +5763,7 @@ checksum = "e640d9b0964e9d39df633548591090ab92f7a4567bc31d3891af23471a3365c6"
 dependencies = [
  "indexmap 2.6.0",
  "lazy_static",
+ "serde_json",
  "thiserror 2.0.11",
  "ts-rs-macros",
 ]

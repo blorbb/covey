@@ -126,13 +126,12 @@ impl Host {
     }
 
     /// Reloads all plugins with the new configuration.
-    #[tracing::instrument(skip(self))]
-    pub fn reload(&self, config: GlobalConfig) -> Result<()> {
+    #[tracing::instrument(skip_all)]
+    pub fn reload(&self, config: GlobalConfig) {
         debug!("reloading");
         let mut inner = self.inner.lock();
         inner.plugins = config.load_plugins();
         inner.config = config;
-        Ok(())
     }
 
     pub fn config(&self) -> GlobalConfig {

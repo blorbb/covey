@@ -80,6 +80,10 @@ pub fn run() {
             ipc::setup,
             ipc::query,
             ipc::activate,
+            ipc::show_settings_window,
+            ipc::get_global_config,
+            ipc::set_global_config,
+            ipc::get_manifest,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

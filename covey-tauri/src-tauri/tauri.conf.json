@@ -20,6 +20,12 @@
         "transparent": true,
         "decorations": false,
         "center": true
+      },
+      {
+        "title": "covey settings",
+        "label": "settings",
+        "create": false,
+        "url": "/settings"
       }
     ],
     "security": {

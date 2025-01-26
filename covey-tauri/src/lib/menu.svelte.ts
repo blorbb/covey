@@ -2,11 +2,7 @@
 
 import { Channel, invoke } from "@tauri-apps/api/core";
 
-import type { Event } from "./bindings/Event";
-import type { Hotkey } from "./bindings/Hotkey";
-import type { Key } from "./bindings/Key";
-import type { ListItem } from "./bindings/ListItem";
-import type { ListStyle } from "./bindings/ListStyle";
+import type { Event, Hotkey, Key, ListItem, ListStyle } from "./bindings";
 
 export class Menu {
   public items = $state<ListItem[]>([]);
@@ -69,6 +65,10 @@ export class Menu {
       meta: ev.metaKey,
     };
     // this.activate("activate");
+  }
+
+  public showSettingsWindow() {
+    void invoke("show_settings_window");
   }
 }
 

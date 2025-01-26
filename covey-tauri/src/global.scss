@@ -20,7 +20,7 @@
 
   --fs-large: calc(4rem / 3);
   --fs-standard: 1rem;
-  --fs-small: 0.75rem;
+  --fs-small: 0.8rem;
 
   // other stuff //
 
@@ -105,7 +105,7 @@ h1, h2, h3, h4, h5, h6 {
     font-weight: 800;
     // prevent large difference in line lengths
     text-wrap: balance;
-    // slightly shorter line height than default 1.5
+    // slightly shorter line height than default
     line-height: 1.25;
   }
 
@@ -149,16 +149,16 @@ li {
 }
 
 h1 {
-  font-size: var(--fs-7);
+  font-size: var(--fs-large);
   letter-spacing: 0.02em;
 }
 
 h2 {
-  font-size: var(--fs-6);
+  font-size: var(--fs-standard);
 }
 
 h3 {
-  font-size: var(--fs-5);
+  font-size: var(--fs-standard);
 }
 
 // scrollbars //
@@ -184,7 +184,7 @@ h3 {
 
 ::-webkit-scrollbar-track,
 ::-webkit-scrollbar-corner {
-  background-color: var(--color-surface1);
+  background-color: var(--color-surface);
 }
 
 *::selection {

@@ -32,7 +32,7 @@ where
         sql::init(&request.sqlite_url)
             .await
             .map_err(into_tonic_status)?;
-        let config = ManifestDeserialization::try_from_input(&request.toml)
+        let config = ManifestDeserialization::try_from_input(&request.json)
             .map_err(|e| tonic::Status::invalid_argument(e.to_string()))?;
 
         let plugin = T::new(config).await.map_err(into_tonic_status)?;

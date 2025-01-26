@@ -27,7 +27,7 @@ parking_lot = "0.12"
 covey-manifest = { path = "../covey-manifest" }
 covey-manifest-macro = { path = "../covey-manifest-macro" }
 serde.workspace = true
-toml.workspace = true
+serde_json.workspace = true
 
 [build-dependencies]
 tonic-build = "0.12.3"

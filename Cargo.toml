@@ -26,6 +26,7 @@ syn = "2"
 quote = "1"
 proc-macro2 = "1"
 ts-rs = { version = "10.1", features = ["indexmap-impl"] }
+serde_json = "1"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }

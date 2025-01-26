@@ -261,13 +261,13 @@ mod implementation {
             let mut initialise_guard = self.called_initialise.lock().await;
             if !*initialise_guard {
                 let db_url = sqlite_connection_url(&self.name).await?;
-                let config_toml = self.config.config.to_string();
+                let config_json = serde_json::to_string(&self.config.config)?;
 
                 inner
                     .plugin
                     .clone()
                     .initialise(Request::new(proto::InitialiseRequest {
-                        toml: config_toml,
+                        json: config_json,
                         sqlite_url: db_url,
                     }))
                     .await

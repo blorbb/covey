@@ -847,11 +847,13 @@ dependencies = [
  "parking_lot",
  "prost",
  "serde",
+ "serde_json",
  "tokio",
  "toml 0.8.19",
  "tonic",
  "tonic-build",
  "tracing",
+ "ts-rs",
 ]
 
 [[package]]
@@ -889,12 +891,12 @@ dependencies = [
  "parking_lot",
  "prost",
  "serde",
+ "serde_json",
  "sqlx",
  "sublime_fuzzy",
  "time",
  "tokio",
  "tokio-stream",
- "toml 0.8.19",
  "tonic",
  "tonic-build",
 ]

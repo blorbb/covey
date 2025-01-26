@@ -11,11 +11,12 @@ use crate::{
     Frontend, Plugin, CONFIG_PATH,
 };
 
-pub struct HostInner {
-    pub(crate) plugins: IndexSet<Plugin>,
-    pub(crate) dispatched_actions: u64,
-    pub(crate) activated_actions: u64,
-    pub(crate) fe: Box<dyn Frontend>,
+struct HostInner {
+    plugins: IndexSet<Plugin>,
+    dispatched_actions: u64,
+    activated_actions: u64,
+    fe: Box<dyn Frontend>,
+    config: GlobalConfig,
 }
 
 /// Main public API for interacting with covey.
@@ -55,6 +56,7 @@ impl Host {
                 dispatched_actions: 0,
                 activated_actions: 0,
                 fe: Box::new(fe),
+                config: global_config,
             })),
         })
     }
@@ -127,8 +129,14 @@ impl Host {
     #[tracing::instrument(skip(self))]
     pub fn reload(&self, config: GlobalConfig) -> Result<()> {
         debug!("reloading");
-        self.inner.lock().plugins = config.load_plugins();
+        let mut inner = self.inner.lock();
+        inner.plugins = config.load_plugins();
+        inner.config = config;
         Ok(())
+    }
+
+    pub fn config(&self) -> GlobalConfig {
+        self.inner.lock().config.clone()
     }
 
     /// Ordered set of all plugins.

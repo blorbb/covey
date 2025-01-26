@@ -5,7 +5,7 @@ use std::fmt;
 pub mod __private_generation {
     pub use covey_manifest_macro::include_manifest;
     pub use serde;
-    pub use toml;
+    pub use serde_json;
 }
 
 #[macro_export]
@@ -22,8 +22,8 @@ macro_rules! include_manifest {
 
         impl $crate::manifest::ManifestDeserialization for self::Config {
             fn try_from_input(s: &str) -> Result<Self, $crate::manifest::DeserializationError> {
-                $crate::manifest::__private_generation::toml::from_str(s)
-                    .map_err(|e| $crate::manifest::DeserializationError(e.message().to_string()))
+                $crate::manifest::__private_generation::serde_json::from_str(s)
+                    .map_err(|e| $crate::manifest::DeserializationError(e.to_string()))
             }
         }
     };
@@ -38,7 +38,7 @@ macro_rules! include_manifest {
 pub trait ManifestDeserialization: Sized {
     /// Constructs `Self` from the user's plugin configuration.
     ///
-    /// The input string is currently in TOML format. This may change
+    /// The input string is currently in JSON format. This may change
     /// in the future.
     fn try_from_input(s: &str) -> Result<Self, DeserializationError>;
 }

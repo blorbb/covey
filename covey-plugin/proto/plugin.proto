@@ -14,7 +14,7 @@ service Plugin {
 }
 
 message InitialiseRequest {
-    required string toml = 1;
+    required string json = 1;
     required string sqlite_url = 2;
 }
 

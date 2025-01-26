@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 proc-macro2.workspace = true
 quote.workspace = true
-serde.workspace = true
+serde = { workspace = true, features = ["rc"] }
 syn.workspace = true
 toml.workspace = true
 indexmap.workspace = true

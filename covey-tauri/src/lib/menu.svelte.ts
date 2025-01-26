@@ -7,7 +7,6 @@ import type { Hotkey } from "./bindings/Hotkey";
 import type { Key } from "./bindings/Key";
 import type { ListItem } from "./bindings/ListItem";
 import type { ListStyle } from "./bindings/ListStyle";
-import * as commands from "./commands";
 
 export class Menu {
   public items = $state<ListItem[]>([]);
@@ -42,6 +41,10 @@ export class Menu {
     return self;
   }
 
+  public query() {
+    void invoke("query", { text: this.inputText });
+  }
+
   public activate(name: string) {
     void invoke("activate", {
       listItemId: this.items[this.selection].id,
@@ -65,7 +68,7 @@ export class Menu {
       shift: ev.shiftKey,
       meta: ev.metaKey,
     };
-    void commands.hotkeyActivate(this.items[this.selection].id, hotkey);
+    // this.activate("activate");
   }
 }
 

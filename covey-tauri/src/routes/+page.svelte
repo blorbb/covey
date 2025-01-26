@@ -4,7 +4,6 @@
   import { onDestroy } from "svelte";
 
   import type { ListStyle } from "$lib/bindings/ListStyle";
-  import * as commands from "$lib/commands";
   import ScrollShadow from "$lib/components/scroll_shadow.svelte";
 
   import type { PageData } from "./$types";
@@ -62,7 +61,8 @@
 
   // query on input change
   $effect(() => {
-    void commands.query(menu.inputText);
+    // tracks menu.inputText
+    menu.query();
   });
 
   // retain focus on the input element

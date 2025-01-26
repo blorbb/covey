@@ -245,6 +245,7 @@
   .search-input {
     flex-grow: 1;
     color: var(--color-on-surface);
+    outline: none;
 
     &::placeholder {
       color: var(--color-on-surface-variant);

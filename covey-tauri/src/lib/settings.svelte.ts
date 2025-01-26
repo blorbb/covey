@@ -1,45 +1,41 @@
-// These must match `covey_tauri::ipc::frontend::Event`.
-
 import { invoke } from "@tauri-apps/api/core";
 
 import type { GlobalConfig, PluginConfig, PluginManifest } from "./bindings";
 
-type OrderedGlobalConfig = {
-  plugins: { name: string; pluginConfig: PluginConfig }[];
-};
+type PluginList = { name: string; config: PluginConfig }[];
 
 export class Settings {
-  public globalConfig: OrderedGlobalConfig = $state() as OrderedGlobalConfig;
+  // definitely assigned in constructor so will not be undefined
+  public globalConfig: GlobalConfig = $state() as GlobalConfig;
 
   private constructor(config: GlobalConfig) {
-    this.globalConfig = {
-      ...config,
-      plugins: Object.entries(config.plugins)
-        .map(([name, pluginConfig]) => ({
-          name,
-          pluginConfig,
-        })),
-    };
+    this.globalConfig = config;
   }
 
   public static async new(): Promise<Settings> {
     const config = await invoke<GlobalConfig>("get_global_config");
     const self = new Settings(config);
+    console.log("got config", config);
     return self;
   }
 
   public updateBackendConfig(): void {
     void invoke("set_global_config", {
-      config: {
-        ...this.globalConfig,
-        plugins: Object.fromEntries(
-          this.globalConfig.plugins.map(({ name, pluginConfig }) => [
-            name,
-            pluginConfig,
-          ]),
-        ),
-      } satisfies GlobalConfig,
+      config: this.globalConfig,
     });
+  }
+
+  public get plugins() {
+    return Object.entries(this.globalConfig.plugins).map(([name, config]) => ({
+      name,
+      config,
+    }));
+  }
+
+  public set plugins(plugins: PluginList) {
+    this.globalConfig.plugins = Object.fromEntries(
+      plugins.map(({ name, config }) => [name, config]),
+    );
   }
 
   public async manifestOf(pluginName: string): Promise<PluginManifest> {

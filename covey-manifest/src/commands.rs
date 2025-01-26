@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 pub struct CommandId(Arc<str>);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
+#[serde(rename_all = "kebab-case")]
 pub struct Command {
     pub title: String,
     pub description: Option<String>,
@@ -32,7 +33,7 @@ impl From<Arc<str>> for CommandId {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 pub struct Hotkey {
     pub key: Key,
     #[serde(default)]
@@ -55,7 +56,8 @@ pub struct Hotkey {
 /// - Media keys.
 #[rustfmt::skip]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
+#[serde(rename_all = "kebab-case")]
 pub enum Key {
     Digit0, Digit1, Digit2,
     Digit3, Digit4, Digit5,

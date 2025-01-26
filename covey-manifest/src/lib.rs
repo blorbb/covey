@@ -20,7 +20,7 @@ pub mod commands;
 /// This should be a TOML file stored in
 /// `data directory/covey/plugins/<plugin>/manifest.toml`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[non_exhaustive]
 #[serde(rename_all = "kebab-case")]
 pub struct PluginManifest {
@@ -74,7 +74,7 @@ fn default_commands() -> IndexMap<CommandId, Command> {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[non_exhaustive]
 pub struct ConfigSchema {
     pub title: String,
@@ -107,7 +107,7 @@ pub enum ConfigType {
 // all structs should have the same serde meta tag.
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub struct ConfigList {
     pub item_type: Box<ConfigType>,
@@ -119,7 +119,7 @@ pub struct ConfigList {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 /// A map from any string to a specified value.
 pub struct ConfigMap {
@@ -130,7 +130,7 @@ pub struct ConfigMap {
 
 /// A map with specific key-value pairs.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub struct ConfigStruct {
     pub fields: HashMap<String, ConfigType>,
@@ -138,7 +138,7 @@ pub struct ConfigStruct {
 
 /// A selection of one of multiple strings.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub struct ConfigSelection {
     pub allowed_values: Vec<String>,
@@ -303,7 +303,7 @@ mod macros {
             $(
                 $(#[$inner_meta])*
                 #[derive(Debug, Deserialize, PartialEq, Clone, Serialize)]
-                #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
+                #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
                 #[serde(default, rename_all = "kebab-case")]
                 pub struct $variant {
                     $( $field_vis $field : $field_ty ),*

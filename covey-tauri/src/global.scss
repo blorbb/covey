@@ -70,7 +70,7 @@ button {
   outline: transparent;
 
   &:focus-visible {
-    outline: var(--outline);
+    outline: 2px solid var(--color-outline);
     outline-offset: 2px;
   }
 }

@@ -3,6 +3,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 
 import type { Event, Hotkey, Key, ListItem, ListStyle } from "./bindings";
+import * as keys from "./keys";
 
 export class Menu {
   public items = $state<ListItem[]>([]);
@@ -54,7 +55,7 @@ export class Menu {
     // require one of ctrl/alt/meta to be pressed to be considered a hotkey
     if (!(ev.ctrlKey || ev.altKey || ev.metaKey)) return;
 
-    const key = keyNameToKey(ev.key);
+    const key = keys.symbolToName(ev.key);
     if (key === undefined) return;
 
     const hotkey: Hotkey = {
@@ -71,74 +72,3 @@ export class Menu {
     void invoke("show_settings_window");
   }
 }
-
-const keyNameToKey = (keyCased: string): Key | undefined => {
-  const key = keyCased.toLowerCase();
-
-  // Alphabetical
-  if (/^[a-z]$/.test(key)) {
-    return key as Key;
-  }
-
-  // Numerical
-  if (/^[0-9]$/.test(key)) {
-    return ("digit" + key) as Key;
-  }
-
-  // make sure this starts from shift+0, shift+1, ... shift+9
-  // not shift+1, ..., shift+0
-  const digitShiftIndex = ")!@#$%^&*(".indexOf(key);
-  if (digitShiftIndex !== -1) {
-    return ("digit" + digitShiftIndex.toString()) as Key;
-  }
-
-  // f* keys
-  if (key.startsWith("f")) {
-    const fNum = Number.parseInt(key.slice(1), 10);
-    if (1 <= fNum && fNum <= 24) {
-      return key as Key;
-    }
-  }
-
-  switch (key) {
-    case "`":
-    case "~":
-      return "backtick";
-    case "-":
-    case "_":
-      return "hyphen";
-    case "=":
-    case "+":
-      return "equal";
-    case "tab":
-      return "tab";
-    case "[":
-    case "{":
-      return "leftBracket";
-    case "]":
-    case "}":
-      return "rightBracket";
-    case "\\":
-    case "|":
-      return "backslash";
-    case ";":
-    case ":":
-      return "semicolon";
-    case "'":
-    case '"':
-      return "apostrophe";
-    case "enter":
-      return "enter";
-    case ",":
-    case "<":
-      return "comma";
-    case ".":
-    case ">":
-      return "period";
-    case "/":
-    case "?":
-      return "slash";
-    default:
-      return;
-  }
-};

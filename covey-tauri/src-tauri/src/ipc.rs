@@ -2,7 +2,7 @@ use color_eyre::eyre::Result;
 use covey::config::GlobalConfig;
 use covey_manifest::PluginManifest;
 use covey_tauri_types::{Event, ListItemId};
-use tauri::{ipc::Channel, State, WebviewWindowBuilder};
+use tauri::{ipc::Channel, Manager, State, WebviewWindow, WebviewWindowBuilder};
 
 use crate::state::{AppState, EventChannel};
 
@@ -45,19 +45,23 @@ pub fn activate(state: State<'_, AppState>, list_item_id: ListItemId, command_na
 
 #[tauri::command]
 pub fn show_settings_window(app: tauri::AppHandle) {
-    let settings_window = app
-        .config()
-        .app
-        .windows
-        .iter()
-        .find(|window| window.label == "settings")
-        .expect("app config should have settings window");
+    let window = app.get_webview_window("settings").unwrap_or_else(|| {
+        let settings_window = app
+            .config()
+            .app
+            .windows
+            .iter()
+            .find(|window| window.label == "settings")
+            .expect("app config should have settings window");
 
-    let window = WebviewWindowBuilder::from_config(&app, settings_window)
-        .unwrap()
-        .build()
-        .unwrap();
+        WebviewWindowBuilder::from_config(&app, settings_window)
+            .unwrap()
+            .build()
+            .unwrap()
+    });
+
     window.show().unwrap();
+    window.set_focus().unwrap();
 }
 
 #[tauri::command]

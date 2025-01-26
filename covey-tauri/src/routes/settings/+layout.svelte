@@ -27,7 +27,7 @@
     <h3>Plugins</h3>
     <div class="plugin-list">
       <DndList
-        bind:items={settings.globalConfig.plugins}
+        bind:items={settings.plugins}
         key={(item) => item.name}
       >
         {#snippet item({ name })}

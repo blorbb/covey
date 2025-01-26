@@ -38,7 +38,7 @@ export default tseslint.config(
         extraFileExtensions: [".svelte"],
         parser: tseslint.parser,
         svelteFeatures: {
-          experimentalGenerics: true
+          experimentalGenerics: true,
         },
         svelteConfig,
       },
@@ -47,12 +47,18 @@ export default tseslint.config(
   {
     plugins: { "simple-import-sort": simpleImportSort },
     rules: {
-      "@typescript-eslint/no-unused-vars": ["warn", {
-        argsIgnorePattern: "^_"
-      }],
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+        },
+      ],
       "@typescript-eslint/switch-exhaustiveness-check": [
         "error",
-        { requireDefaultForNonUnion: true },
+        {
+          requireDefaultForNonUnion: true,
+          considerDefaultExhaustiveForUnions: true,
+        },
       ],
       "@typescript-eslint/strict-boolean-expressions": [
         "error",
@@ -64,6 +70,7 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-return": "off",
       "@typescript-eslint/no-unsafe-member-access": "off",
       "@typescript-eslint/no-unsafe-argument": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
     },
   },
 );

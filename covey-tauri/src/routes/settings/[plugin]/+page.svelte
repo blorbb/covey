@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from "$app/state";
+  import Command from "$lib/components/command.svelte";
   import Divider from "$lib/components/divider.svelte";
 
   import type { PageData } from "../$types";
@@ -8,6 +9,9 @@
   const settings = data.settings;
 
   const pluginName = $derived(decodeURIComponent(page.params.plugin));
+  const pluginCommands = $derived(
+    settings.globalConfig.plugins[pluginName].commands,
+  );
 
   const manifest = $derived(settings.manifestOf(pluginName));
 </script>
@@ -38,11 +42,17 @@
   <Divider margin="1rem" />
 
   <h2>Commands</h2>
-  {#each Object.entries(manifest.commands) as [commandId, command] (commandId)}
-    <div class="command">
-      {command.title}
-    </div>
-  {/each}
+  <div class="commands">
+    {#each Object.entries(manifest.commands) as [commandId, command] (commandId)}
+      <Command
+        {command}
+        customHotkey={commandId in pluginCommands
+          ? pluginCommands[commandId]
+          : undefined}
+        setCustomHotkey={(hotkey) => (pluginCommands[commandId] = hotkey)}
+      />
+    {/each}
+  </div>
 
   {@const schema = Object.entries(manifest.schema)}
   {#if schema.length > 0}
@@ -64,5 +74,10 @@
   .repo {
     color: var(--color-on-surface-variant);
     font-size: var(--fs-small);
+  }
+
+  .commands {
+    display: grid;
+    gap: 1rem;
   }
 </style>

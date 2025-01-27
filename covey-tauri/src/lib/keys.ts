@@ -42,10 +42,10 @@ export const symbolToName = (symbol: string): Key | undefined => {
       return "tab";
     case "[":
     case "{":
-      return "leftBracket";
+      return "left-bracket";
     case "]":
     case "}":
-      return "rightBracket";
+      return "right-bracket";
     case "\\":
     case "|":
       return "backslash";
@@ -97,9 +97,9 @@ export const nameToSymbol = (name: Key): string => {
       return "=";
     case "tab":
       return "⇥";
-    case "leftBracket":
+    case "left-bracket":
       return "[";
-    case "rightBracket":
+    case "right-bracket":
       return "]";
     case "backslash":
       return "\\";

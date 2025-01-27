@@ -41,7 +41,6 @@
     if (!capturing) return;
 
     e.preventDefault();
-    console.log("presS", e);
 
     if (e.key === "Escape") {
       button?.blur();

@@ -5,15 +5,13 @@
 
   let {
     command,
-    customHotkey: hotkey,
+    customHotkey,
     setCustomHotkey,
   }: {
     command: Command;
     customHotkey?: Hotkey;
     setCustomHotkey: (hotkey: Hotkey) => void;
   } = $props();
-
-  $inspect("??", hotkey, command["default-hotkey"]);
 </script>
 
 <div class="command">
@@ -23,7 +21,7 @@
   {/if}
 
   <InputHotkey
-    currentHotkey={hotkey}
+    currentHotkey={customHotkey}
     setHotkey={setCustomHotkey}
     default={command["default-hotkey"] ?? undefined}
   />

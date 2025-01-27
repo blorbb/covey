@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import type { GlobalConfig, PluginConfig, PluginManifest } from "./bindings";
+import type { DeepReadonly } from "./utils";
 
 type PluginList = { name: string; config: PluginConfig }[];
 
@@ -15,7 +16,6 @@ export class Settings {
   public static async new(): Promise<Settings> {
     const config = await invoke<GlobalConfig>("get_global_config");
     const self = new Settings(config);
-    console.log("got config", config);
     return self;
   }
 
@@ -25,7 +25,7 @@ export class Settings {
     });
   }
 
-  public get plugins() {
+  public get plugins(): PluginList {
     return Object.entries(this.globalConfig.plugins).map(([name, config]) => ({
       name,
       config,
@@ -38,7 +38,9 @@ export class Settings {
     );
   }
 
-  public async manifestOf(pluginName: string): Promise<PluginManifest> {
+  public async manifestOf(
+    pluginName: string,
+  ): Promise<DeepReadonly<PluginManifest>> {
     return invoke("get_manifest", { pluginName });
   }
 }

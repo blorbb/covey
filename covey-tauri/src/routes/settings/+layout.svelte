@@ -9,8 +9,6 @@
 
   const { data, children }: { data: LayoutData; children: Snippet } = $props();
   const settings = data.settings;
-
-  console.log("in page", data.settings);
 </script>
 
 <main class="settings-layout">

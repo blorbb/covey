@@ -2,7 +2,7 @@
 
 import { Channel, invoke } from "@tauri-apps/api/core";
 
-import type { Event, Hotkey, Key, ListItem, ListStyle } from "./bindings";
+import type { Event, Hotkey, ListItem, ListStyle } from "./bindings";
 import * as keys from "./keys";
 
 export class Menu {

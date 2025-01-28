@@ -38,7 +38,9 @@ pub struct ListItem {
 #[cfg_attr(feature = "build", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ListItemId {
-    pub local_id: u64,
+    // This must be a String instead of u64 because javascript can't properly
+    // handle big ints
+    pub local_id: String,
     pub plugin_name: String,
 }
 

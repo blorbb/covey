@@ -140,8 +140,8 @@ impl FieldType {
         Self {
             type_path: TypePath::absolute(quote! { ::std::string::String }),
             validator: quote! {
-                if (value.len() as u64) < #min_length { #min_error }
-                if (value.len() as u64) > #max_length { #max_error }
+                if (value.len() as u32) < #min_length { #min_error }
+                if (value.len() as u32) > #max_length { #max_error }
             },
             default: TypeDefault::from(default),
             extras: TokenStream::new(),
@@ -236,7 +236,7 @@ impl FieldType {
                     #inner_validator
                 }
 
-                if (value.len() as u64) < #min_items {
+                if (value.len() as u32) < #min_items {
                     #length_error
                 }
 
@@ -276,7 +276,7 @@ impl FieldType {
                     #inner_validator
                 }
 
-                if (value.len() as u64) < #min_items {
+                if (value.len() as u32) < #min_items {
                     #length_error
                 }
             },

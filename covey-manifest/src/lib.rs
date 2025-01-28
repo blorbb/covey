@@ -111,7 +111,7 @@ pub enum ConfigType {
 pub struct ConfigList {
     pub item_type: Box<ConfigType>,
     #[serde(default)]
-    pub min_items: u64,
+    pub min_items: u32,
     /// Whether all items in the list must be unique.
     #[serde(default)]
     pub unique: bool,
@@ -124,7 +124,7 @@ pub struct ConfigList {
 pub struct ConfigMap {
     pub value_type: Box<ConfigType>,
     #[serde(default)]
-    pub min_items: u64,
+    pub min_items: u32,
 }
 
 /// A map with specific key-value pairs.
@@ -147,13 +147,13 @@ pub struct ConfigSelection {
 
 macros::make_config_subtypes! {
     pub struct ConfigInt {
-        pub min: i64 = i64::MIN,
-        pub max: i64 = i64::MAX,
-        pub default: Option<i64> = None,
+        pub min: i32 = i32::MIN,
+        pub max: i32 = i32::MAX,
+        pub default: Option<i32> = None,
     }
     pub struct ConfigStr {
-        pub min_length: u64 = u64::MIN,
-        pub max_length: u64 = u64::MAX,
+        pub min_length: u32 = u32::MIN,
+        pub max_length: u32 = u32::MAX,
         pub default: Option<String> = None,
     }
     pub struct ConfigBool {

@@ -58,7 +58,7 @@ impl AppState {
                 None => None,
             };
             let id = ListItemId {
-                local_id: li.id().local_id,
+                local_id: li.id().local_id.to_string(),
                 plugin_name: li.id().plugin.name().to_owned(),
             };
 
@@ -76,7 +76,7 @@ impl AppState {
     pub fn find_list_item(&self, id: &ListItemId) -> Option<covey::ListItemId> {
         Some(covey::ListItemId {
             plugin: self.host().plugins().get(&*id.plugin_name)?.clone(),
-            local_id: id.local_id,
+            local_id: id.local_id.parse().ok()?,
         })
     }
 }

@@ -89,7 +89,6 @@ pub struct ConfigSchema {
 #[cfg_attr(
     feature = "ts-rs",
     derive(ts_rs::TS),
-    ts(rename_all = "camelCase", tag = "kind")
 )]
 pub enum ConfigType {
     Int(ConfigInt),

@@ -8,14 +8,14 @@ use tracing::{debug, error};
 use crate::Plugin;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 pub struct GlobalConfig {
     #[serde(default)]
     pub plugins: IndexMap<String, PluginConfig>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
-#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 pub struct PluginConfig {
     pub prefix: String,
     #[serde(default)] // empty table if missing

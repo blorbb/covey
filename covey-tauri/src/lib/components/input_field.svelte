@@ -1,30 +1,30 @@
 <script lang="ts">
-  import type { ConfigType } from "$lib/bindings";
+  import type { SchemaType } from "$lib/bindings";
   import type { DeepReadonly } from "$lib/utils";
 
-  import InputStr from "./input_str.svelte";
+  import InputStr from "./input_text.svelte";
 
-  let { config }: { config: DeepReadonly<ConfigType> } = $props();
+  let { schema }: { schema: DeepReadonly<SchemaType> } = $props();
 
   const unreachable = (x: never): never => x;
 </script>
 
-{#if "str" in config}
-  <InputStr config={config.str} />
-{:else if "int" in config}
+{#if "text" in schema}
+  <InputStr schema={schema.text} />
+{:else if "int" in schema}
   todo int
-{:else if "file-path" in config}
+{:else if "file-path" in schema}
   todo file path
-{:else if "folder-path" in config}
+{:else if "folder-path" in schema}
   todo folder path
-{:else if "bool" in config}
+{:else if "bool" in schema}
   todo bool
-{:else if "list" in config}
+{:else if "list" in schema}
   todo list
-{:else if "map" in config}
+{:else if "map" in schema}
   todo map
-{:else if "struct" in config}
+{:else if "struct" in schema}
   todo struct
 {:else}
-  {unreachable(config)}
+  {unreachable(schema)}
 {/if}

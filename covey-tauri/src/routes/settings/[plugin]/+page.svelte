@@ -64,7 +64,7 @@
           {config.description}
         </p>
       {/if}
-      <InputField config={config.type} />
+      <InputField schema={config.type} />
     {/each}
   {/if}
 {/await}

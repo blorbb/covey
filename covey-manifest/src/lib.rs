@@ -7,7 +7,8 @@ use std::{
 use commands::{Command, CommandId};
 use indexmap::IndexMap;
 use serde::{
-    de::{self, MapAccess, Visitor}, Deserialize, Deserializer, Serialize
+    Deserialize, Deserializer, Serialize,
+    de::{self, MapAccess, Visitor},
 };
 
 pub mod generate;
@@ -35,7 +36,7 @@ pub struct PluginManifest {
     pub authors: Vec<String>,
     /// Key is the ID of the configuration option.
     #[serde(default)]
-    pub schema: IndexMap<String, ConfigSchema>,
+    pub schema: IndexMap<String, PluginConfigSchema>,
     /// All commands that the user can run on some list item.
     ///
     /// The key an ID for the command, which is used when calling commands
@@ -76,30 +77,27 @@ fn default_commands() -> IndexMap<CommandId, Command> {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[non_exhaustive]
-pub struct ConfigSchema {
+pub struct PluginConfigSchema {
     pub title: String,
     pub description: Option<String>,
-    pub r#type: ConfigType,
+    pub r#type: SchemaType,
 }
 
 /// TODO: better docs
 ///
 /// If there is no default, then this type will be *required*.
 #[derive(Debug, PartialEq, Clone, Serialize)]
-#[cfg_attr(
-    feature = "ts-rs",
-    derive(ts_rs::TS),
-)]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
-pub enum ConfigType {
-    Int(ConfigInt),
-    Str(ConfigStr),
-    Bool(ConfigBool),
-    FilePath(ConfigFilePath),
-    FolderPath(ConfigFolderPath),
-    List(ConfigList),
-    Map(ConfigMap),
-    Struct(ConfigStruct),
+pub enum SchemaType {
+    Int(SchemaInt),
+    Text(SchemaText),
+    Bool(SchemaBool),
+    FilePath(SchemaFilePath),
+    FolderPath(SchemaFolderPath),
+    List(SchemaList),
+    Map(SchemaMap),
+    Struct(SchemaStruct),
 }
 
 // the below structs can't use the macro because they have extra
@@ -109,8 +107,8 @@ pub enum ConfigType {
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
-pub struct ConfigList {
-    pub item_type: Box<ConfigType>,
+pub struct SchemaList {
+    pub item_type: Box<SchemaType>,
     #[serde(default)]
     pub min_items: u32,
     /// Whether all items in the list must be unique.
@@ -122,8 +120,8 @@ pub struct ConfigList {
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 /// A map from any string to a specified value.
-pub struct ConfigMap {
-    pub value_type: Box<ConfigType>,
+pub struct SchemaMap {
+    pub value_type: Box<SchemaType>,
     #[serde(default)]
     pub min_items: u32,
 }
@@ -132,39 +130,39 @@ pub struct ConfigMap {
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
-pub struct ConfigStruct {
-    pub fields: HashMap<String, ConfigType>,
+pub struct SchemaStruct {
+    pub fields: HashMap<String, SchemaType>,
 }
 
 /// A selection of one of multiple strings.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
-pub struct ConfigSelection {
+pub struct SchemaSelection {
     pub allowed_values: Vec<String>,
     #[serde(default)]
     pub default: Option<String>,
 }
 
 macros::make_config_subtypes! {
-    pub struct ConfigInt {
+    pub struct SchemaInt {
         pub min: i32 = i32::MIN,
         pub max: i32 = i32::MAX,
         pub default: Option<i32> = None,
     }
-    pub struct ConfigStr {
+    pub struct SchemaText {
         pub min_length: u32 = u32::MIN,
         pub max_length: u32 = u32::MAX,
         pub default: Option<String> = None,
     }
-    pub struct ConfigBool {
+    pub struct SchemaBool {
         pub default: Option<bool> = None,
     }
-    pub struct ConfigFilePath {
+    pub struct SchemaFilePath {
         pub extension: Option<Vec<String>> = None,
         pub default: Option<String> = None,
     }
-    pub struct ConfigFolderPath {
+    pub struct SchemaFolderPath {
         pub default: Option<String> = None,
     }
 }
@@ -184,19 +182,19 @@ macros::make_config_subtypes! {
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
 enum __ConfigTypeSerdeDerive {
-    Int(ConfigInt),
-    Str(ConfigStr),
-    Bool(ConfigBool),
-    FilePath(ConfigFilePath),
-    FolderPath(ConfigFolderPath),
-    List(ConfigList),
-    Map(ConfigMap),
-    Struct(ConfigStruct),
+    Int(SchemaInt),
+    Text(SchemaText),
+    Bool(SchemaBool),
+    FilePath(SchemaFilePath),
+    FolderPath(SchemaFolderPath),
+    List(SchemaList),
+    Map(SchemaMap),
+    Struct(SchemaStruct),
 }
 
 impl FromStrVariants for __ConfigTypeSerdeDerive {
     fn expected_variants() -> &'static [&'static str] {
-        &["int", "str", "bool", "file-path", "folder-path"]
+        &["int", "text", "bool", "file-path", "folder-path"]
     }
 
     fn from_str(s: &str) -> Option<Self>
@@ -204,11 +202,11 @@ impl FromStrVariants for __ConfigTypeSerdeDerive {
         Self: Sized,
     {
         Some(match s {
-            "int" => Self::Int(ConfigInt::default()),
-            "str" => Self::Str(ConfigStr::default()),
-            "bool" => Self::Bool(ConfigBool::default()),
-            "file-path" => Self::FilePath(ConfigFilePath::default()),
-            "folder-path" => Self::FolderPath(ConfigFolderPath::default()),
+            "int" => Self::Int(SchemaInt::default()),
+            "text" => Self::Text(SchemaText::default()),
+            "bool" => Self::Bool(SchemaBool::default()),
+            "file-path" => Self::FilePath(SchemaFilePath::default()),
+            "folder-path" => Self::FolderPath(SchemaFolderPath::default()),
             _ => return None,
         })
     }
@@ -216,7 +214,7 @@ impl FromStrVariants for __ConfigTypeSerdeDerive {
 
 // other misc implementation details //
 
-impl<'de> Deserialize<'de> for ConfigType {
+impl<'de> Deserialize<'de> for SchemaType {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -224,7 +222,7 @@ impl<'de> Deserialize<'de> for ConfigType {
         use __ConfigTypeSerdeDerive as Derived;
         string_or_struct::<'de, Derived, _>(deserializer).map(|value| match value {
             Derived::Int(config_int) => Self::Int(config_int),
-            Derived::Str(config_str) => Self::Str(config_str),
+            Derived::Text(config_str) => Self::Text(config_str),
             Derived::Bool(config_bool) => Self::Bool(config_bool),
             Derived::FilePath(config_file_path) => Self::FilePath(config_file_path),
             Derived::FolderPath(config_folder_path) => Self::FolderPath(config_folder_path),
@@ -329,7 +327,8 @@ mod tests {
     use indexmap::IndexMap;
 
     use super::{
-        ConfigInt, ConfigList, ConfigMap, ConfigSchema, ConfigStruct, ConfigType, PluginManifest,
+        SchemaInt, SchemaList, SchemaMap, SchemaStruct, SchemaType, PluginConfigSchema,
+        PluginManifest,
     };
     use crate::default_commands;
 
@@ -349,10 +348,10 @@ mod tests {
             description: Some("my description".to_string()),
             repository: None,
             authors: vec![],
-            schema: IndexMap::from([("first-option".to_string(), ConfigSchema {
+            schema: IndexMap::from([("first-option".to_string(), PluginConfigSchema {
                 title: "first option".to_string(),
                 description: None,
-                r#type: ConfigType::Int(ConfigInt::default())
+                r#type: SchemaType::Int(SchemaInt::default())
             })]),
             commands: default_commands(),
         });
@@ -365,10 +364,10 @@ mod tests {
         let input = r#"
             int = { min = 0 }
         "#;
-        let output: ConfigType = toml::from_str(&input).unwrap();
+        let output: SchemaType = toml::from_str(&input).unwrap();
         assert_eq!(
             output,
-            ConfigType::Int(ConfigInt {
+            SchemaType::Int(SchemaInt {
                 min: 0,
                 ..Default::default()
             })
@@ -381,12 +380,12 @@ mod tests {
             title = "thing"
             type = { list = { item-type = "int", unique = true } }
         "#;
-        let output: ConfigSchema = toml::from_str(input).unwrap();
-        assert_eq!(output, ConfigSchema {
+        let output: PluginConfigSchema = toml::from_str(input).unwrap();
+        assert_eq!(output, PluginConfigSchema {
             title: "thing".to_string(),
             description: None,
-            r#type: ConfigType::List(ConfigList {
-                item_type: Box::new(ConfigType::Int(ConfigInt::default())),
+            r#type: SchemaType::List(SchemaList {
+                item_type: Box::new(SchemaType::Int(SchemaInt::default())),
                 min_items: 0,
                 unique: true,
             })
@@ -411,14 +410,14 @@ mod tests {
             description: Some("Open URLs with a query".to_string()),
             repository: Some("https://github.com/blorbb/covey-plugins".to_string()),
             authors: vec!["blorbb".to_string()],
-            schema: IndexMap::from([("urls".to_string(), ConfigSchema {
+            schema: IndexMap::from([("urls".to_string(), PluginConfigSchema {
                 title: "List of URLs to show".to_string(),
                 description: None,
-                r#type: ConfigType::Map(ConfigMap {
-                    value_type: Box::new(ConfigType::Struct(ConfigStruct {
+                r#type: SchemaType::Map(SchemaMap {
+                    value_type: Box::new(SchemaType::Struct(SchemaStruct {
                         fields: HashMap::from([
-                            ("name".to_string(), ConfigType::Str(Default::default())),
-                            ("url".to_string(), ConfigType::Str(Default::default()))
+                            ("name".to_string(), SchemaType::Text(Default::default())),
+                            ("url".to_string(), SchemaType::Text(Default::default()))
                         ])
                     })),
                     min_items: Default::default()

@@ -7,13 +7,13 @@ use syn::ext::IdentExt;
 
 use super::{CratePaths, Path};
 use crate::{
-    ConfigBool, ConfigFilePath, ConfigFolderPath, ConfigInt, ConfigList, ConfigMap, ConfigStr,
-    ConfigStruct, ConfigType, PluginManifest,
+    SchemaBool, SchemaFilePath, SchemaFolderPath, SchemaInt, SchemaList, SchemaMap, SchemaText,
+    SchemaStruct, SchemaType, PluginManifest,
 };
 
 pub(super) fn generate_types(manifest: &PluginManifest, paths: &CratePaths) -> TokenStream {
     let field = FieldType::from_struct(
-        ConfigStruct {
+        SchemaStruct {
             fields: manifest
                 .schema
                 .iter()
@@ -90,20 +90,20 @@ impl<T: ToTokens> From<Option<T>> for TypeDefault {
 }
 
 impl FieldType {
-    fn new(config: ConfigType, paths: &CratePaths, parent_key: &Ident) -> Self {
+    fn new(config: SchemaType, paths: &CratePaths, parent_key: &Ident) -> Self {
         match config {
-            ConfigType::Int(int) => Self::from_int(int, paths),
-            ConfigType::Str(str) => Self::from_str(str, paths),
-            ConfigType::Bool(bool) => Self::from_bool(bool, paths),
-            ConfigType::FilePath(file) => Self::from_file_path(file, paths),
-            ConfigType::FolderPath(folder) => Self::from_folder_path(folder, paths),
-            ConfigType::List(list) => Self::from_list(list, paths, parent_key),
-            ConfigType::Map(map) => Self::from_map(map, paths, parent_key),
-            ConfigType::Struct(st) => Self::from_struct(st, paths, parent_key),
+            SchemaType::Int(int) => Self::from_int(int, paths),
+            SchemaType::Text(str) => Self::from_str(str, paths),
+            SchemaType::Bool(bool) => Self::from_bool(bool, paths),
+            SchemaType::FilePath(file) => Self::from_file_path(file, paths),
+            SchemaType::FolderPath(folder) => Self::from_folder_path(folder, paths),
+            SchemaType::List(list) => Self::from_list(list, paths, parent_key),
+            SchemaType::Map(map) => Self::from_map(map, paths, parent_key),
+            SchemaType::Struct(st) => Self::from_struct(st, paths, parent_key),
         }
     }
 
-    fn from_int(ConfigInt { min, max, default }: ConfigInt, paths: &CratePaths) -> Self {
+    fn from_int(SchemaInt { min, max, default }: SchemaInt, paths: &CratePaths) -> Self {
         let min_error =
             paths.bail_invalid_value(quote!(Signed), &format!("value to be at least {min}"));
         let max_error =
@@ -121,11 +121,11 @@ impl FieldType {
     }
 
     fn from_str(
-        ConfigStr {
+        SchemaText {
             min_length,
             max_length,
             default,
-        }: ConfigStr,
+        }: SchemaText,
         paths: &CratePaths,
     ) -> Self {
         let min_error = paths.bail_invalid_length(
@@ -148,7 +148,7 @@ impl FieldType {
         }
     }
 
-    fn from_bool(ConfigBool { default }: ConfigBool, _paths: &CratePaths) -> Self {
+    fn from_bool(SchemaBool { default }: SchemaBool, _paths: &CratePaths) -> Self {
         Self {
             type_path: TypePath::absolute(quote! { ::core::primitive::bool }),
             validator: quote! {},
@@ -159,7 +159,7 @@ impl FieldType {
 
     /// Does not check that the path is actually a valid file that exists.
     fn from_file_path(
-        ConfigFilePath { extension, default }: ConfigFilePath,
+        SchemaFilePath { extension, default }: SchemaFilePath,
         paths: &CratePaths,
     ) -> Self {
         let extension_check = extension.map(|exts| {
@@ -187,7 +187,7 @@ impl FieldType {
     }
 
     fn from_folder_path(
-        ConfigFolderPath { default }: ConfigFolderPath,
+        SchemaFolderPath { default }: SchemaFolderPath,
         _paths: &CratePaths,
     ) -> Self {
         Self {
@@ -199,11 +199,11 @@ impl FieldType {
     }
 
     fn from_list(
-        ConfigList {
+        SchemaList {
             item_type,
             min_items,
             unique,
-        }: ConfigList,
+        }: SchemaList,
         paths: &CratePaths,
         parent_key: &Ident,
     ) -> Self {
@@ -248,10 +248,10 @@ impl FieldType {
     }
 
     fn from_map(
-        ConfigMap {
+        SchemaMap {
             value_type,
             min_items,
-        }: ConfigMap,
+        }: SchemaMap,
         paths: &CratePaths,
         parent_key: &Ident,
     ) -> Self {
@@ -315,7 +315,7 @@ impl FieldType {
     /// }
     /// ```
     fn from_struct(
-        ConfigStruct { fields }: ConfigStruct,
+        SchemaStruct { fields }: SchemaStruct,
         paths: &CratePaths,
         parent_key: &Ident,
     ) -> Self {

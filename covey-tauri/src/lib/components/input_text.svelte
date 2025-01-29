@@ -1,20 +1,20 @@
 <script lang="ts">
-  import type { ConfigStr } from "$lib/bindings";
+  import type { SchemaText } from "$lib/bindings";
 
-  let { config, value = $bindable() }: { config: ConfigStr; value?: string } =
+  let { schema, value = $bindable() }: { schema: SchemaText; value?: string } =
     $props();
 
   // unvalidated value
-  let draft = $state(value ?? config.default ?? "");
+  let draft = $state(value ?? schema.default ?? "");
   let error: undefined | "short" | "long" = $state();
 
   const commitDraft = () => {
-    if (draft.length < config["min-length"]) {
+    if (draft.length < schema["min-length"]) {
       error = "short";
       return;
     }
 
-    if (draft.length > config["max-length"]) {
+    if (draft.length > schema["max-length"]) {
       error = "long";
       return;
     }
@@ -35,11 +35,11 @@
   />
   {#if error === "short"}
     <div class="error-message">
-      Input is too short (must be at least {config["min-length"]} characters)
+      Input is too short (must be at least {schema["min-length"]} characters)
     </div>
   {:else if error === "long"}
     <div class="error-message">
-      Input is too long (must be at most {config["max-length"]} characters)
+      Input is too long (must be at most {schema["max-length"]} characters)
     </div>
   {/if}
 </div>

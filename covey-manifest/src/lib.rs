@@ -90,6 +90,7 @@ pub struct ConfigSchema {
     feature = "ts-rs",
     derive(ts_rs::TS),
 )]
+#[serde(rename_all = "kebab-case")]
 pub enum ConfigType {
     Int(ConfigInt),
     Str(ConfigStr),

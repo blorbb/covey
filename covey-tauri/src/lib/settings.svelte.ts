@@ -15,6 +15,7 @@ export class Settings {
 
   public static async new(): Promise<Settings> {
     const config = await invoke<GlobalConfig>("get_global_config");
+    console.debug("received settings", config);
     const self = new Settings(config);
     return self;
   }

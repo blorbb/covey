@@ -2,6 +2,7 @@
   import { page } from "$app/state";
   import Command from "$lib/components/command.svelte";
   import Divider from "$lib/components/divider.svelte";
+  import InputField from "$lib/components/input_field.svelte";
 
   import type { PageData } from "../$types";
 
@@ -46,9 +47,7 @@
     {#each Object.entries(manifest.commands) as [commandId, command] (commandId)}
       <Command
         {command}
-        customHotkey={commandId in pluginCommands
-          ? pluginCommands[commandId]
-          : undefined}
+        customHotkey={pluginCommands[commandId]}
         setCustomHotkey={(hotkey) => (pluginCommands[commandId] = hotkey)}
       />
     {/each}
@@ -60,6 +59,12 @@
     <h2>Configuration</h2>
     {#each schema as [_, config]}
       {config.title}
+      {#if config.description != null}
+        <p class="description">
+          {config.description}
+        </p>
+      {/if}
+      <InputField config={config.type} />
     {/each}
   {/if}
 {/await}

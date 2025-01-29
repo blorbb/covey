@@ -34,6 +34,7 @@ impl From<Arc<str>> for CommandId {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
+#[serde(rename_all = "kebab-case")]
 pub struct Hotkey {
     pub key: Key,
     #[serde(default)]

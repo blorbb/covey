@@ -5,12 +5,10 @@
 
   let {
     command,
-    customHotkey,
-    setCustomHotkey,
+    userHotkey = $bindable(),
   }: {
     command: Command;
-    customHotkey?: Hotkey;
-    setCustomHotkey: (hotkey: Hotkey) => void;
+    userHotkey?: Hotkey;
   } = $props();
 </script>
 
@@ -21,8 +19,7 @@
   {/if}
 
   <InputHotkey
-    currentHotkey={customHotkey}
-    setHotkey={setCustomHotkey}
+    bind:userHotkey
     default={command["default-hotkey"] ?? undefined}
   />
 </div>

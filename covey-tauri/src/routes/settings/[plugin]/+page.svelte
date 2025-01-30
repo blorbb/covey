@@ -10,11 +10,15 @@
   const settings = data.settings;
 
   const pluginName = $derived(decodeURIComponent(page.params.plugin));
-  const pluginCommands = $derived(
-    settings.globalConfig.plugins[pluginName].commands,
-  );
+  const plugin = $derived(settings.getPlugin(pluginName));
 
-  const manifest = $derived(settings.manifestOf(pluginName));
+  const manifest = $derived(settings.fetchManifestOf(pluginName));
+
+  $effect(() => {
+    settings.updateBackendConfig()
+  })
+
+  $inspect(plugin);
 </script>
 
 {#await manifest then manifest}
@@ -47,8 +51,7 @@
     {#each Object.entries(manifest.commands) as [commandId, command] (commandId)}
       <Command
         {command}
-        customHotkey={pluginCommands[commandId]}
-        setCustomHotkey={(hotkey) => (pluginCommands[commandId] = hotkey)}
+        bind:userHotkey={plugin.commands[commandId]}
       />
     {/each}
   </div>
@@ -57,14 +60,15 @@
   {#if schema.length > 0}
     <Divider margin="1rem" />
     <h2>Configuration</h2>
-    {#each schema as [_, config]}
+    {#each schema as [configId, config]}
       {config.title}
       {#if config.description != null}
         <p class="description">
           {config.description}
         </p>
       {/if}
-      <InputField schema={config.type} />
+
+      <InputField schema={config.type} bind:userValue={plugin.config[configId]} />
     {/each}
   {/if}
 {/await}

@@ -21,6 +21,7 @@ export class Settings {
   }
 
   public updateBackendConfig(): void {
+    console.debug("updating config to new");
     void invoke("set_global_config", {
       config: this.globalConfig,
     });
@@ -34,12 +35,18 @@ export class Settings {
   }
 
   public set plugins(plugins: PluginList) {
+    console.debug("setting plugins", plugins);
+
     this.globalConfig.plugins = Object.fromEntries(
       plugins.map(({ name, config }) => [name, config]),
     );
   }
 
-  public async manifestOf(
+  public getPlugin(pluginName: string): PluginConfig {
+    return this.globalConfig.plugins[pluginName];
+  }
+
+  public async fetchManifestOf(
     pluginName: string,
   ): Promise<DeepReadonly<PluginManifest>> {
     return invoke("get_manifest", { pluginName });

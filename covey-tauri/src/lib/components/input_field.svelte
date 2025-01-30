@@ -1,16 +1,24 @@
 <script lang="ts">
-  import type { SchemaType } from "$lib/bindings";
+  import type { JsonValue, SchemaType } from "$lib/bindings";
   import type { DeepReadonly } from "$lib/utils";
 
-  import InputStr from "./input_text.svelte";
+  import InputText from "./input_text.svelte";
 
-  let { schema }: { schema: DeepReadonly<SchemaType> } = $props();
+  let {
+    schema,
+    userValue = $bindable(),
+  }: { schema: DeepReadonly<SchemaType>; userValue?: JsonValue } = $props();
 
   const unreachable = (x: never): never => x;
 </script>
 
 {#if "text" in schema}
-  <InputStr schema={schema.text} />
+  <InputText
+    schema={schema.text}
+    bind:userValue={() =>
+      typeof userValue === "string" ? userValue : undefined,
+    (newValue) => (userValue = newValue)}
+  />
 {:else if "int" in schema}
   todo int
 {:else if "file-path" in schema}

@@ -3,13 +3,11 @@
   import * as keys from "$lib/keys";
 
   let {
-    currentHotkey,
+    userHotkey = $bindable(),
     default: defaultHotkey,
-    setHotkey,
   }: {
-    currentHotkey?: Hotkey;
+    userHotkey?: Hotkey;
     default?: Hotkey;
-    setHotkey: (hotkey: Hotkey) => void;
   } = $props();
 
   let button = $state<HTMLButtonElement>();
@@ -25,7 +23,7 @@
   let draft = $state(emptyDraft());
 
   let displayedHotkey = $derived(
-    capturing ? draft : (currentHotkey ?? defaultHotkey),
+    capturing ? draft : (userHotkey ?? defaultHotkey),
   );
 
   let emptyHotkey = $derived(
@@ -54,7 +52,7 @@
     const keyName = keys.symbolToName(e.key);
     if (keyName !== undefined) {
       // commit the key when a non-modifier is pressed
-      setHotkey({ ...draft, key: keyName });
+      userHotkey = { ...draft, key: keyName };
       button?.blur();
     }
   };

@@ -3,8 +3,6 @@ import { invoke } from "@tauri-apps/api/core";
 import type { GlobalConfig, PluginConfig, PluginManifest } from "./bindings";
 import type { DeepReadonly } from "./utils";
 
-type PluginList = { name: string; config: PluginConfig }[];
-
 export class Settings {
   // definitely assigned in constructor so will not be undefined
   public globalConfig: GlobalConfig = $state() as GlobalConfig;
@@ -27,23 +25,8 @@ export class Settings {
     });
   }
 
-  public get plugins(): PluginList {
-    return Object.entries(this.globalConfig.plugins).map(([name, config]) => ({
-      name,
-      config,
-    }));
-  }
-
-  public set plugins(plugins: PluginList) {
-    console.debug("setting plugins", plugins);
-
-    this.globalConfig.plugins = Object.fromEntries(
-      plugins.map(({ name, config }) => [name, config]),
-    );
-  }
-
-  public getPlugin(pluginName: string): PluginConfig {
-    return this.globalConfig.plugins[pluginName];
+  public getPlugin(pluginId: string): PluginConfig | undefined {
+    return this.globalConfig.plugins.find(plugin => plugin.id === pluginId);
   }
 
   public async fetchManifestOf(

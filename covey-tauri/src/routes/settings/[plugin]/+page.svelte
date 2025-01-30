@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from "$app/state";
+  import type { PluginConfig } from "$lib/bindings";
   import Command from "$lib/components/command.svelte";
   import Divider from "$lib/components/divider.svelte";
   import InputField from "$lib/components/input_field.svelte";
@@ -9,14 +10,15 @@
   let { data }: { data: PageData } = $props();
   const settings = data.settings;
 
-  const pluginName = $derived(decodeURIComponent(page.params.plugin));
-  const plugin = $derived(settings.getPlugin(pluginName));
+  const pluginId = $derived(decodeURIComponent(page.params.plugin));
+  // TODO: handle invalid id
+  const plugin = $derived(settings.getPlugin(pluginId)) as PluginConfig;
 
-  const manifest = $derived(settings.fetchManifestOf(pluginName));
+  const manifest = $derived(settings.fetchManifestOf(pluginId));
 
   $effect(() => {
-    settings.updateBackendConfig()
-  })
+    settings.updateBackendConfig();
+  });
 
   $inspect(plugin);
 </script>
@@ -48,27 +50,26 @@
 
   <h2>Commands</h2>
   <div class="commands">
-    {#each Object.entries(manifest.commands) as [commandId, command] (commandId)}
-      <Command
-        {command}
-        bind:userHotkey={plugin.commands[commandId]}
-      />
+    {#each manifest.commands as command (command.id)}
+      <Command {command} bind:userHotkey={plugin.commands[command.id]} />
     {/each}
   </div>
 
-  {@const schema = Object.entries(manifest.schema)}
-  {#if schema.length > 0}
+  {#if manifest.schema.length > 0}
     <Divider margin="1rem" />
     <h2>Configuration</h2>
-    {#each schema as [configId, config]}
-      {config.title}
-      {#if config.description != null}
+    {#each manifest.schema as schema}
+      {schema.title}
+      {#if schema.description != null}
         <p class="description">
-          {config.description}
+          {schema.description}
         </p>
       {/if}
 
-      <InputField schema={config.type} bind:userValue={plugin.config[configId]} />
+      <InputField
+        schema={schema.type}
+        bind:userValue={plugin.config[schema.id]}
+      />
     {/each}
   {/if}
 {/await}

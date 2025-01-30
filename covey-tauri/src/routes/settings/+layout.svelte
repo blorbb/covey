@@ -25,11 +25,11 @@
     <h3>Plugins</h3>
     <div class="plugin-list">
       <DndList
-        bind:items={settings.plugins}
-        key={(item) => item.name}
+        bind:items={settings.globalConfig.plugins}
+        key={(item) => item.id}
       >
-        {#snippet item({ name })}
-          {@const url = `/settings/${encodeURIComponent(name)}`}
+        {#snippet item({ id })}
+          {@const url = `/settings/${encodeURIComponent(id)}`}
 
           <a
             class="plugin-list-item"
@@ -37,7 +37,7 @@
             aria-current={page.url.pathname === url && "page"}
           >
             <iconify-icon icon="ph:dots-six-vertical-bold"></iconify-icon>
-            {name}
+            {id}
           </a>
         {/snippet}
       </DndList>

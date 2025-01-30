@@ -5,16 +5,16 @@
 import type { Command } from "./bindings/Command";
 import type { CommandId } from "./bindings/CommandId";
 import type { Event } from "./bindings/Event";
-import type { GlobalConfig as GlobalConfigBinding } from "./bindings/GlobalConfig";
 import type { Hotkey } from "./bindings/Hotkey";
 import type { Icon } from "./bindings/Icon";
 import type { Key } from "./bindings/Key";
 import type { ListItem } from "./bindings/ListItem";
 import type { ListItemId } from "./bindings/ListItemId";
 import type { ListStyle } from "./bindings/ListStyle";
+import type { OrderedMap } from "./bindings/OrderedMap";
 import type { PluginConfig as PluginConfigBinding } from "./bindings/PluginConfig";
 import type { PluginConfigSchema } from "./bindings/PluginConfigSchema";
-import type { PluginManifest  } from "./bindings/PluginManifest";
+import type { PluginManifest } from "./bindings/PluginManifest";
 import type { SchemaBool } from "./bindings/SchemaBool";
 import type { SchemaFilePath } from "./bindings/SchemaFilePath";
 import type { SchemaFolderPath } from "./bindings/SchemaFolderPath";
@@ -38,6 +38,7 @@ export type {
   ListItem,
   ListItemId,
   ListStyle,
+  OrderedMap,
   PluginConfig,
   PluginConfigSchema,
   PluginManifest,
@@ -60,12 +61,11 @@ type SchemaStruct = SchemaStructBinding & {
   fields: Record<string, SchemaType>;
 };
 
-type GlobalConfig = GlobalConfigBinding & {
-  plugins: Record<string, PluginConfig>;
+type GlobalConfig = {
+  plugins: OrderedMap<PluginConfig>;
 };
 
 type PluginConfig = PluginConfigBinding & {
   config: Record<string, JsonValue>;
   commands: Record<string, Hotkey>;
 };
-

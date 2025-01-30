@@ -12,7 +12,6 @@ toml.workspace = true
 serde.workspace = true
 ts-rs = { workspace = true, optional = true, features = ["serde-json-impl"] }
 serde_json.workspace = true
-indexmap.workspace = true
 futures.workspace = true
 tracing.workspace = true
 tokio = { workspace = true, features = ["fs", "process"] }

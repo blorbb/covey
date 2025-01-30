@@ -8,5 +8,6 @@ fn main() {
             .join("lib")
             .join("bindings"),
     );
+
     tauri_build::build()
 }

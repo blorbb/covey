@@ -843,7 +843,6 @@ dependencies = [
  "covey-manifest",
  "dirs",
  "futures",
- "indexmap 2.6.0",
  "parking_lot",
  "prost",
  "serde",
@@ -860,7 +859,6 @@ dependencies = [
 name = "covey-manifest"
 version = "0.1.0"
 dependencies = [
- "indexmap 2.6.0",
  "proc-macro2",
  "quote",
  "serde",
@@ -5761,7 +5759,6 @@ version = "10.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e640d9b0964e9d39df633548591090ab92f7a4567bc31d3891af23471a3365c6"
 dependencies = [
- "indexmap 2.6.0",
  "lazy_static",
  "serde_json",
  "thiserror 2.0.11",

@@ -4,14 +4,15 @@ use std::{
     marker::PhantomData,
 };
 
-use commands::{Command, CommandId};
-use indexmap::IndexMap;
+use commands::Command;
+use ordered_map::{HasId, Id, OrderedMap};
 use serde::{
     Deserialize, Deserializer, Serialize,
     de::{self, MapAccess, Visitor},
 };
 
 pub mod generate;
+pub mod ordered_map;
 #[cfg(feature = "ts-rs")]
 pub use ts_rs;
 pub mod commands;
@@ -34,9 +35,8 @@ pub struct PluginManifest {
     /// List of authors of the plugin.
     #[serde(default)]
     pub authors: Vec<String>,
-    /// Key is the ID of the configuration option.
     #[serde(default)]
-    pub schema: IndexMap<String, PluginConfigSchema>,
+    pub schema: OrderedMap<PluginConfigSchema>,
     /// All commands that the user can run on some list item.
     ///
     /// The key an ID for the command, which is used when calling commands
@@ -45,7 +45,7 @@ pub struct PluginManifest {
     /// Several commands can have the same hotkey, but the commands that
     /// a single list item has should have different hotkeys.
     #[serde(default = "default_commands")]
-    pub commands: IndexMap<CommandId, Command>,
+    pub commands: OrderedMap<Command>,
 }
 
 impl PluginManifest {
@@ -54,33 +54,44 @@ impl PluginManifest {
     }
 }
 
-fn default_commands() -> IndexMap<CommandId, Command> {
-    IndexMap::from([
-        (CommandId::new("activate"), Command {
+fn default_commands() -> OrderedMap<Command> {
+    OrderedMap::new(vec![
+        Command {
+            id: Id::new("activate"),
             title: String::from("Activate"),
             description: None,
             default_hotkey: Some("enter".parse().expect("enter should be a hotkey")),
-        }),
-        (CommandId::new("complete"), Command {
+        },
+        Command {
+            id: Id::new("complete"),
             title: String::from("Complete"),
             description: None,
             default_hotkey: Some("tab".parse().expect("tab should be a hotkey")),
-        }),
-        (CommandId::new("alt-activate"), Command {
+        },
+        Command {
+            id: Id::new("alt-activate"),
             title: String::from("Alt activate"),
             description: None,
             default_hotkey: Some("alt+enter".parse().expect("alt+enter should be a hotkey")),
-        }),
+        },
     ])
+    .expect("ids are unique")
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[non_exhaustive]
 pub struct PluginConfigSchema {
+    pub id: Id,
     pub title: String,
     pub description: Option<String>,
     pub r#type: SchemaType,
+}
+
+impl HasId for PluginConfigSchema {
+    fn id(&self) -> &Id {
+        &self.id
+    }
 }
 
 /// TODO: better docs
@@ -324,13 +335,14 @@ mod macros {
 mod tests {
     use std::collections::HashMap;
 
-    use indexmap::IndexMap;
-
     use super::{
-        SchemaInt, SchemaList, SchemaMap, SchemaStruct, SchemaType, PluginConfigSchema,
-        PluginManifest,
+        PluginConfigSchema, PluginManifest, SchemaInt, SchemaList, SchemaMap, SchemaStruct,
+        SchemaType,
     };
-    use crate::default_commands;
+    use crate::{
+        default_commands,
+        ordered_map::{Id, OrderedMap},
+    };
 
     #[test]
     fn full() -> Result<(), toml::de::Error> {
@@ -338,7 +350,8 @@ mod tests {
             name = "test"
             description = "my description"
 
-            [schema.first-option]
+            [[schema]]
+            id = "first-option"
             title = "first option"
             type = "int"
         "#;
@@ -348,11 +361,13 @@ mod tests {
             description: Some("my description".to_string()),
             repository: None,
             authors: vec![],
-            schema: IndexMap::from([("first-option".to_string(), PluginConfigSchema {
+            schema: OrderedMap::new([PluginConfigSchema {
+                id: Id::new("first-option"),
                 title: "first option".to_string(),
                 description: None,
                 r#type: SchemaType::Int(SchemaInt::default())
-            })]),
+            }])
+            .unwrap(),
             commands: default_commands(),
         });
 
@@ -377,11 +392,13 @@ mod tests {
     #[test]
     fn list() {
         let input = r#"
+            id = "thing-id"
             title = "thing"
             type = { list = { item-type = "int", unique = true } }
         "#;
         let output: PluginConfigSchema = toml::from_str(input).unwrap();
         assert_eq!(output, PluginConfigSchema {
+            id: Id::new("thing-id"),
             title: "thing".to_string(),
             description: None,
             r#type: SchemaType::List(SchemaList {
@@ -400,9 +417,10 @@ mod tests {
             repository = "https://github.com/blorbb/covey-plugins"
             authors = ["blorbb"]
 
-            [schema.urls]
+            [[schema]]
+            id = "urls"
             title = "List of URLs to show"
-            type.map.value-type.struct.fields = { name = "str", url = "str" }
+            type.map.value-type.struct.fields = { name = "text", url = "text" }
         "#;
         let output: PluginManifest = toml::from_str(input).unwrap();
         assert_eq!(output, PluginManifest {
@@ -410,7 +428,8 @@ mod tests {
             description: Some("Open URLs with a query".to_string()),
             repository: Some("https://github.com/blorbb/covey-plugins".to_string()),
             authors: vec!["blorbb".to_string()],
-            schema: IndexMap::from([("urls".to_string(), PluginConfigSchema {
+            schema: OrderedMap::new([PluginConfigSchema {
+                id: Id::new("urls"),
                 title: "List of URLs to show".to_string(),
                 description: None,
                 r#type: SchemaType::Map(SchemaMap {
@@ -422,7 +441,8 @@ mod tests {
                     })),
                     min_items: Default::default()
                 })
-            })]),
+            }])
+            .unwrap(),
             commands: default_commands(),
         })
     }

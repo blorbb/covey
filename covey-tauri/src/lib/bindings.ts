@@ -14,7 +14,7 @@ import type { ListItemId } from "./bindings/ListItemId";
 import type { ListStyle } from "./bindings/ListStyle";
 import type { PluginConfig as PluginConfigBinding } from "./bindings/PluginConfig";
 import type { PluginConfigSchema } from "./bindings/PluginConfigSchema";
-import type { PluginManifest as PluginManifestBinding } from "./bindings/PluginManifest";
+import type { PluginManifest  } from "./bindings/PluginManifest";
 import type { SchemaBool } from "./bindings/SchemaBool";
 import type { SchemaFilePath } from "./bindings/SchemaFilePath";
 import type { SchemaFolderPath } from "./bindings/SchemaFolderPath";
@@ -69,7 +69,3 @@ type PluginConfig = PluginConfigBinding & {
   commands: Record<string, Hotkey>;
 };
 
-type PluginManifest = PluginManifestBinding & {
-  schema: Record<string, PluginConfigSchema>;
-  commands: Record<CommandId, Command>;
-};

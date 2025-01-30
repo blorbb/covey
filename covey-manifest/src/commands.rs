@@ -1,34 +1,23 @@
 use core::fmt;
-use std::{str::FromStr, sync::Arc};
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
-pub struct CommandId(Arc<str>);
+use crate::ordered_map::{HasId, Id};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub struct Command {
+    pub id: Id,
     pub title: String,
     pub description: Option<String>,
     pub default_hotkey: Option<Hotkey>,
 }
 
-impl CommandId {
-    pub fn new(name: &str) -> Self {
-        Self(Arc::from(name))
-    }
-
-    pub fn name(&self) -> &str {
-        &self.0
-    }
-}
-
-impl From<Arc<str>> for CommandId {
-    fn from(value: Arc<str>) -> Self {
-        Self(value)
+impl HasId for Command {
+    fn id(&self) -> &Id {
+        &self.id
     }
 }
 

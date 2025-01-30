@@ -84,7 +84,8 @@ mod tests {
                     repository = "https://github.com/blorbb/covey-plugins"
                     authors = ["blorbb"]
 
-                    [schema.urls]
+                    [[schema]]
+                    id = "urls"
                     title = "List of URLs to show"
                     type.map.value-type.struct.fields = { name = "text", url = "text" }
                 "#

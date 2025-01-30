@@ -6,6 +6,7 @@
 
 use std::path::PathBuf;
 
+use covey_manifest::ordered_map::Id;
 use serde::{Deserialize, Serialize};
 
 /// This must have an equivalent type on the frontend
@@ -41,7 +42,7 @@ pub struct ListItemId {
     // This must be a String instead of u64 because javascript can't properly
     // handle big ints
     pub local_id: String,
-    pub plugin_name: String,
+    pub plugin_id: Id,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

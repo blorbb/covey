@@ -5,7 +5,7 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
 use super::CratePaths;
-use crate::{commands::CommandId, PluginManifest};
+use crate::{PluginManifest, ordered_map::HasId};
 
 pub(super) fn generate_ext_trait(manifest: &PluginManifest, paths: &CratePaths) -> TokenStream {
     let ret = &paths.command_return_ty;
@@ -13,9 +13,9 @@ pub(super) fn generate_ext_trait(manifest: &PluginManifest, paths: &CratePaths) 
 
     let signatures: Vec<_> = manifest
         .commands
-        .keys()
+        .iter()
         .map(|key| {
-            let method = Ident::new(&format!("on_{}", key.name().replace('-', "_")), Span::call_site());
+            let method = Ident::new(&format!("on_{}", key.id().as_str().replace('-', "_")), Span::call_site());
 
             quote! {
                 fn #method<Fut, R>(
@@ -37,7 +37,7 @@ pub(super) fn generate_ext_trait(manifest: &PluginManifest, paths: &CratePaths) 
     };
 
     let ext_impl_ty = &paths.ext_impl_ty;
-    let command_names = manifest.commands.keys().map(CommandId::name);
+    let command_names = manifest.commands.iter().map(|item| item.id().as_str());
     let trait_impl = quote! {
         impl self::CommandExt for #ext_impl_ty {
             #(

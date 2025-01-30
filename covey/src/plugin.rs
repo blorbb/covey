@@ -2,8 +2,10 @@ use core::fmt;
 use std::{hash::Hash, path::PathBuf, sync::Arc};
 
 use color_eyre::eyre::{ContextCompat, Result};
-use covey_manifest::PluginManifest;
-use indexmap::Equivalent;
+use covey_manifest::{
+    ordered_map::{HasId, Id},
+    PluginManifest,
+};
 use tokio::fs;
 
 use crate::{config::PluginConfig, event::Action, proto, Input, List, DATA_DIR};
@@ -24,14 +26,14 @@ pub struct Plugin {
 
 impl Plugin {
     /// Initialises a plugin from it's configuration.
-    pub(crate) fn new(name: String, config: PluginConfig) -> Result<Self> {
+    pub(crate) fn new(config: PluginConfig) -> Result<Self> {
         Ok(Self {
-            plugin: Arc::new(implementation::LazyPlugin::new(name, config)?),
+            plugin: Arc::new(implementation::LazyPlugin::new(config)?),
         })
     }
 
-    pub fn name(&self) -> &str {
-        &self.plugin.name
+    pub fn id(&self) -> &Id {
+        &self.plugin.config.id
     }
 
     pub fn prefix(&self) -> &str {
@@ -43,19 +45,19 @@ impl Plugin {
     /// This is in `<data folder>/covey/plugins/<plugin name>`, for example,
     /// `~/.local/share/covey/plugins/my-plugin-name`.
     pub fn data_directory_path(&self) -> PathBuf {
-        data_directory_path(self.name())
+        data_directory_path(self.id().as_str())
     }
 
     pub fn binary_path(&self) -> PathBuf {
-        binary_path(self.name())
+        binary_path(self.id().as_str())
     }
 
     pub fn manifest_path(&self) -> PathBuf {
-        manifest_path(self.name())
+        manifest_path(self.id().as_str())
     }
 
     pub fn database_path(&self) -> PathBuf {
-        database_path(self.name())
+        database_path(self.id().as_str())
     }
 
     pub fn manifest(&self) -> &PluginManifest {
@@ -114,7 +116,7 @@ impl Plugin {
 
 impl fmt::Debug for Plugin {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Plugin").field(&self.name()).finish()
+        f.debug_tuple("Plugin").field(&self.id().as_str()).finish()
     }
 }
 
@@ -123,7 +125,7 @@ impl fmt::Debug for Plugin {
 
 impl PartialEq for Plugin {
     fn eq(&self, other: &Self) -> bool {
-        self.name() == other.name()
+        self.id() == other.id()
     }
 }
 
@@ -137,22 +139,22 @@ impl PartialOrd for Plugin {
 
 impl Ord for Plugin {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.name().cmp(&other.name())
+        self.id().cmp(&other.id())
     }
 }
 
 impl Hash for Plugin {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.name().hash(state);
+        self.id().hash(state);
     }
 }
 
 // Allow looking up a plugin in a hash set by it's name.
 // Implement `Equivalent` instead of `Borrow` as plugins should be used
 // in an indexmap. It also doesn't completely fit the `Borrow` contract.
-impl Equivalent<Plugin> for str {
-    fn equivalent(&self, key: &Plugin) -> bool {
-        self == key.name()
+impl HasId for Plugin {
+    fn id(&self) -> &covey_manifest::ordered_map::Id {
+        self.id()
     }
 }
 
@@ -227,22 +229,21 @@ mod implementation {
         // making the manifest sync makes it easier to use in settings
         called_initialise: Mutex<bool>,
         pub(super) manifest: PluginManifest,
-        pub(super) name: String,
         pub(super) config: PluginConfig,
     }
 
     impl LazyPlugin {
-        pub(super) fn new(name: String, config: PluginConfig) -> Result<Self> {
-            let path = manifest_path(&name);
+        pub(super) fn new(config: PluginConfig) -> Result<Self> {
+            let id = &config.id;
+            let path = manifest_path(id.as_str());
             let toml = std::fs::read_to_string(path)
-                .context(format!("error opening manifest file of {}", name))?;
-            let manifest: PluginManifest =
-                toml::from_str(&toml).context(format!("error reading manifest of {}", name))?;
+                .context(format!("error opening manifest file of {}", id.as_str()))?;
+            let manifest: PluginManifest = toml::from_str(&toml)
+                .context(format!("error reading manifest of {}", id.as_str()))?;
 
             Ok(Self {
                 cell: OnceCell::new(),
                 called_initialise: Mutex::new(false),
-                name,
                 manifest,
                 config,
             })
@@ -260,7 +261,7 @@ mod implementation {
             // either succeeds or fails.
             let mut initialise_guard = self.called_initialise.lock().await;
             if !*initialise_guard {
-                let db_url = sqlite_connection_url(&self.name).await?;
+                let db_url = sqlite_connection_url(self.config.id.as_str()).await?;
                 let config_json = serde_json::to_string(&self.config.config)?;
 
                 inner
@@ -281,12 +282,12 @@ mod implementation {
         async fn get_without_init(&self) -> Result<&PluginInner> {
             self.cell
                 .get_or_try_init(|| async {
-                    info!("initialising plugin {}", self.name);
-                    let bin_path = binary_path(&self.name);
+                    info!("initialising plugin {:?}", self.config.id);
+                    let bin_path = binary_path(self.config.id.as_str());
                     PluginInner::new(bin_path).await
                 })
                 .await
-                .context(format!("failed to initialise plugin {}", self.name))
+                .context(format!("failed to initialise plugin {:?}", self.config.id))
         }
     }
 

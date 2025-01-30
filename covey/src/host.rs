@@ -1,7 +1,7 @@
 use std::{fs, future::Future, io::Read as _, sync::Arc};
 
 use color_eyre::eyre::{bail, Context, Result};
-use indexmap::IndexSet;
+use covey_manifest::ordered_map::OrderedMap;
 use parking_lot::Mutex;
 use tracing::{debug, error, info};
 
@@ -12,7 +12,7 @@ use crate::{
 };
 
 struct HostInner {
-    plugins: IndexSet<Plugin>,
+    plugins: OrderedMap<Plugin>,
     dispatched_actions: u64,
     activated_actions: u64,
     fe: Box<dyn Frontend>,
@@ -140,7 +140,7 @@ impl Host {
 
     /// Ordered set of all plugins.
     #[tracing::instrument(skip(self))]
-    pub fn plugins(&self) -> IndexSet<Plugin> {
+    pub fn plugins(&self) -> OrderedMap<Plugin> {
         self.inner.lock().plugins.clone()
     }
 

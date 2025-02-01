@@ -50,14 +50,15 @@
 
 <style lang="scss">
   .settings-layout {
+    // needs to be applied to individual elements so that the sticky
+    // nav bar stays put
+    --_layout-padding: 2rem;
+
     background: var(--color-surface);
     color: var(--color-on-surface);
-    width: 100vw;
-    height: 100vh;
+    min-height: 100vh;
 
     display: flex;
-    gap: 2rem;
-    padding: 2rem;
 
     // bigger line height for blocks of text
     line-height: 1.5;
@@ -67,6 +68,11 @@
     flex: 0 0 15rem;
     display: grid;
     align-content: start;
+
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    padding: var(--_layout-padding);
 
     h3 {
       padding: 0.5rem;
@@ -99,6 +105,7 @@
   }
 
   .settings-content {
+    padding: var(--_layout-padding);
     flex: 1 1 auto;
   }
 </style>

@@ -3,7 +3,7 @@ use std::fmt;
 #[doc(hidden)]
 /// Private implementation details. Do not use.
 pub mod __private_generation {
-    pub use covey_manifest_macro::include_manifest;
+    pub use covey_config_macro::include_manifest;
     pub use serde;
     pub use serde_json;
 }

@@ -1,21 +1,18 @@
+mod hotkey;
+
 use std::{
     collections::HashMap,
     fmt::{self, Debug},
     marker::PhantomData,
 };
 
-use commands::Command;
-use ordered_map::{HasId, Id, OrderedMap};
+pub use hotkey::{Hotkey, KeyCode, ParseAcceleratorError, ParseKeyError};
 use serde::{
     Deserialize, Deserializer, Serialize,
     de::{self, MapAccess, Visitor},
 };
 
-pub mod generate;
-pub mod ordered_map;
-#[cfg(feature = "ts-rs")]
-pub use ts_rs;
-pub mod commands;
+use crate::keyed_list::{Keyed, Key, KeyedList};
 
 /// A manifest for a single plugin.
 ///
@@ -36,7 +33,7 @@ pub struct PluginManifest {
     #[serde(default)]
     pub authors: Vec<String>,
     #[serde(default)]
-    pub schema: OrderedMap<PluginConfigSchema>,
+    pub schema: KeyedList<PluginConfigSchema>,
     /// All commands that the user can run on some list item.
     ///
     /// The key an ID for the command, which is used when calling commands
@@ -45,7 +42,7 @@ pub struct PluginManifest {
     /// Several commands can have the same hotkey, but the commands that
     /// a single list item has should have different hotkeys.
     #[serde(default = "default_commands")]
-    pub commands: OrderedMap<Command>,
+    pub commands: KeyedList<Command>,
 }
 
 impl PluginManifest {
@@ -54,22 +51,38 @@ impl PluginManifest {
     }
 }
 
-fn default_commands() -> OrderedMap<Command> {
-    OrderedMap::new(vec![
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
+#[serde(rename_all = "kebab-case")]
+pub struct Command {
+    pub id: Key,
+    pub title: String,
+    pub description: Option<String>,
+    pub default_hotkey: Option<Hotkey>,
+}
+
+impl Keyed for Command {
+    fn key(&self) -> &Key {
+        &self.id
+    }
+}
+
+fn default_commands() -> KeyedList<Command> {
+    KeyedList::new(vec![
         Command {
-            id: Id::new("activate"),
+            id: Key::new("activate"),
             title: String::from("Activate"),
             description: None,
             default_hotkey: Some("enter".parse().expect("enter should be a hotkey")),
         },
         Command {
-            id: Id::new("complete"),
+            id: Key::new("complete"),
             title: String::from("Complete"),
             description: None,
             default_hotkey: Some("tab".parse().expect("tab should be a hotkey")),
         },
         Command {
-            id: Id::new("alt-activate"),
+            id: Key::new("alt-activate"),
             title: String::from("Alt activate"),
             description: None,
             default_hotkey: Some("alt+enter".parse().expect("alt+enter should be a hotkey")),
@@ -82,14 +95,14 @@ fn default_commands() -> OrderedMap<Command> {
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[non_exhaustive]
 pub struct PluginConfigSchema {
-    pub id: Id,
+    pub id: Key,
     pub title: String,
     pub description: Option<String>,
     pub r#type: SchemaType,
 }
 
-impl HasId for PluginConfigSchema {
-    fn id(&self) -> &Id {
+impl Keyed for PluginConfigSchema {
+    fn key(&self) -> &Key {
         &self.id
     }
 }
@@ -340,8 +353,8 @@ mod tests {
         SchemaType,
     };
     use crate::{
-        default_commands,
-        ordered_map::{Id, OrderedMap},
+        keyed_list::{Key, KeyedList},
+        manifest::default_commands,
     };
 
     #[test]
@@ -361,8 +374,8 @@ mod tests {
             description: Some("my description".to_string()),
             repository: None,
             authors: vec![],
-            schema: OrderedMap::new([PluginConfigSchema {
-                id: Id::new("first-option"),
+            schema: KeyedList::new([PluginConfigSchema {
+                id: Key::new("first-option"),
                 title: "first option".to_string(),
                 description: None,
                 r#type: SchemaType::Int(SchemaInt::default())
@@ -398,7 +411,7 @@ mod tests {
         "#;
         let output: PluginConfigSchema = toml::from_str(input).unwrap();
         assert_eq!(output, PluginConfigSchema {
-            id: Id::new("thing-id"),
+            id: Key::new("thing-id"),
             title: "thing".to_string(),
             description: None,
             r#type: SchemaType::List(SchemaList {
@@ -428,8 +441,8 @@ mod tests {
             description: Some("Open URLs with a query".to_string()),
             repository: Some("https://github.com/blorbb/covey-plugins".to_string()),
             authors: vec!["blorbb".to_string()],
-            schema: OrderedMap::new([PluginConfigSchema {
-                id: Id::new("urls"),
+            schema: KeyedList::new([PluginConfigSchema {
+                id: Key::new("urls"),
                 title: "List of URLs to show".to_string(),
                 description: None,
                 r#type: SchemaType::Map(SchemaMap {

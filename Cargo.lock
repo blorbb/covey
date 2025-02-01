@@ -840,7 +840,7 @@ version = "0.1.0"
 dependencies = [
  "az",
  "color-eyre",
- "covey-manifest",
+ "covey-config",
  "dirs",
  "futures",
  "parking_lot",
@@ -856,7 +856,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "covey-manifest"
+name = "covey-config"
 version = "0.1.0"
 dependencies = [
  "proc-macro2",
@@ -868,10 +868,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "covey-manifest-macro"
+name = "covey-config-macro"
 version = "0.1.0"
 dependencies = [
- "covey-manifest",
+ "covey-config",
  "proc-macro-error2",
  "proc-macro2",
  "quote",
@@ -884,8 +884,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "az",
- "covey-manifest",
- "covey-manifest-macro",
+ "covey-config",
+ "covey-config-macro",
  "parking_lot",
  "prost",
  "serde",
@@ -905,7 +905,7 @@ version = "0.1.0"
 dependencies = [
  "color-eyre",
  "covey",
- "covey-manifest",
+ "covey-config",
  "covey-tauri-types",
  "freedesktop-icons",
  "parking_lot",
@@ -928,7 +928,7 @@ name = "covey-tauri-types"
 version = "0.1.0"
 dependencies = [
  "covey",
- "covey-manifest",
+ "covey-config",
  "serde",
  "ts-rs",
 ]

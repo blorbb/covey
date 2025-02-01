@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-covey-manifest = { path = "../../covey-manifest" }
+covey-config = { path = "../../covey-config" }
 covey = { path = "../../covey", optional = true }
 ts-rs = { workspace = true, optional = true }
 serde.workspace = true
@@ -13,4 +13,4 @@ serde.workspace = true
 workspace = true
 
 [features]
-build = ["dep:covey", "dep:ts-rs", "covey-manifest/ts-rs", "covey/ts-rs"]
+build = ["dep:covey", "dep:ts-rs", "covey-config/ts-rs", "covey/ts-rs"]

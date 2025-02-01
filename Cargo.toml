@@ -2,8 +2,8 @@
 members = [
     "covey-plugin",
     "covey",
-    "covey-manifest",
-    "covey-manifest-macro",
+    "covey-config",
+    "covey-config-macro",
     "covey-tauri/src-tauri",
     "covey-tauri/covey-tauri-types",
 ]

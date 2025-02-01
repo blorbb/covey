@@ -2,9 +2,9 @@ use core::fmt;
 use std::{hash::Hash, path::PathBuf, sync::Arc};
 
 use color_eyre::eyre::{ContextCompat, Result};
-use covey_manifest::{
-    ordered_map::{HasId, Id},
-    PluginManifest,
+use covey_config::{
+    keyed_list::{Keyed, Key},
+    manifest::PluginManifest,
 };
 use tokio::fs;
 
@@ -32,7 +32,7 @@ impl Plugin {
         })
     }
 
-    pub fn id(&self) -> &Id {
+    pub fn id(&self) -> &Key {
         &self.plugin.config.id
     }
 
@@ -152,8 +152,8 @@ impl Hash for Plugin {
 // Allow looking up a plugin in a hash set by it's name.
 // Implement `Equivalent` instead of `Borrow` as plugins should be used
 // in an indexmap. It also doesn't completely fit the `Borrow` contract.
-impl HasId for Plugin {
-    fn id(&self) -> &covey_manifest::ordered_map::Id {
+impl Keyed for Plugin {
+    fn key(&self) -> &covey_config::keyed_list::Key {
         self.id()
     }
 }
@@ -205,7 +205,7 @@ mod implementation {
     use std::{path::PathBuf, process::Stdio};
 
     use color_eyre::eyre::{Context as _, Result};
-    use covey_manifest::PluginManifest;
+    use covey_config::manifest::PluginManifest;
     use tokio::{
         io::{AsyncBufReadExt as _, BufReader},
         process::Command,

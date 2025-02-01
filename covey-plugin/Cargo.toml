@@ -24,8 +24,8 @@ anyhow = "1.0.93"
 sublime_fuzzy = "0.7.0"
 time = "0.3"
 parking_lot = "0.12"
-covey-manifest = { path = "../covey-manifest" }
-covey-manifest-macro = { path = "../covey-manifest-macro" }
+covey-config = { path = "../covey-config" }
+covey-config-macro = { path = "../covey-config-macro" }
 serde.workspace = true
 serde_json.workspace = true
 

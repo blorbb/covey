@@ -1,10 +1,12 @@
+//! Private implementation details of the `include_manifest!` macro.
+
 mod generate_ext;
 mod generate_types;
 
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use crate::PluginManifest;
+use crate::manifest::PluginManifest;
 
 /// Type alias for a [`TokenStream`]. Just for better readability.
 type Path = TokenStream;

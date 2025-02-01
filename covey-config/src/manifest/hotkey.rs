@@ -3,29 +3,11 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
-use crate::ordered_map::{HasId, Id};
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
-#[serde(rename_all = "kebab-case")]
-pub struct Command {
-    pub id: Id,
-    pub title: String,
-    pub description: Option<String>,
-    pub default_hotkey: Option<Hotkey>,
-}
-
-impl HasId for Command {
-    fn id(&self) -> &Id {
-        &self.id
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub struct Hotkey {
-    pub key: Key,
+    pub key: KeyCode,
     #[serde(default)]
     pub ctrl: bool,
     #[serde(default)]
@@ -48,7 +30,7 @@ pub struct Hotkey {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
-pub enum Key {
+pub enum KeyCode {
     Digit0, Digit1, Digit2,
     Digit3, Digit4, Digit5,
     Digit6, Digit7, Digit8,
@@ -124,7 +106,7 @@ impl FromStr for Hotkey {
         let mut modifiers = s.split('+');
         let key = modifiers.next_back().ok_or(E::Empty)?;
         let key = key
-            .parse::<Key>()
+            .parse::<KeyCode>()
             .map_err(|ParseKeyError(s)| E::UnknownKey(s))?;
 
         let mut ctrl = None;
@@ -209,7 +191,7 @@ impl fmt::Display for ParseKeyError {
 
 impl std::error::Error for ParseKeyError {}
 
-impl FromStr for Key {
+impl FromStr for KeyCode {
     type Err = ParseKeyError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -270,57 +252,57 @@ impl FromStr for Key {
     }
 }
 
-impl fmt::Display for Key {
+impl fmt::Display for KeyCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[rustfmt::skip]
         let s = match self {
             // Digits
-            Key::Digit0 => "0",
-            Key::Digit1 => "1",
-            Key::Digit2 => "2",
-            Key::Digit3 => "3",
-            Key::Digit4 => "4",
-            Key::Digit5 => "5",
-            Key::Digit6 => "6",
-            Key::Digit7 => "7",
-            Key::Digit8 => "8",
-            Key::Digit9 => "9",
+            KeyCode::Digit0 => "0",
+            KeyCode::Digit1 => "1",
+            KeyCode::Digit2 => "2",
+            KeyCode::Digit3 => "3",
+            KeyCode::Digit4 => "4",
+            KeyCode::Digit5 => "5",
+            KeyCode::Digit6 => "6",
+            KeyCode::Digit7 => "7",
+            KeyCode::Digit8 => "8",
+            KeyCode::Digit9 => "9",
 
             // Letters
-            Key::A => "A", Key::B => "B", Key::C => "C",
-            Key::D => "D", Key::E => "E", Key::F => "F",
-            Key::G => "G", Key::H => "H", Key::I => "I",
-            Key::J => "J", Key::K => "K", Key::L => "L",
-            Key::M => "M", Key::N => "N", Key::O => "O",
-            Key::P => "P", Key::Q => "Q", Key::R => "R",
-            Key::S => "S", Key::T => "T", Key::U => "U",
-            Key::V => "V", Key::W => "W", Key::X => "X",
-            Key::Y => "Y", Key::Z => "Z",
+            KeyCode::A => "A", KeyCode::B => "B", KeyCode::C => "C",
+            KeyCode::D => "D", KeyCode::E => "E", KeyCode::F => "F",
+            KeyCode::G => "G", KeyCode::H => "H", KeyCode::I => "I",
+            KeyCode::J => "J", KeyCode::K => "K", KeyCode::L => "L",
+            KeyCode::M => "M", KeyCode::N => "N", KeyCode::O => "O",
+            KeyCode::P => "P", KeyCode::Q => "Q", KeyCode::R => "R",
+            KeyCode::S => "S", KeyCode::T => "T", KeyCode::U => "U",
+            KeyCode::V => "V", KeyCode::W => "W", KeyCode::X => "X",
+            KeyCode::Y => "Y", KeyCode::Z => "Z",
 
             // Function keys
-            Key::F1 => "F1", Key::F2 => "F2", Key::F3 => "F3",
-            Key::F4 => "F4", Key::F5 => "F5", Key::F6 => "F6",
-            Key::F7 => "F7", Key::F8 => "F8", Key::F9 => "F9",
-            Key::F10 => "F10", Key::F11 => "F11", Key::F12 => "F12",
-            Key::F13 => "F13", Key::F14 => "F14", Key::F15 => "F15",
-            Key::F16 => "F16", Key::F17 => "F17", Key::F18 => "F18",
-            Key::F19 => "F19", Key::F20 => "F20", Key::F21 => "F21",
-            Key::F22 => "F22", Key::F23 => "F23", Key::F24 => "F24",
+            KeyCode::F1 => "F1", KeyCode::F2 => "F2", KeyCode::F3 => "F3",
+            KeyCode::F4 => "F4", KeyCode::F5 => "F5", KeyCode::F6 => "F6",
+            KeyCode::F7 => "F7", KeyCode::F8 => "F8", KeyCode::F9 => "F9",
+            KeyCode::F10 => "F10", KeyCode::F11 => "F11", KeyCode::F12 => "F12",
+            KeyCode::F13 => "F13", KeyCode::F14 => "F14", KeyCode::F15 => "F15",
+            KeyCode::F16 => "F16", KeyCode::F17 => "F17", KeyCode::F18 => "F18",
+            KeyCode::F19 => "F19", KeyCode::F20 => "F20", KeyCode::F21 => "F21",
+            KeyCode::F22 => "F22", KeyCode::F23 => "F23", KeyCode::F24 => "F24",
 
             // Special characters
-            Key::Backtick => "`",
-            Key::Hyphen => "-",
-            Key::Equal => "=",
-            Key::Tab => "Tab",
-            Key::LeftBracket => "[",
-            Key::RightBracket => "]",
-            Key::Backslash => "\\",
-            Key::Semicolon => ";",
-            Key::Apostrophe => "'",
-            Key::Enter => "Enter",
-            Key::Comma => ",",
-            Key::Period => ".",
-            Key::Slash => "/",
+            KeyCode::Backtick => "`",
+            KeyCode::Hyphen => "-",
+            KeyCode::Equal => "=",
+            KeyCode::Tab => "Tab",
+            KeyCode::LeftBracket => "[",
+            KeyCode::RightBracket => "]",
+            KeyCode::Backslash => "\\",
+            KeyCode::Semicolon => ";",
+            KeyCode::Apostrophe => "'",
+            KeyCode::Enter => "Enter",
+            KeyCode::Comma => ",",
+            KeyCode::Period => ".",
+            KeyCode::Slash => "/",
         };
 
         f.write_str(s)

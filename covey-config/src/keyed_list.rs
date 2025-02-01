@@ -5,42 +5,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
-/// A string ID that is cheap to clone.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
-// ts-rs doesn't support transparent but this is still typed as a string
-#[serde(transparent)]
-pub struct Id(Arc<str>);
-
-impl Id {
-    pub fn new(s: &str) -> Self {
-        Self(Arc::from(s))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-/// A type that has an ID that should be unique.
-pub trait HasId {
-    fn id(&self) -> &Id;
-}
-
-#[derive(Debug, Clone)]
-pub struct UniqueKeyError {
-    duplicate: Id,
-}
-
-impl fmt::Display for UniqueKeyError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "id {:?} is duplicated", self.duplicate.as_str())
-    }
-}
-
-impl core::error::Error for UniqueKeyError {}
-
-/// An ordered map of values.
+/// A list of items with unique keys.
 ///
 /// The value must implement the [`HasId`] trait, which should be a unique
 /// value across all items in this map.
@@ -54,12 +19,12 @@ impl core::error::Error for UniqueKeyError {}
     ts(type = "Array<T>", bound = "T: ts_rs::TS")
 )]
 #[serde(default, transparent)]
-pub struct OrderedMap<T> {
+pub struct KeyedList<T> {
     items: Vec<T>,
 }
 
-impl<T: HasId> OrderedMap<T> {
-    /// Constructs an ordered map with unique ids.
+impl<T: Keyed> KeyedList<T> {
+    /// Constructs a keyed list with unique ids.
     ///
     /// # Errors
     /// Errors if multiple values have the same id.
@@ -69,12 +34,12 @@ impl<T: HasId> OrderedMap<T> {
 
         let mut checked_items = Vec::new();
         for item in items {
-            let is_new = used.insert(item.id().clone());
+            let is_new = used.insert(item.key().clone());
             if is_new {
                 checked_items.push(item);
             } else {
                 return Err(UniqueKeyError {
-                    duplicate: item.id().clone(),
+                    duplicate: item.key().clone(),
                 });
             }
         }
@@ -92,7 +57,7 @@ impl<T: HasId> OrderedMap<T> {
         let filtered_items = items
             .into_iter()
             // true if id is new, so can be included
-            .filter(|item| used.insert(item.id().clone()))
+            .filter(|item| used.insert(item.key().clone()))
             .collect();
 
         Self {
@@ -102,7 +67,7 @@ impl<T: HasId> OrderedMap<T> {
 
     /// Get an item by its id.
     pub fn get(&self, id: &str) -> Option<&T> {
-        self.items.iter().find(|item| item.id().as_str() == id)
+        self.items.iter().find(|item| item.key().as_str() == id)
     }
 
     pub fn iter(&self) -> slice::Iter<'_, T> {
@@ -110,7 +75,7 @@ impl<T: HasId> OrderedMap<T> {
     }
 }
 
-impl<T> Default for OrderedMap<T> {
+impl<T> Default for KeyedList<T> {
     fn default() -> Self {
         Self {
             items: Default::default(),
@@ -118,7 +83,7 @@ impl<T> Default for OrderedMap<T> {
     }
 }
 
-impl<T: HasId> TryFrom<Vec<T>> for OrderedMap<T> {
+impl<T: Keyed> TryFrom<Vec<T>> for KeyedList<T> {
     type Error = UniqueKeyError;
 
     fn try_from(value: Vec<T>) -> Result<Self, Self::Error> {
@@ -126,7 +91,7 @@ impl<T: HasId> TryFrom<Vec<T>> for OrderedMap<T> {
     }
 }
 
-impl<'de, T: HasId + Deserialize<'de>> Deserialize<'de> for OrderedMap<T> {
+impl<'de, T: Keyed + Deserialize<'de>> Deserialize<'de> for KeyedList<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -136,7 +101,7 @@ impl<'de, T: HasId + Deserialize<'de>> Deserialize<'de> for OrderedMap<T> {
     }
 }
 
-impl<T> IntoIterator for OrderedMap<T> {
+impl<T> IntoIterator for KeyedList<T> {
     type Item = T;
 
     type IntoIter = std::vec::IntoIter<T>;
@@ -145,3 +110,37 @@ impl<T> IntoIterator for OrderedMap<T> {
         self.items.into_iter()
     }
 }
+/// A string ID that is cheap to clone.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
+// ts-rs doesn't support transparent but this is still typed as a string
+#[serde(transparent)]
+pub struct Key(Arc<str>);
+
+impl Key {
+    pub fn new(s: &str) -> Self {
+        Self(Arc::from(s))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// A type that has a key that should be unique.
+pub trait Keyed {
+    fn key(&self) -> &Key;
+}
+
+#[derive(Debug, Clone)]
+pub struct UniqueKeyError {
+    duplicate: Key,
+}
+
+impl fmt::Display for UniqueKeyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "id {:?} is duplicated", self.duplicate.as_str())
+    }
+}
+
+impl core::error::Error for UniqueKeyError {}

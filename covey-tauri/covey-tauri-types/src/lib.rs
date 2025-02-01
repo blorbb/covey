@@ -6,7 +6,7 @@
 
 use std::path::PathBuf;
 
-use covey_manifest::ordered_map::Id;
+use covey_config::keyed_list::Key;
 use serde::{Deserialize, Serialize};
 
 /// This must have an equivalent type on the frontend
@@ -42,7 +42,7 @@ pub struct ListItemId {
     // This must be a String instead of u64 because javascript can't properly
     // handle big ints
     pub local_id: String,
-    pub plugin_id: Id,
+    pub plugin_id: Key,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,6 +68,6 @@ pub fn export_ts_to(path: impl AsRef<std::path::Path>) {
     let path = path.as_ref();
 
     covey::config::GlobalConfig::export_all_to(&path).unwrap();
-    covey_manifest::PluginManifest::export_all_to(&path).unwrap();
+    covey_config::manifest::PluginManifest::export_all_to(&path).unwrap();
     crate::Event::export_all_to(&path).unwrap();
 }

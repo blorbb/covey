@@ -58,7 +58,7 @@ impl CratePaths {
         let error = self.serde_error();
         quote! {
             return ::core::result::Result::Err(
-                #error::invalid_value(#serde::de::Unexpected::#variant, #exp)
+                #error::invalid_value(#serde::de::Unexpected::#variant, &#exp)
             );
         }
     }

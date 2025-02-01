@@ -6,10 +6,13 @@ use quote::{ToTokens, format_ident, quote};
 use syn::ext::IdentExt;
 
 use super::{CratePaths, Path};
-use crate::{keyed_list::Keyed, manifest::{
-    PluginManifest, SchemaBool, SchemaFilePath, SchemaFolderPath, SchemaInt, SchemaList, SchemaMap,
-    SchemaStruct, SchemaText, SchemaType,
-}};
+use crate::{
+    keyed_list::Keyed,
+    manifest::{
+        PluginManifest, SchemaBool, SchemaFilePath, SchemaFolderPath, SchemaInt, SchemaList,
+        SchemaMap, SchemaStruct, SchemaText, SchemaType,
+    },
+};
 
 pub(super) fn generate_types(manifest: &PluginManifest, paths: &CratePaths) -> TokenStream {
     let field = FieldType::from_struct(
@@ -31,7 +34,7 @@ struct FieldType {
     /// Full type path of this field.
     ///
     /// Examples:
-    /// - `::core::primitive::i64`
+    /// - `::core::primitive::i32`
     /// - `::std::collections::HashMap<::std::string::String, self::MapValue>`
     type_path: TypePath,
     /// Function body of the deserializer.
@@ -45,12 +48,12 @@ struct FieldType {
     ///
     /// Examples:
     /// ```ignore
-    /// fn deserializer_name<'de, D: Deserializer<'de>>(deserializer: D) -> Result<i64, D::Error> {
-    ///     let value: i64 = ::serde::Deserialize::deserialize(deserializer)?;
+    /// fn deserializer_name<'de, D: Deserializer<'de>>(deserializer: D) -> Result<i32, D::Error> {
+    ///     let value: i32 = ::serde::Deserialize::deserialize(deserializer)?;
     ///     {
     ///         let value = &value;
     ///         // start included section
-    ///         if value < 0 {
+    ///         if *value < 0 {
     ///             // ...
     ///         }
     ///         // end included section
@@ -104,16 +107,20 @@ impl FieldType {
     }
 
     fn from_int(SchemaInt { min, max, default }: SchemaInt, paths: &CratePaths) -> Self {
-        let min_error =
-            paths.bail_invalid_value(quote!(Signed), &format!("value to be at least {min}"));
-        let max_error =
-            paths.bail_invalid_value(quote!(Signed), &format!("value to be at most {max}"));
+        let min_error = paths.bail_invalid_value(
+            quote!(Signed(::core::primitive::i64::from(*value))),
+            &format!("value to be at least {min}"),
+        );
+        let max_error = paths.bail_invalid_value(
+            quote!(Signed(::core::primitive::i64::from(*value))),
+            &format!("value to be at most {max}"),
+        );
 
         Self {
-            type_path: TypePath::absolute(quote! { ::core::primitive::i64 }),
+            type_path: TypePath::absolute(quote! { ::core::primitive::i32 }),
             validator: quote! {
-                if value < #min { #min_error }
-                if value > #max { #max_error }
+                if *value < #min { #min_error }
+                if *value > #max { #max_error }
             },
             default: TypeDefault::from(default),
             extras: TokenStream::new(),
@@ -296,16 +303,16 @@ impl FieldType {
     /// ```ignore
     /// pub struct SomeStruct {
     ///     #[serde(deserialize_with = self::something::deserialize, default = self::something::default)]
-    ///     something: i64,
+    ///     something: i32,
     ///     nested: self::nested::Nested,
     /// }
     ///
     /// pub mod something {
-    ///     pub(super) fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<i64, D::Error> {
+    ///     pub(super) fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<i32, D::Error> {
     ///         // ...
     ///     }
     ///
-    ///     pub(super) fn default() -> i64 {
+    ///     pub(super) fn default() -> i32 {
     ///         // ...
     ///     }
     /// }

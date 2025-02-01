@@ -1,4 +1,9 @@
-use std::{fs, future::Future, io::Read as _, sync::Arc};
+use std::{
+    fs,
+    future::Future,
+    io::{Read as _, Write as _},
+    sync::Arc,
+};
 
 use color_eyre::eyre::{bail, Context, Result};
 use covey_config::{config::GlobalConfig, keyed_list::KeyedList};
@@ -76,6 +81,22 @@ impl Host {
         }))
     }
 
+    /// Writes the config to the [`CONFIG_PATH`].
+    ///
+    /// # Errors
+    /// Returns an error if there was an IO or serialization issue.
+    fn write_config(config: &GlobalConfig) -> Result<()> {
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(&*CONFIG_PATH)?;
+
+        file.write_all(toml::to_string_pretty(config)?.as_bytes())?;
+
+        Ok(())
+    }
+
     fn make_event_future<Fut>(&self, event: Fut) -> impl Future<Output = ()> + use<Fut>
     where
         Fut: Future<Output = Result<PluginEvent>> + Send + 'static,
@@ -146,6 +167,8 @@ impl Host {
         debug!("reloading");
         let mut inner = self.inner.lock();
         inner.plugins = Self::load_plugins(&config);
+        // TODO: spawn this in another task and handle errors properly
+        Self::write_config(&config).expect("TODO");
         inner.config = config;
     }
 

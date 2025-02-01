@@ -1,8 +1,10 @@
 <script lang="ts">
   import type { SchemaText } from "$lib/bindings";
 
-  let { schema, userValue = $bindable() }: { schema: SchemaText; userValue?: string } =
-    $props();
+  let {
+    schema,
+    userValue = $bindable(),
+  }: { schema: SchemaText; userValue?: string } = $props();
 
   // unvalidated value
   let draft = $state(userValue ?? schema.default ?? "");
@@ -19,7 +21,7 @@
       return;
     }
 
-    error = undefined
+    error = undefined;
 
     userValue = draft;
   };

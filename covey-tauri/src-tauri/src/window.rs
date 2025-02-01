@@ -19,7 +19,7 @@ pub fn show_menu(app: &tauri::AppHandle) {
         // maximise in case the target monitor changes.
         window.set_resizable(true).unwrap();
         window.maximize().unwrap();
-        window.set_resizable(false).unwrap(); 
+        window.set_resizable(false).unwrap();
     } else {
         eprintln!("WARN: main window was not found");
     }

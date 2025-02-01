@@ -354,15 +354,11 @@
     }
 
     &:hover {
-      background: var(--color-surface-bright);
+      background: var(--color-surface-container-high);
     }
 
     &:has(.list-item-radio:checked) {
-      background: var(--color-primary-container);
-      // description should have this colour too
-      * {
-        color: var(--color-on-primary-container);
-      }
+      background: var(--color-surface-container-highest);
     }
   }
 

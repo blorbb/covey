@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { SchemaText } from "$lib/bindings";
+  import { unreachable } from "$lib/utils";
 
   let {
     schema,
@@ -27,10 +28,10 @@
   };
 </script>
 
-<div class="input-str">
+<div class="input-text">
   <input
     type="text"
-    class="input-str-input"
+    class="input-text-input"
     aria-invalid={error != null}
     bind:value={draft}
     onchange={commitDraft}
@@ -43,12 +44,18 @@
     <div class="error-message">
       Input is too long (must be at most {schema["max-length"]} characters)
     </div>
+  {:else if error === undefined}{:else}
+    {unreachable(error)}
   {/if}
 </div>
 
 <style lang="scss">
-  .input-str-input {
+  .input-text-input {
     border: 2px solid var(--color-outline);
     background: var(--color-surface-container);
+  }
+
+  .error-message {
+    color: var(--color-error);
   }
 </style>

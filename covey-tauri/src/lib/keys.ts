@@ -1,30 +1,30 @@
-import type { Key } from "./bindings";
+import type { KeyCode } from "./bindings";
 
-export const symbolToName = (symbol: string): Key | undefined => {
+export const symbolToKeyCode = (symbol: string): KeyCode | undefined => {
   const key = symbol.toLowerCase();
 
   // Alphabetical
   if (/^[a-z]$/.test(key)) {
-    return key as Key;
+    return key as KeyCode;
   }
 
   // Numerical
   if (/^[0-9]$/.test(key)) {
-    return ("digit" + key) as Key;
+    return ("digit" + key) as KeyCode;
   }
 
   // make sure this starts from shift+0, shift+1, ... shift+9
   // not shift+1, ..., shift+0
   const digitShiftIndex = ")!@#$%^&*(".indexOf(key);
   if (digitShiftIndex !== -1) {
-    return ("digit" + digitShiftIndex.toString()) as Key;
+    return ("digit" + digitShiftIndex.toString()) as KeyCode;
   }
 
   // f* keys
   if (key.startsWith("f")) {
     const fNum = Number.parseInt(key.slice(1), 10);
     if (1 <= fNum && fNum <= 24) {
-      return key as Key;
+      return key as KeyCode;
     }
   }
 
@@ -71,7 +71,7 @@ export const symbolToName = (symbol: string): Key | undefined => {
   }
 };
 
-export const nameToSymbol = (name: Key): string => {
+export const nameToSymbol = (name: KeyCode): string => {
   // numbers
   if (name.startsWith("digit")) {
     return name.slice("digit".length);

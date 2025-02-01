@@ -26,7 +26,7 @@ export class Settings {
   }
 
   public getPlugin(pluginId: string): PluginConfig | undefined {
-    return this.globalConfig.plugins.find(plugin => plugin.id === pluginId);
+    return this.globalConfig.plugins.find((plugin) => plugin.id === pluginId);
   }
 
   public async fetchManifestOf(

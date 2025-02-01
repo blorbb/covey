@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Hotkey, Key } from "$lib/bindings";
+  import type { Hotkey, KeyCode } from "$lib/bindings";
   import * as keys from "$lib/keys";
 
   let {
@@ -14,7 +14,7 @@
   let capturing = $state(false);
 
   const emptyDraft = () => ({
-    key: undefined as Key | undefined,
+    key: undefined as KeyCode | undefined,
     ctrl: false,
     alt: false,
     shift: false,
@@ -49,7 +49,7 @@
     draft.shift = e.shiftKey;
     draft.meta = e.metaKey;
 
-    const keyName = keys.symbolToName(e.key);
+    const keyName = keys.symbolToKeyCode(e.key);
     if (keyName !== undefined) {
       // commit the key when a non-modifier is pressed
       userHotkey = { ...draft, key: keyName };

@@ -55,7 +55,7 @@ export class Menu {
     // require one of ctrl/alt/meta to be pressed to be considered a hotkey
     if (!(ev.ctrlKey || ev.altKey || ev.metaKey)) return;
 
-    const key = keys.symbolToName(ev.key);
+    const key = keys.symbolToKeyCode(ev.key);
     if (key === undefined) return;
 
     const hotkey: Hotkey = {

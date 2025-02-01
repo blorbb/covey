@@ -58,19 +58,22 @@
   {#if manifest.schema.length > 0}
     <Divider margin="1rem" />
     <h2>Configuration</h2>
-    {#each manifest.schema as schema}
-      {schema.title}
-      {#if schema.description != null}
-        <p class="description">
-          {schema.description}
-        </p>
-      {/if}
-
-      <InputField
-        schema={schema.type}
-        bind:userValue={plugin.config[schema.id]}
-      />
-    {/each}
+    <div class="configs">
+      {#each manifest.schema as schema}
+        <div class="config">
+          {schema.title}
+          {#if schema.description != null}
+            <p class="description">
+              {schema.description}
+            </p>
+          {/if}
+          <InputField
+            schema={schema.type}
+            bind:userValue={plugin.config[schema.id]}
+          />
+        </div>
+      {/each}
+    </div>
   {/if}
 {/await}
 
@@ -89,5 +92,15 @@
   .commands {
     display: grid;
     gap: 1rem;
+  }
+
+  .configs {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .config {
+    display: grid;
+    gap: 0.5rem;
   }
 </style>

@@ -69,6 +69,7 @@
   .input-int-input {
     border: 2px solid var(--color-outline);
     background: var(--color-surface-container);
+    padding: 0.25rem 0.5rem;
   }
 
   .error-message {

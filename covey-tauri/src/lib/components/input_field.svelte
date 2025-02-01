@@ -2,6 +2,7 @@
   import type { JsonValue, SchemaType } from "$lib/bindings";
   import { type DeepReadonly, unreachable } from "$lib/utils";
 
+  import InputBool from "./input_bool.svelte";
   import InputFilePath from "./input_file_path.svelte";
   import InputInt from "./input_int.svelte";
   import InputText from "./input_text.svelte";
@@ -15,6 +16,8 @@
     typeof x === "number" ? x : undefined;
   const getString = (x: unknown) => () =>
     typeof x === "string" ? x : undefined;
+  const getBool = (x: unknown) => () =>
+    typeof x === "boolean" ? x : undefined;
 
   const setUserValue = (value: JsonValue | undefined): void => {
     userValue = value;
@@ -31,6 +34,11 @@
     schema={schema.int}
     bind:userValue={getNumber(userValue), setUserValue}
   />
+{:else if "bool" in schema}
+  <InputBool
+    schema={schema.bool}
+    bind:userValue={getBool(userValue), setUserValue}
+  />
 {:else if "file-path" in schema}
   <InputFilePath
     schema={schema["file-path"]}
@@ -38,8 +46,6 @@
   />
 {:else if "folder-path" in schema}
   todo folder path
-{:else if "bool" in schema}
-  todo bool
 {:else if "list" in schema}
   todo list
 {:else if "map" in schema}

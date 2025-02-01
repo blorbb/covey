@@ -3,12 +3,13 @@ use std::{hash::Hash, path::PathBuf, sync::Arc};
 
 use color_eyre::eyre::{ContextCompat, Result};
 use covey_config::{
-    keyed_list::{Keyed, Key},
+    config::PluginConfig,
+    keyed_list::{Key, Keyed},
     manifest::PluginManifest,
 };
 use tokio::fs;
 
-use crate::{config::PluginConfig, event::Action, proto, Input, List, DATA_DIR};
+use crate::{event::Action, proto, Input, List, DATA_DIR};
 
 /// A ref-counted reference to a plugin instance.
 ///
@@ -205,7 +206,7 @@ mod implementation {
     use std::{path::PathBuf, process::Stdio};
 
     use color_eyre::eyre::{Context as _, Result};
-    use covey_config::manifest::PluginManifest;
+    use covey_config::{config::PluginConfig, manifest::PluginManifest};
     use tokio::{
         io::{AsyncBufReadExt as _, BufReader},
         process::Command,
@@ -219,7 +220,6 @@ mod implementation {
         proto::{self, plugin_client::PluginClient},
         sqlite_connection_url,
     };
-    use crate::config::PluginConfig;
 
     /// A plugin that is not initialised until [`Self::get_and_init`] is called.
     ///

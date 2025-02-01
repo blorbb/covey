@@ -1,12 +1,11 @@
 use std::{fs, future::Future, io::Read as _, sync::Arc};
 
 use color_eyre::eyre::{bail, Context, Result};
-use covey_config::keyed_list::KeyedList;
+use covey_config::{config::GlobalConfig, keyed_list::KeyedList};
 use parking_lot::Mutex;
 use tracing::{debug, error, info};
 
 use crate::{
-    config::GlobalConfig,
     event::{Action, ListItemId, PluginEvent},
     Frontend, Plugin, CONFIG_PATH,
 };
@@ -46,7 +45,7 @@ impl Host {
         debug!("read config:\n{s}");
 
         let global_config: GlobalConfig = toml::from_str(&s)?;
-        let plugins = global_config.load_plugins();
+        let plugins = Self::load_plugins(&global_config);
 
         info!("found plugins: {plugins:?}");
 
@@ -59,6 +58,22 @@ impl Host {
                 config: global_config,
             })),
         })
+    }
+
+    /// Reads the manifests of every plugin listed in the config.
+    fn load_plugins(config: &GlobalConfig) -> KeyedList<Plugin> {
+        KeyedList::new_lossy(config.plugins.iter().filter_map(|config| {
+            match Plugin::new(config.clone()) {
+                Ok(plugin) => {
+                    debug!("found plugin {plugin:?}");
+                    Some(plugin)
+                }
+                Err(e) => {
+                    error!("error finding plugin: {e}");
+                    None
+                }
+            }
+        }))
     }
 
     fn make_event_future<Fut>(&self, event: Fut) -> impl Future<Output = ()> + use<Fut>
@@ -130,7 +145,7 @@ impl Host {
     pub fn reload(&self, config: GlobalConfig) {
         debug!("reloading");
         let mut inner = self.inner.lock();
-        inner.plugins = config.load_plugins();
+        inner.plugins = Self::load_plugins(&config);
         inner.config = config;
     }
 

@@ -1,4 +1,4 @@
-mod hotkey;
+//! Types for the plugin manifest.
 
 use std::{
     collections::HashMap,
@@ -6,13 +6,15 @@ use std::{
     marker::PhantomData,
 };
 
-pub use hotkey::{Hotkey, KeyCode, ParseAcceleratorError, ParseKeyError};
 use serde::{
     Deserialize, Deserializer, Serialize,
     de::{self, MapAccess, Visitor},
 };
 
-use crate::keyed_list::{Keyed, Key, KeyedList};
+use crate::{
+    hotkey::Hotkey,
+    keyed_list::{Key, Keyed, KeyedList},
+};
 
 /// A manifest for a single plugin.
 ///

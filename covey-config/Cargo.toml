@@ -7,9 +7,10 @@ edition = "2024"
 proc-macro2.workspace = true
 quote.workspace = true
 serde = { workspace = true, features = ["rc"] }
+serde_json.workspace = true
 syn.workspace = true
 toml.workspace = true
-ts-rs = { workspace = true, optional = true }
+ts-rs = { workspace = true, optional = true, features = ["serde-json-impl"] }
 
 [lints]
 workspace = true

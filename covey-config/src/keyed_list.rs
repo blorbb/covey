@@ -1,4 +1,4 @@
-//! An ordered map that uses and `id` field as the key.
+//! An ordered map (de)serialized as a list with keys.
 
 use core::{fmt, slice};
 use std::{collections::HashSet, sync::Arc};
@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 /// A list of items with unique keys.
 ///
-/// The value must implement the [`HasId`] trait, which should be a unique
+/// The value must implement the [`Keyed`] trait, which should be a unique
 /// value across all items in this map.
 ///
 /// Implements Serialize/Deserialize as a [`Vec<T>`].

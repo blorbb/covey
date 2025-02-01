@@ -852,7 +852,6 @@ dependencies = [
  "tonic",
  "tonic-build",
  "tracing",
- "ts-rs",
 ]
 
 [[package]]
@@ -862,6 +861,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serde",
+ "serde_json",
  "syn 2.0.92",
  "toml 0.8.19",
  "ts-rs",
@@ -927,7 +927,6 @@ dependencies = [
 name = "covey-tauri-types"
 version = "0.1.0"
 dependencies = [
- "covey",
  "covey-config",
  "serde",
  "ts-rs",

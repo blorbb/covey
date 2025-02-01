@@ -1,4 +1,3 @@
-pub mod config;
 mod event;
 mod host;
 mod plugin;
@@ -17,11 +16,8 @@ pub static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
         .join("covey")
 });
 pub static CONFIG_PATH: LazyLock<PathBuf> = LazyLock::new(|| CONFIG_DIR.join("config.toml"));
-pub static DATA_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
-    dirs::data_dir()
-        .expect("data dir must exist")
-        .join("covey")
-});
+pub static DATA_DIR: LazyLock<PathBuf> =
+    LazyLock::new(|| dirs::data_dir().expect("data dir must exist").join("covey"));
 
 /// A controller for the UI.
 ///

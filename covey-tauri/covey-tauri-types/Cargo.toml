@@ -5,7 +5,6 @@ edition = "2024"
 
 [dependencies]
 covey-config = { path = "../../covey-config" }
-covey = { path = "../../covey", optional = true }
 ts-rs = { workspace = true, optional = true }
 serde.workspace = true
 
@@ -13,4 +12,4 @@ serde.workspace = true
 workspace = true
 
 [features]
-build = ["dep:covey", "dep:ts-rs", "covey-config/ts-rs", "covey/ts-rs"]
+build = ["dep:ts-rs", "covey-config/ts-rs"]

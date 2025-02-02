@@ -14,8 +14,6 @@
     error?: string;
   } = $props();
 
-  error = undefined;
-
   const pickFile = async () => {
     const filePath = await open({
       multiple: false,
@@ -27,31 +25,50 @@
     });
 
     if (filePath != null) {
-      userValue = filePath;
+      setValue(filePath);
     }
   };
 
-  $inspect("in file path", userValue);
+  const setValue = (path: string) => {
+    if (
+      schema.extension == null ||
+      schema.extension.some((ext) => path.endsWith(ext))
+    ) {
+      error = undefined;
+      userValue = path;
+    } else {
+      error = `File extension must be one of: ${schema.extension.map((ext) => "." + ext).join(", ")}`;
+    }
+  };
 </script>
 
-<button class="input-file-path" onclick={pickFile}>
-  <!-- needs to be inside a div to show ellipsis correctly -->
-  <div>{userValue ?? schema.default ?? "Pick file"}</div>
-</button>
+<div class="input-file-path-wrapper">
+  <input
+    type="text"
+    class="input-file-path"
+    value={userValue ?? schema.default ?? ""}
+    onchange={(e) => setValue(e.currentTarget.value)}
+    onfocusout={(e) =>
+      (e.currentTarget.scrollLeft = e.currentTarget.scrollWidth)}
+  />
+  <button class="input-file-path-picker" onclick={pickFile}> Pick file </button>
+</div>
 
 <style lang="scss">
-  .input-file-path {
+  .input-file-path-wrapper {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.5rem;
+  }
+
+  .input-file-path,
+  .input-file-path-picker {
     border: 2px solid var(--color-outline);
     background: var(--color-surface-container);
     padding: 0.25rem 0.5rem;
-    text-overflow: ellipsis;
+  }
 
-    width: 100%;
-
-    > div {
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-    }
+  .input-file-path-picker {
+    border-radius: 999rem;
   }
 </style>

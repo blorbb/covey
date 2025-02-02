@@ -7,22 +7,19 @@
     error = $bindable(),
   }: { schema: SchemaText; userValue?: string; error?: string } = $props();
 
-  // unvalidated value
-  let draft = $state(userValue ?? schema.default ?? "");
-
-  const commitDraft = () => {
-    if (draft.length < schema["min-length"]) {
+  const setValue = (value: string) => {
+    if (value.length < schema["min-length"]) {
       error = `Input is too short (must be at least ${schema["min-length"]} characters)`;
       return;
     }
 
-    if (draft.length > schema["max-length"]) {
+    if (value.length > schema["max-length"]) {
       error = `Input is too long (must be at most ${schema["max-length"]} characters)`;
       return;
     }
 
     error = undefined;
-    userValue = draft;
+    userValue = value;
   };
 </script>
 
@@ -30,8 +27,8 @@
   type="text"
   class="input-text"
   aria-invalid={error != null}
-  bind:value={draft}
-  onchange={commitDraft}
+  value={userValue ?? schema.default ?? ""}
+  onchange={(ev) => setValue(ev.currentTarget.value)}
 />
 
 <style lang="scss">

@@ -7,13 +7,12 @@
     error = $bindable(),
   }: { schema: SchemaInt; userValue?: number; error?: string } = $props();
 
-  // unvalidated value
-  let draft = $state(userValue?.toString() ?? schema.default?.toString() ?? "");
-
-  const commitDraft = () => {
+  const setValue = (str: string) => {
     // don't use parseInt as there are a lot of edge cases
-    const value = Number(draft);
-    if (isNaN(value)) {
+    const value = Number(str);
+
+    // empty string becomes 0, don't allow this
+    if (isNaN(value) || str === "") {
       error = "Input is not a number";
       return;
     }
@@ -43,8 +42,8 @@
   inputmode="numeric"
   class="input-int"
   aria-invalid={error != null}
-  bind:value={draft}
-  onchange={commitDraft}
+  value={userValue?.toString() ?? schema.default?.toString() ?? ""}
+  onchange={(ev) => setValue(ev.currentTarget.value)}
 />
 
 <style lang="scss">

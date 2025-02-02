@@ -193,21 +193,21 @@ macros::make_config_subtypes! {
     }
 }
 
-/// Equivalent to [`ConfigType`] but with a derived deserialisation
+/// Equivalent to [`SchemaType`] but with a derived deserialisation
 /// implementation.
 ///
 /// This is needed to avoid adding `#[deserialize_with = "string_or_struct"]`
-/// on every instance of [`ConfigType`], and to be used in nested types like
-/// a [`HashMap<_, ConfigType>`].
+/// on every instance of [`SchemaType`], and to be used in nested types like
+/// a [`HashMap<_, SchemaType>`].
 ///
-/// [`ConfigType`] has a manual deserialisation implementation that uses
+/// [`SchemaType`] has a manual deserialisation implementation that uses
 /// the deserialisation of this.
 ///
-/// [`ConfigType`] isn't a struct wrapper around this so that users can match
+/// [`SchemaType`] isn't a struct wrapper around this so that users can match
 /// on it's variants.
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
-enum __ConfigTypeSerdeDerive {
+enum __SchemaTypeSerdeDerive {
     Int(SchemaInt),
     Text(SchemaText),
     Bool(SchemaBool),
@@ -218,7 +218,7 @@ enum __ConfigTypeSerdeDerive {
     Struct(SchemaStruct),
 }
 
-impl FromStrVariants for __ConfigTypeSerdeDerive {
+impl FromStrVariants for __SchemaTypeSerdeDerive {
     fn expected_variants() -> &'static [&'static str] {
         &["int", "text", "bool", "file-path", "folder-path"]
     }
@@ -245,7 +245,7 @@ impl<'de> Deserialize<'de> for SchemaType {
     where
         D: Deserializer<'de>,
     {
-        use __ConfigTypeSerdeDerive as Derived;
+        use __SchemaTypeSerdeDerive as Derived;
         string_or_struct::<'de, Derived, _>(deserializer).map(|value| match value {
             Derived::Int(config_int) => Self::Int(config_int),
             Derived::Text(config_str) => Self::Text(config_str),

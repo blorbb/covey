@@ -2,8 +2,8 @@
   import { page } from "$app/state";
   import type { PluginConfig } from "$lib/bindings";
   import Command from "$lib/components/command.svelte";
+  import Config from "$lib/components/config.svelte";
   import Divider from "$lib/components/divider.svelte";
-  import InputField from "$lib/components/input_field.svelte";
 
   import type { PageData } from "../$types";
 
@@ -60,18 +60,7 @@
     <h2>Configuration</h2>
     <div class="configs">
       {#each manifest.schema as schema}
-        <div class="config">
-          {schema.title}
-          {#if schema.description != null}
-            <p class="description">
-              {schema.description}
-            </p>
-          {/if}
-          <InputField
-            schema={schema.type}
-            bind:userValue={plugin.config[schema.id]}
-          />
-        </div>
+        <Config {schema} bind:userValue={plugin.config[schema.id]} />
       {/each}
     </div>
   {/if}
@@ -97,10 +86,5 @@
   .configs {
     display: grid;
     gap: 1rem;
-  }
-
-  .config {
-    display: grid;
-    gap: 0.5rem;
   }
 </style>

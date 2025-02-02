@@ -10,14 +10,22 @@
   let {
     schema,
     userValue = $bindable(),
-  }: { schema: DeepReadonly<SchemaType>; userValue?: JsonValue } = $props();
+    error = $bindable(),
+  }: {
+    schema: DeepReadonly<SchemaType>;
+    userValue?: JsonValue;
+    error?: string;
+  } = $props();
 
-  const getNumber = (x: unknown) => () =>
-    typeof x === "number" ? x : undefined;
-  const getString = (x: unknown) => () =>
-    typeof x === "string" ? x : undefined;
-  const getBool = (x: unknown) => () =>
-    typeof x === "boolean" ? x : undefined;
+  const asNumber = $derived(
+    typeof userValue === "number" ? userValue : undefined,
+  );
+  const asString = $derived(
+    typeof userValue === "string" ? userValue : undefined,
+  );
+  const asBool = $derived(
+    typeof userValue === "boolean" ? userValue : undefined,
+  );
 
   const setUserValue = (value: JsonValue | undefined): void => {
     userValue = value;
@@ -27,22 +35,26 @@
 {#if "text" in schema}
   <InputText
     schema={schema.text}
-    bind:userValue={getString(userValue), setUserValue}
+    bind:userValue={() => asString, setUserValue}
+    bind:error
   />
 {:else if "int" in schema}
   <InputInt
     schema={schema.int}
-    bind:userValue={getNumber(userValue), setUserValue}
+    bind:userValue={() => asNumber, setUserValue}
+    bind:error
   />
 {:else if "bool" in schema}
   <InputBool
     schema={schema.bool}
-    bind:userValue={getBool(userValue), setUserValue}
+    bind:userValue={() => asBool, setUserValue}
+    bind:error
   />
 {:else if "file-path" in schema}
   <InputFilePath
     schema={schema["file-path"]}
-    bind:userValue={getString(userValue), setUserValue}
+    bind:userValue={() => asString, setUserValue}
+    bind:error
   />
 {:else if "folder-path" in schema}
   todo folder path

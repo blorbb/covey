@@ -69,10 +69,18 @@ button {
   // use outline transparent instead of none for better accessibility on high contrast mode
   outline: transparent;
 
+  min-width: 0;
+  width: 100%;
+
   &:focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
   }
+}
+
+input[aria-invalid="true"] {
+  outline: 4px solid var(--color-error);
+  outline-offset: 2px;
 }
 
 button {

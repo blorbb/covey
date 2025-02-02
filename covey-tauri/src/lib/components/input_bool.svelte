@@ -4,18 +4,23 @@
   let {
     schema,
     userValue = $bindable(),
-  }: { schema: SchemaBool; userValue?: boolean } = $props();
+    error = $bindable(),
+  }: { schema: SchemaBool; userValue?: boolean; error?: string } = $props();
+
+  error = undefined;
 </script>
 
-<div class="input-bool">
-  <input
-    type="checkbox"
-    class="input-bool-input"
-    bind:checked={() => userValue ?? schema.default ?? false,
-    (checked) => (userValue = checked)}
-  />
-</div>
+<input
+  type="checkbox"
+  class="input-bool"
+  aria-invalid={error != null}
+  bind:checked={() => userValue ?? schema.default ?? false,
+  (checked) => (userValue = checked)}
+/>
 
 <style lang="scss">
-  // TODO: style as a toggle button
+  // TODO: style as toggle button
+  .input-bool {
+    width: 3rem;
+  }
 </style>

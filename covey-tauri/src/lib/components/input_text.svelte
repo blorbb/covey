@@ -1,62 +1,45 @@
 <script lang="ts">
   import type { SchemaText } from "$lib/bindings";
-  import { unreachable } from "$lib/utils";
 
   let {
     schema,
     userValue = $bindable(),
-  }: { schema: SchemaText; userValue?: string } = $props();
+    error = $bindable(),
+  }: { schema: SchemaText; userValue?: string; error?: string } = $props();
 
   // unvalidated value
   let draft = $state(userValue ?? schema.default ?? "");
-  let error: undefined | "short" | "long" = $state();
 
   const commitDraft = () => {
     if (draft.length < schema["min-length"]) {
-      error = "short";
+      error = `Input is too short (must be at least ${schema["min-length"]} characters)`;
       return;
     }
 
     if (draft.length > schema["max-length"]) {
-      error = "long";
+      error = `Input is too long (must be at most ${schema["max-length"]} characters)`;
       return;
     }
 
     error = undefined;
-
     userValue = draft;
   };
 </script>
 
-<div class="input-text">
-  <input
-    type="text"
-    class="input-text-input"
-    aria-invalid={error != null}
-    bind:value={draft}
-    onchange={commitDraft}
-  />
-  {#if error === "short"}
-    <div class="error-message">
-      Input is too short (must be at least {schema["min-length"]} characters)
-    </div>
-  {:else if error === "long"}
-    <div class="error-message">
-      Input is too long (must be at most {schema["max-length"]} characters)
-    </div>
-  {:else if error === undefined}{:else}
-    {unreachable(error)}
-  {/if}
-</div>
+<input
+  type="text"
+  class="input-text"
+  aria-invalid={error != null}
+  bind:value={draft}
+  onchange={commitDraft}
+/>
 
 <style lang="scss">
-  .input-text-input {
+  .input-text {
     border: 2px solid var(--color-outline);
     background: var(--color-surface-container);
     padding: 0.25rem 0.5rem;
-  }
-
-  .error-message {
-    color: var(--color-error);
+    min-width: 0;
+    width: 100%;
   }
 </style>

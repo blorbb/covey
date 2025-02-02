@@ -188,19 +188,6 @@
 </div>
 
 <style lang="scss">
-  /// Grid with direct children that adapt to the size
-  /// of this element instead of overflowing.
-  @mixin grid-container {
-    display: grid;
-
-    > :global(*) {
-      min-width: 0;
-      min-height: 0;
-      max-width: 100%;
-      max-height: 100%;
-    }
-  }
-
   .menu-wrapper {
     border-radius: var(--brad-standard);
     border: 0.25rem solid var(--color-outline);

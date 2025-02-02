@@ -48,6 +48,8 @@
     grid-area: description;
     font-size: var(--fs-small);
     color: var(--color-on-surface-variant);
+    // allow newline characters to make a new line
+    white-space: pre-line;
   }
 
   .config-input {

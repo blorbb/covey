@@ -19,8 +19,56 @@
 />
 
 <style lang="scss">
-  // TODO: style as toggle button
   .input-bool {
-    width: 3rem;
+    --toggle-width: 3rem;
+    --toggle-height: 1.5rem;
+    --toggle-thumb-size: 1rem;
+
+    /// Distance from the edge to the outside of the thumb
+    @function toggle-thumb-inset() {
+      @return calc((var(--toggle-height) - var(--toggle-thumb-size)) / 2);
+    }
+
+    width: var(--toggle-width);
+    height: var(--toggle-height);
+
+    display: block;
+    appearance: none;
+    position: relative;
+
+    background-color: var(--color-surface-container-highest);
+    border-radius: var(--toggle-height);
+
+    transition: var(--time-transition) background-color;
+
+    &::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: toggle-thumb-inset();
+      width: var(--toggle-thumb-size);
+      height: var(--toggle-thumb-size);
+      border-radius: var(--toggle-thumb-size);
+
+      background-color: var(--color-outline);
+      transform: translateX(toggle-thumb-inset());
+
+      transition-duration: var(--time-transition);
+      transition-property: background-color, transform;
+    }
+
+    &:checked {
+      background-color: var(--color-primary);
+
+      &::after {
+        background-color: var(--color-on-primary);
+
+        // really bad formatting for some reason
+        // prettier-ignore
+        transform: translateX(
+          calc(var(--toggle-width) - var(--toggle-thumb-size) - toggle-thumb-inset())
+        );
+      }
+    }
   }
 </style>

@@ -4,6 +4,7 @@
 
   import InputBool from "./input_bool.svelte";
   import InputFilePath from "./input_file_path.svelte";
+  import InputFolderPath from "./input_folder_path.svelte";
   import InputInt from "./input_int.svelte";
   import InputText from "./input_text.svelte";
 
@@ -57,7 +58,11 @@
     bind:error
   />
 {:else if "folder-path" in schema}
-  todo folder path
+  <InputFolderPath
+    schema={schema["folder-path"]}
+    bind:userValue={() => asString, setUserValue}
+    bind:error
+  />
 {:else if "list" in schema}
   todo list
 {:else if "map" in schema}

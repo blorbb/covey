@@ -4,6 +4,8 @@
   import type { SchemaFilePath } from "$lib/bindings";
   import type { DeepReadonly } from "$lib/utils";
 
+  import InputPath from "./input_path.svelte";
+
   let {
     schema,
     userValue = $bindable(),
@@ -42,40 +44,9 @@
   };
 </script>
 
-<div class="input-file-path-wrapper">
-  <input
-    type="text"
-    class="input-file-path"
-    value={userValue ?? schema.default ?? ""}
-    onchange={(e) => setValue(e.currentTarget.value)}
-    onfocusout={(e) =>
-      (e.currentTarget.scrollLeft = e.currentTarget.scrollWidth)}
-  />
-  <button class="input-file-path-picker" onclick={pickFile}> Pick file </button>
-</div>
-
-<style lang="scss">
-  .input-file-path-wrapper {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 0.5rem;
-  }
-
-  .input-file-path {
-    border-bottom: 2px solid var(--color-outline);
-    background: var(--color-surface-container);
-    padding: 0.25rem 0.5rem;
-  }
-
-  .input-file-path-picker {
-    background: var(--color-secondary-container);
-    color: var(--color-on-secondary-container);
-    border-radius: 999rem;
-    padding: 0.25rem 0.5rem;
-
-    transition: var(--time-transition) filter;
-    &:hover {
-      filter: brightness(1.2) var(--filter-shadow-large);
-    }
-  }
-</style>
+<InputPath
+  value={userValue ?? schema.default ?? ""}
+  onSetValue={setValue}
+  onPick={pickFile}
+  buttonText="Pick file"
+/>

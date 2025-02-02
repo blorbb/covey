@@ -58,10 +58,10 @@
     }
 
     &:checked {
-      background-color: var(--color-primary);
+      background-color: var(--color-secondary);
 
       &::after {
-        background-color: var(--color-on-primary);
+        background-color: var(--color-on-secondary);
 
         // really bad formatting for some reason
         // prettier-ignore

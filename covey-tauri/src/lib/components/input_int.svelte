@@ -49,7 +49,7 @@
 
 <style lang="scss">
   .input-int {
-    border: 2px solid var(--color-outline);
+    border-bottom: 2px solid var(--color-outline);
     background: var(--color-surface-container);
     padding: 0.25rem 0.5rem;
   }

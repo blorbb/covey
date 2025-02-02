@@ -36,10 +36,8 @@
 
 <style lang="scss">
   .input-text {
-    border: 2px solid var(--color-outline);
+    border-bottom: 2px solid var(--color-outline);
     background: var(--color-surface-container);
     padding: 0.25rem 0.5rem;
-    min-width: 0;
-    width: 100%;
   }
 </style>

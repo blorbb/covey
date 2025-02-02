@@ -11,8 +11,11 @@
 
   // https://tailwindcss.com/docs/box-shadow
   --shadow-small: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-large: 0 10px 15px -3px rgb(0 0 0 / 0.1),
-    0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-large: 0 20px 25px -5px rgb(0 0 0 / 0.1),
+    0 8px 10px -6px rgb(0 0 0 / 0.1);
+  // https://tailwindcss.com/docs/filter-drop-shadow
+  --filter-shadow-small: drop-shadow(0 1px 2px rgb(0 0 0 / 0.15));
+  --filter-shadow-large: drop-shadow(0 9px 7px rgb(0 0 0 / 0.1));
 
   --brad-large: 2rem;
   --brad-standard: 1rem;
@@ -86,7 +89,6 @@ input[aria-invalid="true"] {
 button {
   display: inline-grid;
   place-content: center;
-  padding: 0.5rem;
 
   &:hover {
     background-color: var(--overlay-light);

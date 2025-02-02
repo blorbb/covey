@@ -61,14 +61,21 @@
     gap: 0.5rem;
   }
 
-  .input-file-path,
-  .input-file-path-picker {
-    border: 2px solid var(--color-outline);
+  .input-file-path {
+    border-bottom: 2px solid var(--color-outline);
     background: var(--color-surface-container);
     padding: 0.25rem 0.5rem;
   }
 
   .input-file-path-picker {
+    background: var(--color-secondary-container);
+    color: var(--color-on-secondary-container);
     border-radius: 999rem;
+    padding: 0.25rem 0.5rem;
+
+    transition: var(--time-transition) filter;
+    &:hover {
+      filter: brightness(1.2) var(--filter-shadow-large);
+    }
   }
 </style>

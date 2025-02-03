@@ -34,9 +34,10 @@
   .config {
     display: grid;
     grid-template-areas:
-      "title input"
-      "description input"
-      "error error";
+      "title"
+      "description"
+      "input"
+      "error";
     grid-template-columns: 1fr fit-content(50%);
   }
 

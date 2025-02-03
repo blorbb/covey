@@ -8,6 +8,7 @@
   import InputInt from "./input_int.svelte";
   import InputList from "./input_list.svelte";
   import InputMap from "./input_map.svelte";
+  import InputStruct from "./input_struct.svelte";
   import InputText from "./input_text.svelte";
 
   let {
@@ -86,7 +87,11 @@
     bind:error
   />
 {:else if "struct" in schema}
-  todo struct
+  <InputStruct
+    schema={schema.struct}
+    bind:userValue={() => asMap, setUserValue}
+    bind:error
+  />
 {:else}
   {unreachable(schema)}
 {/if}

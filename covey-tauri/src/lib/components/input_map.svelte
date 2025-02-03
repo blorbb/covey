@@ -15,7 +15,7 @@
     error?: string;
   } = $props();
 
-  let drafts: [string, JsonValue | undefined][] = $state(
+  let drafts: [string | undefined, JsonValue | undefined][] = $state(
     userValue == null ? [] : Object.entries(userValue),
   );
 
@@ -28,6 +28,7 @@
     const keySet = new Set<string>();
     for (let i = 0; i < drafts.length; i++) {
       const key = drafts[i][0];
+      if (key == null) continue;
       if (keySet.has(key)) return i;
       keySet.add(key);
     }
@@ -45,7 +46,10 @@
 
   $effect(() => {
     userValue = Object.fromEntries(
-      drafts.filter((draft) => draft[1] != null) as [string, JsonValue][],
+      drafts.filter((draft) => draft[0] != null && draft[1] != null) as [
+        string,
+        JsonValue,
+      ][],
     );
   });
 </script>
@@ -64,30 +68,34 @@
       </button>
 
       <!-- key -->
-      <InputText
-        schema={{
-          "min-length": -Infinity,
-          "max-length": Infinity,
-          default: null,
-        }}
-        userValue={drafts[i][0]}
-        error={duplicate_key_index === i
-          ? `Duplicate key ${drafts[i][0]}`
-          : undefined}
-      />
+      <div class="key">
+        <InputText
+          schema={{
+            "min-length": 1,
+            "max-length": Infinity,
+            default: null,
+          }}
+          bind:userValue={drafts[i][0]}
+          error={duplicate_key_index === i
+            ? `Duplicate key ${drafts[i][0]}`
+            : undefined}
+        />
+      </div>
 
-      <InputField
-        schema={schema["value-type"]}
-        bind:userValue={drafts[i][1]}
-        bind:error={errors[i]}
-      />
+      <div class="value">
+        <InputField
+          schema={schema["value-type"]}
+          bind:userValue={drafts[i][1]}
+          bind:error={errors[i]}
+        />
+      </div>
     </li>
   {/each}
   <li class="input-map-add">
     <button
       class="input-map-add-button"
       onclick={() => {
-        drafts.push(["", undefined]);
+        drafts.push([undefined, undefined]);
         errors.push(undefined);
       }}
     >
@@ -103,7 +111,7 @@
 
   .input-map-item {
     display: grid;
-    grid-template-columns: 2rem 0.5fr 1fr;
+    grid-template-columns: 2rem 5rem auto;
   }
 
   .input-map-item-remove {

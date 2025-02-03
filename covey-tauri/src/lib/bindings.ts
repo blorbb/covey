@@ -54,8 +54,12 @@ export type {
 };
 
 type JsonValue =
-  | Exclude<JsonValueBinding, { [x: string]: JsonValueBinding | undefined }>
-  | { [x: string]: JsonValue };
+  | Exclude<
+      JsonValueBinding,
+      { [x: string]: JsonValueBinding | undefined } | JsonValueBinding[]
+    >
+  | { [x: string]: JsonValue }
+  | JsonValue[];
 
 type SchemaStruct = SchemaStructBinding & {
   fields: Record<string, SchemaType>;

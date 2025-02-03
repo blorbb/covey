@@ -13,7 +13,7 @@
   let error = $state<string>();
 </script>
 
-<label class="config">
+<div class="config">
   <p class="config-title">{schema.title}</p>
   {#if schema.description != null}
     <p class="config-description">
@@ -28,7 +28,7 @@
       Error: {error}
     </p>
   {/if}
-</label>
+</div>
 
 <style lang="scss">
   .config {

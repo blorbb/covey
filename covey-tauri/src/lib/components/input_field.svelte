@@ -6,6 +6,7 @@
   import InputFilePath from "./input_file_path.svelte";
   import InputFolderPath from "./input_folder_path.svelte";
   import InputInt from "./input_int.svelte";
+  import InputList from "./input_list.svelte";
   import InputText from "./input_text.svelte";
 
   let {
@@ -27,6 +28,7 @@
   const asBool = $derived(
     typeof userValue === "boolean" ? userValue : undefined,
   );
+  const asArray = $derived(Array.isArray(userValue) ? userValue : undefined);
 
   const setUserValue = (value: JsonValue | undefined): void => {
     userValue = value;
@@ -64,7 +66,11 @@
     bind:error
   />
 {:else if "list" in schema}
-  todo list
+  <InputList
+    schema={schema.list}
+    bind:userValue={() => asArray, setUserValue}
+    bind:error
+  />
 {:else if "map" in schema}
   todo map
 {:else if "struct" in schema}

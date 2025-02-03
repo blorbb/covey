@@ -86,13 +86,16 @@ impl Host {
     /// # Errors
     /// Returns an error if there was an IO or serialization issue.
     fn write_config(config: &GlobalConfig) -> Result<()> {
+        // stringify here to avoid truncating the file then erroring
+        let toml_str = toml::to_string_pretty(config)?;
+
         let mut file = std::fs::OpenOptions::new()
             .write(true)
             .truncate(true)
             .create(true)
             .open(&*CONFIG_PATH)?;
 
-        file.write_all(toml::to_string_pretty(config)?.as_bytes())?;
+        file.write_all(toml_str.as_bytes())?;
 
         Ok(())
     }

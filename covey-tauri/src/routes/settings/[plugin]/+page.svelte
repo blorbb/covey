@@ -19,8 +19,6 @@
   $effect(() => {
     settings.updateBackendConfig();
   });
-
-  $inspect(plugin);
 </script>
 
 {#await manifest then manifest}

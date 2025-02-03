@@ -55,8 +55,23 @@
 </script>
 
 <ul class="input-map">
+  <li class="input-map-row input-map-header">
+    <div class="input-map-corner"></div>
+    <div class="key-label">Key</div>
+
+    {#if "struct" in schema["value-type"]}
+      <ul class="input-map-header-struct-fields">
+        {#each Object.keys(schema["value-type"].struct.fields) as field (field)}
+          <li class="input-map-header-struct-field">
+            {field}
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </li>
+
   {#each drafts as _, i}
-    <li class="input-map-item">
+    <li class="input-map-row">
       <button
         class="input-map-item-remove"
         onclick={() => {
@@ -89,6 +104,7 @@
           schema={schema["value-type"]}
           bind:userValue={drafts[i][1]}
           bind:error={errors[i]}
+          showStructLabels={false}
         />
       </div>
     </li>
@@ -111,7 +127,7 @@
     list-style-type: none;
   }
 
-  .input-map-item {
+  .input-map-row {
     display: grid;
     grid-template-columns: 2rem 5rem auto;
   }
@@ -134,5 +150,23 @@
     &:hover {
       filter: brightness(1.2);
     }
+  }
+
+  .key-label,
+  .input-map-header-struct-field {
+    background: var(--color-surface-container);
+    border-bottom: 2px solid var(--color-tertiary);
+  }
+
+  .input-map-header-struct-fields {
+    list-style-type: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  }
+
+  .input-map-header {
+    text-align: center;
+    font-size: var(--fs-small);
+    font-weight: bold;
   }
 </style>

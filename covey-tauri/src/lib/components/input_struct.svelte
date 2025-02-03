@@ -8,10 +8,12 @@
     schema,
     userValue = $bindable(),
     error = $bindable(),
+    showLabels,
   }: {
     schema: DeepReadonly<SchemaStruct>;
     userValue?: Record<string, JsonValue>;
     error?: string;
+    showLabels: boolean;
   } = $props();
 
   let drafts: [string, JsonValue | undefined][] = $state(
@@ -35,22 +37,45 @@
   });
 </script>
 
-<ul class="input-map">
-  {#each drafts as _, i}
-    <li class="input-map-item">
-      <InputField
-        schema={schema.fields[drafts[i][0]]}
-        bind:userValue={drafts[i][1]}
-        bind:error={errors[i]}
-      />
-    </li>
-  {/each}
-</ul>
+<div class="input-struct">
+  {#if showLabels}
+    <div class="input-struct-labels">
+      {#each Object.keys(schema.fields) as field (field)}
+        <div class="input-struct-label">
+          {field}
+        </div>
+      {/each}
+    </div>
+  {/if}
+
+  <div class="input-struct-inputs">
+    {#each drafts as _, i}
+      <div class="input-struct-item">
+        <InputField
+          schema={schema.fields[drafts[i][0]]}
+          bind:userValue={drafts[i][1]}
+          bind:error={errors[i]}
+        />
+      </div>
+    {/each}
+  </div>
+</div>
 
 <style lang="scss">
-  .input-map {
-    list-style-type: none;
+  .input-struct-labels,
+  .input-struct-inputs {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  }
+
+  .input-struct-labels {
+    text-align: center;
+    font-size: var(--fs-small);
+    font-weight: bold;
+  }
+
+  .input-struct-label {
+    background: var(--color-surface-container);
+    border-bottom: 2px solid var(--color-tertiary);
   }
 </style>

@@ -15,10 +15,13 @@
     schema,
     userValue = $bindable(),
     error = $bindable(),
+    showStructLabels = true,
   }: {
     schema: DeepReadonly<SchemaType>;
     userValue?: JsonValue;
     error?: string;
+    /** Whether to show labels if the input type is a struct. */
+    showStructLabels?: boolean;
   } = $props();
 
   const asNumber = $derived(
@@ -91,6 +94,7 @@
     schema={schema.struct}
     bind:userValue={() => asMap, setUserValue}
     bind:error
+    showLabels={showStructLabels}
   />
 {:else}
   {unreachable(schema)}

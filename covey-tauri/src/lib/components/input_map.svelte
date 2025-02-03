@@ -76,9 +76,11 @@
             default: null,
           }}
           bind:userValue={drafts[i][0]}
-          error={duplicate_key_index === i
-            ? `Duplicate key ${drafts[i][0]}`
-            : undefined}
+          bind:error={() =>
+            duplicate_key_index === i
+              ? `Duplicate key ${drafts[i][0]}`
+              : errors[i],
+          (err) => (errors[i] = err)}
         />
       </div>
 

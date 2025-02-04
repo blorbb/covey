@@ -6,32 +6,11 @@ use std::{
 };
 
 use az::CheckedAs;
-use parking_lot::Mutex;
 
 use crate::{list::ListItemCallbacks, proto, Icon, List, ListItem, ListStyle};
 
-static STORE: Mutex<ListItemStore> = Mutex::new(ListItemStore::new());
-
-/// Stores the result of a query, returning the response that should be
-/// sent to covey.
-pub(crate) fn store_query_result(list: List) -> proto::QueryResponse {
-    STORE.lock().store_query_result(list)
-}
-
-/// Finds the associated callbacks of an ID.
-///
-/// This should never return [`None`] if the ID comes from an RPC call.
-/// However, implementation may change in the future which disposes of
-/// callbacks more frequently, and may have extremely rare edge cases where
-/// a callback is disposed but then activated.
-pub(crate) fn fetch_callbacks_of(list_item_id: u64) -> Option<ListItemCallbacks> {
-    STORE.lock().fetch_callbacks_of(list_item_id)
-}
-
 /// Store to map list item IDs to their callbacks.
-///
-/// Only one should be constructed.
-struct ListItemStore {
+pub(crate) struct ListItemStore {
     /// A deque of all queries which have been made.
     ///
     /// Old queries are only dropped when an activation is performed, as
@@ -47,14 +26,16 @@ struct ListItemStore {
 }
 
 impl ListItemStore {
-    const fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             queries: VecDeque::new(),
             ids: AutoIncrementer(AtomicU64::new(0)),
         }
     }
 
-    fn store_query_result(&mut self, list: List) -> proto::QueryResponse {
+    /// Stores the result of a query, returning the response that should be
+    /// sent to covey.
+    pub(crate) fn store_query_result(&mut self, list: List) -> proto::QueryResponse {
         // Don't store an empty result
         if list.items.is_empty() {
             return proto::QueryResponse {
@@ -99,7 +80,13 @@ impl ListItemStore {
         }
     }
 
-    fn fetch_callbacks_of(&mut self, id: u64) -> Option<ListItemCallbacks> {
+    /// Finds the associated callbacks of an ID.
+    ///
+    /// This should never return [`None`] if the ID comes from an RPC call.
+    /// However, implementation may change in the future which disposes of
+    /// callbacks more frequently, and may have extremely rare edge cases where
+    /// a callback is disposed but then activated.
+    pub(crate) fn fetch_callbacks_of(&mut self, id: u64) -> Option<ListItemCallbacks> {
         // linear search is good enough
         let (found_index, found_callback) =
             self.queries.iter().enumerate().find_map(|(i, query)| {

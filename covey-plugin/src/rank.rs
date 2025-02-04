@@ -1,27 +1,71 @@
-//! Wrappers to rank items based on their query.
+//! Rank items based on query and usage.
+//!
+//! Usage stats are stored in [`DATA_DIR`]/activations.json.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, io::Read, path::PathBuf};
 
 use az::SaturatingAs;
+use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
-use crate::{sql, ListItem};
+use crate::ListItem;
 
-async fn activations() -> Option<HashMap<String, (u64, OffsetDateTime)>> {
-    let a = sqlx::query_as::<_, (String, i64, time::OffsetDateTime)>(
-        "
-        SELECT title, frequency, last_use FROM activations
-        ",
-    )
-    .fetch_all(sql::pool())
-    .await
-    .ok()?;
+fn activations_path() -> PathBuf {
+    crate::plugin_data_dir().join("activations.json")
+}
 
-    Some(
-        a.into_iter()
-            .map(|(title, freq, last)| (title, (freq.saturating_as::<u64>(), last)))
-            .collect::<HashMap<_, _>>(),
-    )
+#[derive(Debug, Serialize, Deserialize, Default)]
+#[serde(transparent, default)]
+struct AllActivations {
+    map: HashMap<String, ItemActivations>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ItemActivations {
+    frequency: u64,
+    #[serde(with = "time::serde::timestamp")]
+    last_use: time::OffsetDateTime,
+}
+
+fn activations() -> Option<AllActivations> {
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(false)
+        .read(true)
+        .open(activations_path())
+        .inspect_err(|e| eprintln!("error: {e}"))
+        .ok()?;
+
+    let mut buf = Vec::new();
+    file.read_to_end(&mut buf).ok()?;
+
+    serde_json::from_slice(&buf).ok()
+}
+
+pub(crate) fn register_usage(title: &str) {
+    let mut current = activations().unwrap_or_default();
+    println!("current {current:?}");
+
+    // increment usage
+    let entry = current
+        .map
+        .entry(title.to_string())
+        .or_insert_with(|| ItemActivations {
+            frequency: 0,
+            last_use: OffsetDateTime::now_utc(),
+        });
+
+    entry.frequency += 1;
+    entry.last_use = OffsetDateTime::now_utc();
+
+    // write to file
+    let Ok(json_string) = serde_json::to_string(&current) else {
+        eprintln!("failed stringifying {current:?}");
+        return;
+    };
+    eprintln!("writing {json_string} to {:?}", activations_path());
+    _ = std::fs::write(activations_path(), json_string);
 }
 
 pub async fn rank<'iter>(
@@ -31,9 +75,9 @@ pub async fn rank<'iter>(
 ) -> Vec<ListItem> {
     let should_track_history = weights.frequency != 0.0 || weights.recency != 0.0;
     let activations = if should_track_history {
-        self::activations().await.unwrap_or_else(HashMap::new)
+        self::activations().unwrap_or_else(AllActivations::default)
     } else {
-        HashMap::new()
+        AllActivations::default()
     };
 
     let now = OffsetDateTime::now_utc();
@@ -55,15 +99,18 @@ pub async fn rank<'iter>(
             let title_score = score!(title);
             let desc_score = score!(description);
 
-            let (freq, elapsed_secs) =
-                activations
-                    .get(&item.title)
-                    .map_or((0, u64::MAX), |(freq, time)| {
-                        (
-                            *freq,
-                            (now.unix_timestamp() - time.unix_timestamp()).saturating_as::<u64>(),
-                        )
-                    });
+            let (freq, elapsed_secs) = activations.map.get(&item.title).map_or(
+                (0, u64::MAX),
+                |ItemActivations {
+                     frequency,
+                     last_use,
+                 }| {
+                    (
+                        *frequency,
+                        (now - *last_use).whole_seconds().saturating_as::<u64>(),
+                    )
+                },
+            );
 
             let elapsed_min = elapsed_secs / 1000;
             // between (0, 1]

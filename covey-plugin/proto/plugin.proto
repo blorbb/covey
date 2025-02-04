@@ -4,84 +4,77 @@ package plugin;
 import "google/protobuf/empty.proto";
 
 service Plugin {
-    // Initialise the service, given some initialisation info.
-    //
-    // It is guaranteed that this function will be called and completed
-    // before any of the others are run.
-    rpc Initialise (InitialiseRequest) returns (google.protobuf.Empty);
-    rpc Query (QueryRequest) returns (QueryResponse);
-    rpc Activate (ActivationRequest) returns (ActivationResponse);
+  // Initialise the service, given some initialisation info.
+  //
+  // It is guaranteed that this function will be called and completed
+  // before any of the others are run.
+  rpc Initialise(InitialiseRequest) returns (google.protobuf.Empty);
+  rpc Query(QueryRequest) returns (QueryResponse);
+  rpc Activate(ActivationRequest) returns (ActivationResponse);
 }
 
-message InitialiseRequest {
-    required string json = 1;
-    required string sqlite_url = 2;
-}
+message InitialiseRequest { required string json = 1; }
 
-message QueryRequest {
-    required string query = 1;
-}
+message QueryRequest { required string query = 1; }
 
 message QueryResponse {
-    repeated ListItem items = 1;
-    // The kind of list to show.
-    //
-    // If this is not provided, the list style will be the default set
-    // by the user. Plugins should only set one if the content makes the
-    // most sense with one of these styles.
-    oneof list_style {
-        // Show one item per row.
-        google.protobuf.Empty rows = 2;
-        // A grid with an adaptive size.
-        google.protobuf.Empty grid = 3;
-        // A grid with a specific number of columns per row.
-        uint32 grid_with_columns = 4;
-    }
+  repeated ListItem items = 1;
+  // The kind of list to show.
+  //
+  // If this is not provided, the list style will be the default set
+  // by the user. Plugins should only set one if the content makes the
+  // most sense with one of these styles.
+  oneof list_style {
+    // Show one item per row.
+    google.protobuf.Empty rows = 2;
+    // A grid with an adaptive size.
+    google.protobuf.Empty grid = 3;
+    // A grid with a specific number of columns per row.
+    uint32 grid_with_columns = 4;
+  }
 }
 
 message ListItem {
-    // Must be unique within the plugin - duplicates across multiple
-    // plugins is fine.
-    required uint64 id = 1;
-    required string title = 2;
-    required string description = 3;
-    oneof icon {
-        // A named icon, taken from the system.
-        string NAME = 4;
-        // Just some text. It should be very short.
-        string TEXT = 5;
-    }
-    // The command IDs that can be activated on this list item.
-    repeated string available_commands = 6;
+  // Must be unique within the plugin - duplicates across multiple
+  // plugins is fine.
+  required uint64 id = 1;
+  required string title = 2;
+  required string description = 3;
+  oneof icon {
+    // A named icon, taken from the system.
+    string NAME = 4;
+    // Just some text. It should be very short.
+    string TEXT = 5;
+  }
+  // The command IDs that can be activated on this list item.
+  repeated string available_commands = 6;
 }
 
-message ActivationResponse {
-    repeated Action actions = 1;
-}
+message ActivationResponse { repeated Action actions = 1; }
 
 message Action {
-    // Required.
-    oneof action {
-        google.protobuf.Empty close = 1;
-        Command run_command = 2;
-        string run_shell = 3;
-        string copy = 4;
-        Input set_input = 5;
-    };
+  // Required.
+  oneof action {
+    google.protobuf.Empty close = 1;
+    Command run_command = 2;
+    string run_shell = 3;
+    string copy = 4;
+    Input set_input = 5;
+  };
 }
 
 message Command {
-    required string cmd = 1;
-    repeated string args = 2;
+  required string cmd = 1;
+  repeated string args = 2;
 }
 
 message Input {
-    required string query = 1;
-    required uint32 range_lb = 2;
-    required uint32 range_ub = 3;
+  required string query = 1;
+  required uint32 range_lb = 2;
+  required uint32 range_ub = 3;
 }
 
 message ActivationRequest {
-    required uint64 selection_id = 1;
-    required string command_name = 2;
+  required uint64 selection_id = 1;
+  required string command_name = 2;
 }

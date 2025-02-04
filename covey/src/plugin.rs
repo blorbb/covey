@@ -1,13 +1,12 @@
 use core::fmt;
 use std::{hash::Hash, path::PathBuf, sync::Arc};
 
-use color_eyre::eyre::{ContextCompat, Result};
+use color_eyre::eyre::Result;
 use covey_config::{
     config::PluginConfig,
     keyed_list::{Key, Keyed},
     manifest::PluginManifest,
 };
-use tokio::fs;
 
 use crate::{event::Action, proto, Input, List, DATA_DIR};
 
@@ -55,10 +54,6 @@ impl Plugin {
 
     pub fn manifest_path(&self) -> PathBuf {
         manifest_path(self.id().as_str())
-    }
-
-    pub fn database_path(&self) -> PathBuf {
-        database_path(self.id().as_str())
     }
 
     pub fn manifest(&self) -> &PluginManifest {
@@ -174,34 +169,6 @@ fn manifest_path(plugin_name: &str) -> PathBuf {
     data_directory_path(plugin_name).join("manifest.toml")
 }
 
-fn database_path(plugin_name: &str) -> PathBuf {
-    data_directory_path(plugin_name).join("data.db")
-}
-
-/// Gets the connection URL for a given plugin.
-///
-/// The database file will be created first.
-async fn sqlite_connection_url(plugin_name: &str) -> Result<String> {
-    // make the file
-    fs::create_dir_all(data_directory_path(plugin_name)).await?;
-    fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(false)
-        .open(database_path(plugin_name))
-        .await?;
-
-    // https://docs.rs/sqlx/latest/sqlx/sqlite/struct.SqliteConnectOptions.html
-    let connection_string = format!(
-        "sqlite://{}",
-        database_path(plugin_name)
-            .to_str()
-            .context("plugin data path must be a UTF-8 string")?
-    );
-
-    Ok(connection_string)
-}
-
 mod implementation {
     use std::{path::PathBuf, process::Stdio};
 
@@ -218,7 +185,6 @@ mod implementation {
     use super::{
         binary_path, manifest_path,
         proto::{self, plugin_client::PluginClient},
-        sqlite_connection_url,
     };
 
     /// A plugin that is not initialised until [`Self::get_and_init`] is called.
@@ -261,16 +227,12 @@ mod implementation {
             // either succeeds or fails.
             let mut initialise_guard = self.called_initialise.lock().await;
             if !*initialise_guard {
-                let db_url = sqlite_connection_url(self.config.id.as_str()).await?;
                 let config_json = serde_json::to_string(&self.config.config)?;
 
                 inner
                     .plugin
                     .clone()
-                    .initialise(Request::new(proto::InitialiseRequest {
-                        json: config_json,
-                        sqlite_url: db_url,
-                    }))
+                    .initialise(Request::new(proto::InitialiseRequest { json: config_json }))
                     .await
                     .context("plugin initialisation function failed")?;
                 *initialise_guard = true;

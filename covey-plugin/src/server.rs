@@ -3,9 +3,15 @@ use std::process;
 use tokio::net::TcpListener;
 use tonic::transport::Server;
 
-use crate::{plugin_lock::PluginLock, proto::plugin_server::PluginServer, Plugin};
+use crate::{plugin_lock::ServerState, proto::plugin_server::PluginServer, Plugin};
 
-pub fn run_server<T: Plugin>() -> ! {
+/// Starts up the server with a specified plugin implementation.
+///
+/// The plugin id should be `env!("CARGO_PKG_NAME")`.
+pub fn run_server<T: Plugin>(plugin_id: &'static str) -> ! {
+    crate::PLUGIN_ID
+        .set(plugin_id)
+        .expect("plugin id should only be set from main");
     let result = tokio::runtime::Runtime::new()
         .map_err(|e| anyhow::anyhow!(e))
         .and_then(|rt| {
@@ -19,7 +25,7 @@ pub fn run_server<T: Plugin>() -> ! {
                 println!("{port}");
 
                 Server::builder()
-                    .add_service(PluginServer::new(PluginLock::<T>::new_empty()))
+                    .add_service(PluginServer::new(ServerState::<T>::new_empty()))
                     .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
                     .await?;
 

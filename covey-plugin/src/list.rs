@@ -153,7 +153,7 @@ impl ListItemCallbacks {
     /// Calls a command by name, returning an empty vec if the command is not found.
     pub(crate) async fn call_command(&self, name: &str) -> Result<Vec<Action>> {
         if let Some(cmd) = self.commands.get(name) {
-            crate::sql::increment_frequency_table(&self.item_title).await?;
+            crate::rank::register_usage(&self.item_title);
             cmd().await.map(|actions| actions.list)
         } else {
             Ok(vec![])

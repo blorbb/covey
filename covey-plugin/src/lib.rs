@@ -1,8 +1,9 @@
 pub mod manifest;
 pub mod rank;
-pub mod sql;
 
 mod list;
+use std::{path::PathBuf, sync::OnceLock};
+
 pub use list::{Icon, List, ListItem, ListStyle};
 mod action;
 pub use action::{Action, Actions};
@@ -21,6 +22,32 @@ mod proto {
 }
 
 pub use anyhow::{self, Result};
+
+/// ID of this plugin.
+///
+/// This should be set to `env!("CARGO_PKG_NAME")` of the plugin, by
+/// inputting string to [`main`].
+pub static PLUGIN_ID: OnceLock<&'static str> = OnceLock::new();
+
+/// Assigned directory of this plugin, where extra data can be stored.
+///
+/// This is <data-dir>/covey/plugins/<plugin-id>/. The directory should already
+/// contain this plugin's binary (with the name of <plugin-id>) and
+/// a `manifest.toml`.
+///
+/// [`covey_plugin`](crate) will also add an `activations.json` file. See
+/// the [`rank`] module for more details.
+pub fn plugin_data_dir() -> PathBuf {
+    dirs::data_dir()
+        .expect("data dir should exist")
+        .join("covey")
+        .join("plugins")
+        .join(
+            PLUGIN_ID
+                .get()
+                .expect("plugin id should be initialised in main"),
+        )
+}
 
 /// Clones variables into an async closure (by calling [`ToOwned::to_owned`]).
 ///

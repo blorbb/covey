@@ -1,8 +1,7 @@
 use std::future::Future;
 
 use crate::{
-    manifest::ManifestDeserialization, plugin_lock::PluginLock, proto, sql, store, Action, List,
-    Result,
+    manifest::ManifestDeserialization, plugin_lock::ServerState, proto, Action, List, Result,
 };
 
 pub trait Plugin: Sized + Send + Sync + 'static {
@@ -19,7 +18,7 @@ pub trait Plugin: Sized + Send + Sync + 'static {
 type TonicResult<T> = Result<tonic::Response<T>, tonic::Status>;
 
 #[tonic::async_trait]
-impl<T> proto::plugin_server::Plugin for PluginLock<T>
+impl<T> proto::plugin_server::Plugin for ServerState<T>
 where
     T: Plugin,
 {
@@ -28,14 +27,13 @@ where
         request: tonic::Request<proto::InitialiseRequest>,
     ) -> TonicResult<()> {
         let request = request.into_inner();
-        let mut guard = self.write().await;
-        sql::init(&request.sqlite_url)
-            .await
-            .map_err(into_tonic_status)?;
+
+        let mut guard = self.plugin.write().await;
+
         let config = ManifestDeserialization::try_from_input(&request.json)
             .map_err(|e| tonic::Status::invalid_argument(e.to_string()))?;
-
         let plugin = T::new(config).await.map_err(into_tonic_status)?;
+
         *guard = Some(plugin);
 
         Ok(tonic::Response::new(()))
@@ -46,13 +44,18 @@ where
         request: tonic::Request<proto::QueryRequest>,
     ) -> TonicResult<proto::QueryResponse> {
         let list = self
-            .force_read()
+            .plugin
+            .read()
             .await
+            .as_ref()
+            .expect("plugin has not been initialised")
             .query(request.into_inner().query)
             .await
             .map_err(into_tonic_status)?;
 
-        Ok(tonic::Response::new(store::store_query_result(list)))
+        Ok(tonic::Response::new(
+            self.list_item_store.lock().store_query_result(list),
+        ))
     }
 
     async fn activate(
@@ -61,9 +64,13 @@ where
     ) -> TonicResult<proto::ActivationResponse> {
         let request = request.into_inner();
         let id = request.selection_id;
-        let callbacks = store::fetch_callbacks_of(id).ok_or(tonic::Status::data_loss(format!(
-            "failed to fetch callback of list item with id {id}"
-        )))?;
+        let callbacks =
+            self.list_item_store
+                .lock()
+                .fetch_callbacks_of(id)
+                .ok_or(tonic::Status::data_loss(format!(
+                    "failed to fetch callback of list item with id {id}"
+                )))?;
 
         let response = callbacks
             .call_command(&request.command_name)

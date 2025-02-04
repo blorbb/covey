@@ -305,8 +305,9 @@ mod implementation {
         /// Starts the plugin binary but does not call initialise.
         async fn new(bin_path: PathBuf) -> Result<Self> {
             // run process and read first line
-            let mut process = Command::new(bin_path)
+            let mut process = Command::new(&bin_path)
                 .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
                 .spawn()
                 .context("failed to spawn plugin server")?;
 
@@ -317,6 +318,21 @@ mod implementation {
             stdout.read_line(&mut first_line).await.context(
                 "failed to read port or error from plugin: plugin should print to stdout",
             )?;
+
+            tokio::spawn(async move {
+                let mut lines = stdout.lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    tracing::info!("plugin: {line}");
+                }
+            });
+            tokio::spawn(async move {
+                let mut lines =
+                    BufReader::new(process.stderr.take().expect("stderr should be captured"))
+                        .lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    tracing::info!("plugin: {line}");
+                }
+            });
 
             let port: u16 = first_line
                 .trim()

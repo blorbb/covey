@@ -21,7 +21,10 @@ const config = {
     }),
   ],
   kit: {
-    adapter: adapter(),
+    // fall back to SPA for [plugin] routes
+    adapter: adapter({
+      fallback: "200.html",
+    }),
   },
 };
 

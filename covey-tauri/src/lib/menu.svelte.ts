@@ -4,6 +4,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 
 import type { Event, Hotkey, ListItem, ListStyle } from "./bindings";
 import * as keys from "./keys";
+import type { Settings } from "./settings.svelte";
 
 export class Menu {
   public items = $state<ListItem[]>([]);
@@ -42,30 +43,73 @@ export class Menu {
     void invoke("query", { text: this.inputText });
   }
 
-  public activate(name: string) {
+  private activate(commandName: string) {
     void invoke("activate", {
       listItemId: this.items[this.selection].id,
-      commandName: name,
+      commandName,
     });
   }
 
-  // TODO: retrieve command settings from rust side
-  // make left click = enter.
-  public maybeHotkeyActivate(ev: KeyboardEvent) {
-    // require one of ctrl/alt/meta to be pressed to be considered a hotkey
-    if (!(ev.ctrlKey || ev.altKey || ev.metaKey)) return;
-
+  /**
+   * Tries to activate a command from a keyboard event.
+   *
+   * Returns `true` if something was activated.
+   */
+  public async activateByEvent(
+    ev: KeyboardEvent,
+    settings: Settings,
+  ): Promise<boolean> {
+    // convert keyboard event to a Hotkey object
     const key = keys.symbolToKeyCode(ev.key);
-    if (key === undefined) return;
+    if (key === undefined) return false;
 
-    const hotkey: Hotkey = {
+    const pressedHotkey: Hotkey = {
       key,
       ctrl: ev.ctrlKey,
       alt: ev.altKey,
       shift: ev.shiftKey,
       meta: ev.metaKey,
     };
-    // this.activate("activate");
+
+    return await this.activateByHotkey(pressedHotkey, settings);
+  }
+
+  public async activateByHotkey(
+    pressedHotkey: Hotkey,
+    settings: Settings,
+  ): Promise<boolean> {
+    // get the config of the currently focused plugin
+    const currentItem = this.items[this.selection];
+    const pluginId = currentItem.id.pluginId;
+    const pluginConfig = settings.getPlugin(pluginId);
+    if (pluginConfig == null) return false;
+
+    // TODO: just store the manifests instead of fetch every time
+    const pluginManifest = await settings.fetchManifestOf(pluginId);
+
+    // find a command id that is in the `availableCommands` and matches
+    // the hotkey (either custom or default)
+    const commandId = currentItem.availableCommands.find((id) => {
+      if (pluginConfig.commands[id] == null) {
+        // no custom hotkey defined, look for defaults
+        const defaultHotkey = pluginManifest.commands.find(
+          (cmd) => cmd.id === id,
+        )?.["default-hotkey"];
+
+        return (
+          defaultHotkey != null &&
+          keys.hotkeysEqual(defaultHotkey, pressedHotkey)
+        );
+      } else {
+        return keys.hotkeysEqual(pluginConfig.commands[id], pressedHotkey);
+      }
+    });
+
+    if (commandId == null) return false;
+
+    // activate the found command
+    this.activate(commandId);
+    return true;
   }
 
   public showSettingsWindow() {

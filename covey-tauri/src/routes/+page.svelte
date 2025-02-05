@@ -6,14 +6,14 @@
   import type { ListStyle } from "$lib/bindings";
   import ScrollShadow from "$lib/components/scroll_shadow.svelte";
 
-  import type { PageData } from "./$types";
+  import type { LayoutData } from "./$types";
 
-  const { data }: { data: PageData } = $props();
+  const { data }: { data: LayoutData } = $props();
   const menu = data.menu;
   const iconCache = data.iconCache;
 
   // global keyboard events
-  const windowKeyDown = (ev: KeyboardEvent) => {
+  const windowKeyDown = async (ev: KeyboardEvent) => {
     switch (ev.key) {
       case "ArrowDown":
         menu.selection = Math.min(menu.items.length - 1, menu.selection + 1);
@@ -21,41 +21,10 @@
       case "ArrowUp":
         menu.selection = Math.max(0, menu.selection - 1);
         break;
-      case "Enter":
-      case "Return":
-        activateListItem(ev.altKey);
-        break;
-      case "Tab":
-        menu.activate("complete");
-        break;
-      case "Escape":
-        void getCurrentWindow().hide();
-        break;
-      default:
-        // do not prevent default
-        menu.maybeHotkeyActivate(ev);
-        return;
-    }
-    // break instead of return, captured something
-    ev.preventDefault();
-  };
-
-  /**
-   * Activates the currently selected list item.
-   * @param altKey Whether alt is pressed.
-   * @param selection An index that was selected, to override the current selection.
-   *                  Activates the current selection if this is not defined.
-   */
-  const activateListItem = (altKey: boolean, selection?: number) => {
-    // in bind:group={menu.selection}, the selection is not set soon enough
-    // for this to be updated correctly.
-    if (selection !== undefined) {
-      menu.selection = selection;
-    }
-    if (altKey) {
-      menu.activate("alt-activate");
-    } else {
-      menu.activate("activate");
+      default: {
+        const didActivate = await menu.activateByEvent(ev, data.settings);
+        if (didActivate) ev.preventDefault();
+      }
     }
   };
 
@@ -161,7 +130,20 @@
                 name="result-list"
                 value={i}
                 bind:group={menu.selection}
-                onclick={(e) => activateListItem(e.altKey, i)}
+                onclick={(e) => {
+                  // bind:group does not update selection fast enough
+                  menu.selection = i;
+                  void menu.activateByHotkey(
+                    {
+                      key: "enter",
+                      ctrl: e.ctrlKey,
+                      alt: e.altKey,
+                      shift: e.shiftKey,
+                      meta: e.metaKey,
+                    },
+                    data.settings,
+                  );
+                }}
               />
               <div class="icon">
                 {#if icon?.kind === "text"}

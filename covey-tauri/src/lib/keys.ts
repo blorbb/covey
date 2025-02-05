@@ -1,4 +1,4 @@
-import type { KeyCode } from "./bindings";
+import type { Hotkey, KeyCode } from "./bindings";
 
 export const symbolToKeyCode = (symbol: string): KeyCode | undefined => {
   const key = symbol.toLowerCase();
@@ -119,3 +119,13 @@ export const nameToSymbol = (name: KeyCode): string => {
       throw new Error("all key names should be matched");
   }
 };
+
+export const hotkeysEqual = (
+  a: Readonly<Hotkey>,
+  b: Readonly<Hotkey>,
+): boolean =>
+  a.key === b.key &&
+  a.ctrl === b.ctrl &&
+  a.shift === b.shift &&
+  a.alt === b.alt &&
+  a.meta === b.meta;

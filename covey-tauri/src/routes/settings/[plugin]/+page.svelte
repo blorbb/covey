@@ -5,9 +5,9 @@
   import Config from "$lib/components/config.svelte";
   import Divider from "$lib/components/divider.svelte";
 
-  import type { PageData } from "../$types";
+  import type { LayoutData } from "./$types";
 
-  let { data }: { data: PageData } = $props();
+  let { data }: { data: LayoutData } = $props();
   const settings = data.settings;
 
   const pluginId = $derived(decodeURIComponent(page.params.plugin));

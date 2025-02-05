@@ -14,7 +14,7 @@ import type { ListItemId } from "./bindings/ListItemId";
 import type { ListStyle } from "./bindings/ListStyle";
 import type { PluginConfig as PluginConfigBinding } from "./bindings/PluginConfig";
 import type { PluginConfigSchema as PluginConfigSchemaBinding } from "./bindings/PluginConfigSchema";
-import type { PluginManifest } from "./bindings/PluginManifest";
+import type { PluginManifest as PluginManifestBinding } from "./bindings/PluginManifest";
 import type { SchemaBool } from "./bindings/SchemaBool";
 import type { SchemaFilePath } from "./bindings/SchemaFilePath";
 import type { SchemaFolderPath } from "./bindings/SchemaFolderPath";
@@ -88,4 +88,8 @@ type GlobalConfig = {
 type PluginConfig = PluginConfigBinding & {
   config: Record<string, JsonValue>;
   commands: Record<Key, Hotkey>;
+};
+
+type PluginManifest = PluginManifestBinding & {
+  schema: KeyedList<PluginConfigSchema>;
 };

@@ -1,4 +1,5 @@
 import type { Hotkey, KeyCode } from "./bindings";
+import type { DeepReadonly } from "./utils";
 
 export const symbolToKeyCode = (symbol: string): KeyCode | undefined => {
   const key = symbol.toLowerCase();
@@ -121,11 +122,31 @@ export const nameToSymbol = (name: KeyCode): string => {
 };
 
 export const hotkeysEqual = (
-  a: Readonly<Hotkey>,
-  b: Readonly<Hotkey>,
+  a: DeepReadonly<Hotkey>,
+  b: DeepReadonly<Hotkey>,
 ): boolean =>
   a.key === b.key &&
   a.ctrl === b.ctrl &&
   a.shift === b.shift &&
   a.alt === b.alt &&
   a.meta === b.meta;
+
+/**
+ * Converts a `KeyboardEvent` into a `Hotkey`.
+ *
+ * Returns `undefined` if the key is not a recognised hotkey keycode.
+ */
+export const hotkeyFromKeyboardEvent = (
+  ev: KeyboardEvent,
+): Hotkey | undefined => {
+  const key = symbolToKeyCode(ev.key);
+  if (key === undefined) return;
+
+  return {
+    key,
+    ctrl: ev.ctrlKey,
+    alt: ev.altKey,
+    shift: ev.shiftKey,
+    meta: ev.metaKey,
+  };
+};

@@ -59,17 +59,8 @@ export class Menu {
     ev: KeyboardEvent,
     settings: Settings,
   ): Promise<boolean> {
-    // convert keyboard event to a Hotkey object
-    const key = keys.symbolToKeyCode(ev.key);
-    if (key === undefined) return false;
-
-    const pressedHotkey: Hotkey = {
-      key,
-      ctrl: ev.ctrlKey,
-      alt: ev.altKey,
-      shift: ev.shiftKey,
-      meta: ev.metaKey,
-    };
+    const pressedHotkey = keys.hotkeyFromKeyboardEvent(ev);
+    if (pressedHotkey == null) return false;
 
     return await this.activateByHotkey(pressedHotkey, settings);
   }

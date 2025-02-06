@@ -52,7 +52,7 @@
   };
 </script>
 
-<div class="input-hotkey" class:capturing>
+<span class="input-hotkey" class:capturing>
   <Button
     bind:button
     theme="none"
@@ -66,13 +66,14 @@
     {#if displayedHotkey === undefined || keys.isEmpty(displayedHotkey)}
       <span class="placeholder">Enter hotkey...</span>
     {:else}
-      <HotkeyKeys hotkey={displayedHotkey} />
+      <HotkeyKeys theme="secondary" hotkey={displayedHotkey} />
     {/if}
   </Button>
-</div>
+</span>
 
 <style lang="scss">
   .input-hotkey {
+    display: inline-block;
     padding: 0.25rem;
     min-width: 1rem;
     width: max-content;

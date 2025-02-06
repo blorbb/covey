@@ -5,6 +5,7 @@
 
   import type { ListStyle } from "$lib/bindings";
   import Button from "$lib/components/button.svelte";
+  import HotkeyKeys from "$lib/components/hotkey_keys.svelte";
   import ScrollShadow from "$lib/components/scroll_shadow.svelte";
 
   import type { PageData } from "./$types";
@@ -168,11 +169,24 @@
           {/each}
         </div>
       </ScrollShadow>
+
       <div class="menu-footer">
         {#each menu.getAvailableCommands() as command}
-          <button onclick={() => menu.activateById(command.id)}>
-            {command.title}
-          </button>
+          <Button
+            theme="tertiary"
+            rounding="large"
+            onclick={() => menu.activateById(command.id)}
+          >
+            {@const hotkey = command.customHotkey ?? command["default-hotkey"]}
+            <div class="footer-command-button">
+              {#if hotkey}
+                <HotkeyKeys theme="tertiary" {hotkey} />
+              {/if}
+              <span>
+                {command.title}
+              </span>
+            </div>
+          </Button>
         {/each}
       </div>
     </main>
@@ -342,7 +356,13 @@
   .menu-footer {
     background: var(--color-surface);
     display: flex;
-    padding: 1rem;
+    padding: 0.5rem 1rem;
+  }
+
+  .footer-command-button {
+    padding: 0.25rem 0.5rem;
+    display: flex;
+    gap: 0.5rem;
   }
 
   .positioner {

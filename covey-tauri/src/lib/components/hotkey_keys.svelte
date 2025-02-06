@@ -5,7 +5,10 @@
   let {
     hotkey,
     theme,
-  }: { hotkey: DeepReadonly<keys.MaybeHotkey>; theme?: "secondary" } = $props();
+  }: {
+    hotkey: DeepReadonly<keys.MaybeHotkey>;
+    theme?: "secondary" | "tertiary";
+  } = $props();
 </script>
 
 <div class={["hotkey", theme]}>
@@ -32,10 +35,6 @@
     gap: 0.5rem;
 
     kbd {
-      background: var(--color-secondary-container);
-      color: var(--color-on-secondary-container);
-      border-bottom: 2px solid var(--color-shadow);
-
       font-family: var(--ff-mono);
       font-size: var(--fs-small);
       line-height: 1;
@@ -45,8 +44,14 @@
     }
 
     &.secondary kbd {
-      background: var(--color-secondary);
-      color: var(--color-on-secondary);
+      background: var(--color-secondary-container);
+      color: var(--color-on-secondary-container);
+      border-bottom: 2px solid var(--color-shadow);
+    }
+
+    &.tertiary kbd {
+      background-color: var(--color-surface-container-highest);
+      box-shadow: var(--shadow-small);
     }
   }
 </style>

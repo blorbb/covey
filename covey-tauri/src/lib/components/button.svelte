@@ -6,6 +6,7 @@
     theme: "primary" | "secondary" | "tertiary" | "none";
     stretch?: boolean;
     pill?: boolean;
+    rounding?: "large" | "small" | "none";
     children?: Snippet;
     button?: HTMLButtonElement;
     minWidth?: string;
@@ -15,6 +16,7 @@
     theme,
     stretch = false,
     pill = false,
+    rounding = "none",
     children,
     button = $bindable(),
     ...rest
@@ -24,6 +26,7 @@
 <button
   bind:this={button}
   class={["button", theme, { stretch, pill }]}
+  data-rounding={rounding}
   {...rest}
 >
   {@render children?.()}
@@ -36,6 +39,14 @@
 
     &.stretch {
       width: 100%;
+    }
+
+    &[data-rounding="small"] {
+      border-radius: 0.25rem;
+    }
+
+    &[data-rounding="large"] {
+      border-radius: 1rem;
     }
 
     &.pill {
@@ -56,9 +67,11 @@
     &.tertiary {
       transition-property: background-color, color;
       transition-duration: var(--time-transition);
+      background-color: var(--color-surface-container);
 
       &:hover {
         background-color: var(--color-surface-container-high);
+        color: var(--color-on-surface-container);
       }
     }
   }

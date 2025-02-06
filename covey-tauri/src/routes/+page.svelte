@@ -25,7 +25,7 @@
         void getCurrentWindow().hide();
         break;
       default: {
-        const didActivate = menu.activateByEvent(ev, data.settings);
+        const didActivate = menu.activateByEvent(ev);
         if (didActivate) ev.preventDefault();
       }
     }
@@ -136,16 +136,13 @@
                 onclick={(e) => {
                   // bind:group does not update selection fast enough
                   menu.selection = i;
-                  void menu.activateByHotkey(
-                    {
-                      key: "enter",
-                      ctrl: e.ctrlKey,
-                      alt: e.altKey,
-                      shift: e.shiftKey,
-                      meta: e.metaKey,
-                    },
-                    data.settings,
-                  );
+                  void menu.activateByHotkey({
+                    key: "enter",
+                    ctrl: e.ctrlKey,
+                    alt: e.altKey,
+                    shift: e.shiftKey,
+                    meta: e.metaKey,
+                  });
                 }}
               />
               <div class="icon">

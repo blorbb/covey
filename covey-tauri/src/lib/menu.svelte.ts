@@ -4,7 +4,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 
 import type { Event, Hotkey, ListItem, ListStyle } from "./bindings";
 import * as keys from "./keys";
-import type { Settings } from "./settings.svelte";
+import { Settings } from "./settings.svelte";
 
 export class Menu {
   public items = $state<ListItem[]>([]);
@@ -14,6 +14,9 @@ export class Menu {
   // this is only updated by plugins, so no need to keep live
   // with the actual selection when changed by UI
   public textSelection = $state<[number, number]>([0, 0]);
+
+  // definitely assigned in `new`.
+  private settings!: Settings;
 
   private constructor() {}
 
@@ -38,10 +41,13 @@ export class Menu {
           self.selection = 0;
           // re-query the current input
           self.query();
+          // reload settings
+          void Settings.new().then((settings) => (self.settings = settings));
       }
     };
 
     await invoke("setup", { events });
+    self.settings = await Settings.new();
     return self;
   }
 
@@ -61,21 +67,21 @@ export class Menu {
    *
    * Returns `true` if something was activated.
    */
-  public activateByEvent(ev: KeyboardEvent, settings: Settings): boolean {
+  public activateByEvent(ev: KeyboardEvent): boolean {
     const pressedHotkey = keys.hotkeyFromKeyboardEvent(ev);
     if (pressedHotkey == null) return false;
 
-    return this.activateByHotkey(pressedHotkey, settings);
+    return this.activateByHotkey(pressedHotkey);
   }
 
-  public activateByHotkey(pressedHotkey: Hotkey, settings: Settings): boolean {
+  public activateByHotkey(pressedHotkey: Hotkey): boolean {
     // get the config of the currently focused plugin
     const currentItem = this.items[this.selection];
     const pluginId = currentItem.id.pluginId;
-    const pluginConfig = settings.getPlugin(pluginId);
+    const pluginConfig = this.settings.getPlugin(pluginId);
     if (pluginConfig == null) return false;
 
-    const pluginManifest = settings.manifests[pluginId];
+    const pluginManifest = this.settings.manifests[pluginId];
 
     // find a command id that is in the `availableCommands` and matches
     // the hotkey (either custom or default)

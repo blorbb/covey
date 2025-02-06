@@ -21,6 +21,9 @@
       case "ArrowUp":
         menu.selection = Math.max(0, menu.selection - 1);
         break;
+      case "Escape":
+        void getCurrentWindow().hide();
+        break;
       default: {
         const didActivate = menu.activateByEvent(ev, data.settings);
         if (didActivate) ev.preventDefault();

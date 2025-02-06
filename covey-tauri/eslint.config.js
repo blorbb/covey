@@ -72,6 +72,8 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-argument": "off",
       "@typescript-eslint/no-unsafe-assignment": "off",
       "@typescript-eslint/no-unsafe-function-type": "off",
+      // false positives
+      "@typescript-eslint/no-unnecessary-type-assertion": "off",
     },
   },
 );

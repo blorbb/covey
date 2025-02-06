@@ -18,6 +18,7 @@ export class Menu {
   private constructor() {}
 
   public static async new(): Promise<Menu> {
+    console.debug("calling new");
     const self = new Menu();
 
     const events = new Channel<Event>();
@@ -55,28 +56,21 @@ export class Menu {
    *
    * Returns `true` if something was activated.
    */
-  public async activateByEvent(
-    ev: KeyboardEvent,
-    settings: Settings,
-  ): Promise<boolean> {
+  public activateByEvent(ev: KeyboardEvent, settings: Settings): boolean {
     const pressedHotkey = keys.hotkeyFromKeyboardEvent(ev);
     if (pressedHotkey == null) return false;
 
-    return await this.activateByHotkey(pressedHotkey, settings);
+    return this.activateByHotkey(pressedHotkey, settings);
   }
 
-  public async activateByHotkey(
-    pressedHotkey: Hotkey,
-    settings: Settings,
-  ): Promise<boolean> {
+  public activateByHotkey(pressedHotkey: Hotkey, settings: Settings): boolean {
     // get the config of the currently focused plugin
     const currentItem = this.items[this.selection];
     const pluginId = currentItem.id.pluginId;
     const pluginConfig = settings.getPlugin(pluginId);
     if (pluginConfig == null) return false;
 
-    // TODO: just store the manifests instead of fetch every time
-    const pluginManifest = await settings.fetchManifestOf(pluginId);
+    const pluginManifest = settings.manifests[pluginId];
 
     // find a command id that is in the `availableCommands` and matches
     // the hotkey (either custom or default)

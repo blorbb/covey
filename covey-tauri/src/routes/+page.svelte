@@ -13,7 +13,7 @@
   const iconCache = data.iconCache;
 
   // global keyboard events
-  const windowKeyDown = async (ev: KeyboardEvent) => {
+  const windowKeyDown = (ev: KeyboardEvent) => {
     switch (ev.key) {
       case "ArrowDown":
         menu.selection = Math.min(menu.items.length - 1, menu.selection + 1);
@@ -22,7 +22,7 @@
         menu.selection = Math.max(0, menu.selection - 1);
         break;
       default: {
-        const didActivate = await menu.activateByEvent(ev, data.settings);
+        const didActivate = menu.activateByEvent(ev, data.settings);
         if (didActivate) ev.preventDefault();
       }
     }

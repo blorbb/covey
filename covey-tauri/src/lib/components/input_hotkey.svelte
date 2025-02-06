@@ -1,6 +1,9 @@
 <script lang="ts">
-  import type { Hotkey, KeyCode } from "$lib/bindings";
+  import type { Hotkey } from "$lib/bindings";
   import * as keys from "$lib/keys";
+
+  import Button from "./button.svelte";
+  import HotkeyKeys from "./hotkey_keys.svelte";
 
   let {
     userHotkey = $bindable(),
@@ -13,26 +16,17 @@
   let button = $state<HTMLButtonElement>();
   let capturing = $state(false);
 
-  const emptyDraft = () => ({
-    key: undefined as KeyCode | undefined,
+  const newEmptyDraft = (): keys.MaybeHotkey => ({
+    key: undefined,
     ctrl: false,
     alt: false,
     shift: false,
     meta: false,
   });
-  let draft = $state(emptyDraft());
+  let draft = $state(newEmptyDraft());
 
   let displayedHotkey = $derived(
     capturing ? draft : (userHotkey ?? defaultHotkey),
-  );
-
-  let emptyHotkey = $derived(
-    displayedHotkey === undefined ||
-      (displayedHotkey.key === undefined &&
-        !displayedHotkey.ctrl &&
-        !displayedHotkey.alt &&
-        !displayedHotkey.shift &&
-        !displayedHotkey.meta),
   );
 
   const registerKey = (e: KeyboardEvent) => {
@@ -58,34 +52,24 @@
   };
 </script>
 
-<button
-  bind:this={button}
-  class="input-hotkey"
-  class:capturing
-  class:empty={emptyHotkey}
-  onkeydown={registerKey}
-  onclick={() => (capturing = true)}
-  onblur={() => {
-    capturing = false;
-    draft = emptyDraft();
-  }}
->
-  {#if displayedHotkey?.ctrl}
-    <kbd class="ctrl">Ctrl</kbd>
-  {/if}
-  {#if displayedHotkey?.alt}
-    <kbd class="alt">Alt</kbd>
-  {/if}
-  {#if displayedHotkey?.shift}
-    <kbd class="shift">Shift</kbd>
-  {/if}
-  {#if displayedHotkey?.meta}
-    <kbd class="meta">Meta</kbd>
-  {/if}
-  {#if displayedHotkey?.key}
-    <kbd class="key">{keys.nameToSymbol(displayedHotkey.key)}</kbd>
-  {/if}
-</button>
+<div class="input-hotkey" class:capturing>
+  <Button
+    bind:button
+    theme="none"
+    onkeydown={registerKey}
+    onclick={() => (capturing = true)}
+    onblur={() => {
+      capturing = false;
+      draft = newEmptyDraft();
+    }}
+  >
+    {#if displayedHotkey === undefined || keys.isEmpty(displayedHotkey)}
+      <span class="placeholder">Enter hotkey...</span>
+    {:else}
+      <HotkeyKeys hotkey={displayedHotkey} />
+    {/if}
+  </Button>
+</div>
 
 <style lang="scss">
   .input-hotkey {
@@ -101,35 +85,13 @@
 
     user-select: none;
     cursor: pointer;
-
-    display: flex;
-    gap: 0.5rem;
-
-    &.empty::before {
-      content: "Enter hotkey...";
-      color: var(--color-on-surface-variant);
-    }
   }
 
   .input-hotkey.capturing {
     border-bottom: 2px solid var(--color-primary-fixed);
-
-    kbd {
-      background: var(--color-secondary);
-      color: var(--color-on-secondary);
-    }
   }
 
-  kbd {
-    background: var(--color-secondary-container);
-    color: var(--color-on-secondary-container);
-    border-bottom: 2px solid var(--color-shadow);
-
-    font-family: var(--ff-mono);
-    font-size: var(--fs-small);
-    line-height: 1;
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.5rem;
-    display: inline-block;
+  .placeholder {
+    color: var(--color-on-surface-variant);
   }
 </style>

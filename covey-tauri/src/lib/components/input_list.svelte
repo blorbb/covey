@@ -2,6 +2,7 @@
   import type { JsonValue, SchemaList } from "$lib/bindings";
   import type { DeepReadonly } from "$lib/utils";
 
+  import Button from "./button.svelte";
   import InputField from "./input_field.svelte";
 
   let {
@@ -35,15 +36,18 @@
 <ul class="input-list">
   {#each drafts as _, i}
     <li class="input-list-item">
-      <button
-        class="input-list-item-remove"
-        onclick={() => {
-          drafts.splice(i, 1);
-          errors.splice(i, 1);
-        }}
-      >
-        -
-      </button>
+      <div class="input-list-item-remove">
+        <Button
+          theme="secondary"
+          onclick={() => {
+            drafts.splice(i, 1);
+            errors.splice(i, 1);
+          }}
+        >
+          -
+        </Button>
+      </div>
+
       <InputField
         schema={schema["item-type"]}
         bind:userValue={drafts[i]}
@@ -52,15 +56,16 @@
     </li>
   {/each}
   <li class="input-list-add">
-    <button
-      class="input-list-add-button"
+    <Button
+      theme="secondary"
+      stretch
       onclick={() => {
         drafts.push(undefined);
         errors.push(undefined);
       }}
     >
       +
-    </button>
+    </Button>
   </li>
 </ul>
 
@@ -75,22 +80,10 @@
   }
 
   .input-list-item-remove {
-    background-color: var(--color-secondary-container);
-    color: var(--color-on-secondary-container);
-    transition: var(--time-transition) filter;
-    &:hover {
-      filter: brightness(1.2);
-    }
+    display: grid;
   }
 
-  .input-list-add-button {
-    background-color: var(--color-secondary-container);
-    color: var(--color-on-secondary-container);
+  .input-list-add {
     min-width: 3rem;
-
-    transition: var(--time-transition) filter;
-    &:hover {
-      filter: brightness(1.2);
-    }
   }
 </style>

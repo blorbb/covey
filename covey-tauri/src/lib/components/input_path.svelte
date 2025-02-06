@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Button from "./button.svelte";
+
   let {
     value,
     onSetValue,
@@ -28,7 +30,9 @@
     onfocusout={(e) =>
       (e.currentTarget.scrollLeft = e.currentTarget.scrollWidth)}
   />
-  <button class="input-path-picker" onclick={onPick}> {buttonText} </button>
+  <div class="input-path-picker">
+    <Button theme="secondary" pill onclick={onPick}>{buttonText}</Button>
+  </div>
 </div>
 
 <style lang="scss">
@@ -45,14 +49,6 @@
   }
 
   .input-path-picker {
-    background: var(--color-secondary-container);
-    color: var(--color-on-secondary-container);
-    border-radius: 999rem;
-    padding: 0.25rem 0.5rem;
-
-    transition: var(--time-transition) filter;
-    &:hover {
-      filter: brightness(1.2) var(--filter-shadow-large);
-    }
+    display: grid;
   }
 </style>

@@ -2,6 +2,7 @@
   import type { JsonValue, SchemaMap } from "$lib/bindings";
   import type { DeepReadonly } from "$lib/utils";
 
+  import Button from "./button.svelte";
   import InputField from "./input_field.svelte";
   import InputText from "./input_text.svelte";
 
@@ -72,15 +73,17 @@
 
   {#each drafts as _, i}
     <li class="input-map-row">
-      <button
-        class="input-map-item-remove"
-        onclick={() => {
-          drafts.splice(i, 1);
-          errors.splice(i, 1);
-        }}
-      >
-        -
-      </button>
+      <div class="input-map-item-remove">
+        <Button
+          theme="secondary"
+          onclick={() => {
+            drafts.splice(i, 1);
+            errors.splice(i, 1);
+          }}
+        >
+          -
+        </Button>
+      </div>
 
       <!-- key -->
       <div class="key">
@@ -110,15 +113,16 @@
     </li>
   {/each}
   <li class="input-map-add">
-    <button
-      class="input-map-add-button"
+    <Button
+      theme="secondary"
+      stretch
       onclick={() => {
         drafts.push([undefined, undefined]);
         errors.push(undefined);
       }}
     >
       +
-    </button>
+    </Button>
   </li>
 </ul>
 
@@ -133,23 +137,11 @@
   }
 
   .input-map-item-remove {
-    background-color: var(--color-secondary-container);
-    color: var(--color-on-secondary-container);
-    transition: var(--time-transition) filter;
-    &:hover {
-      filter: brightness(1.2);
-    }
+    display: grid;
   }
 
-  .input-map-add-button {
-    background-color: var(--color-secondary-container);
-    color: var(--color-on-secondary-container);
+  .input-map-add {
     min-width: 3rem;
-
-    transition: var(--time-transition) filter;
-    &:hover {
-      filter: brightness(1.2);
-    }
   }
 
   .key-label,

@@ -150,3 +150,22 @@ export const hotkeyFromKeyboardEvent = (
     meta: ev.metaKey,
   };
 };
+
+/**
+ * Hotkey where `key` can also be undefined.
+ */
+export type MaybeHotkey = Omit<Hotkey, "key"> & Partial<Pick<Hotkey, "key">>;
+export const isEmpty = (
+  hotkey: MaybeHotkey,
+): hotkey is {
+  key: undefined;
+  ctrl: false;
+  alt: false;
+  shift: false;
+  meta: false;
+} =>
+  hotkey.key === undefined &&
+  !hotkey.ctrl &&
+  !hotkey.alt &&
+  !hotkey.shift &&
+  !hotkey.meta;

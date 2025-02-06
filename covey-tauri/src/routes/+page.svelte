@@ -4,6 +4,7 @@
   import { onDestroy } from "svelte";
 
   import type { ListStyle } from "$lib/bindings";
+  import Button from "$lib/components/button.svelte";
   import ScrollShadow from "$lib/components/scroll_shadow.svelte";
 
   import type { PageData } from "./$types";
@@ -115,9 +116,11 @@
           bind:this={mainInput}
           placeholder="Search..."
         />
-        <button class="settings-button" type="button" onclick={navSettings}>
-          S
-        </button>
+        <div class="settings-button">
+          <Button theme="tertiary" pill onclick={navSettings}>
+            <iconify-icon icon="ph:gear-bold"></iconify-icon>
+          </Button>
+        </div>
       </div>
       <ScrollShadow>
         <div
@@ -229,13 +232,7 @@
   }
 
   .settings-button {
-    width: 1lh;
-    height: 1lh;
-    border-radius: 1lh;
-    &:hover {
-      background-color: var(--color-secondary-container);
-      color: var(--color-on-secondary-container);
-    }
+    display: grid;
   }
 
   .list {

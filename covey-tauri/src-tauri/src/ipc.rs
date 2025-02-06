@@ -63,11 +63,13 @@ pub fn show_settings_window(app: tauri::AppHandle) {
     window.set_focus().unwrap();
 }
 
+/// Must be called after the app is initialised.
 #[tauri::command]
 pub fn get_global_config(state: State<'_, AppState>) -> GlobalConfig {
     state.host().config()
 }
 
+/// Must be called after the app is initialised.
 #[tauri::command]
 pub fn set_global_config(state: State<'_, AppState>, config: GlobalConfig) {
     tracing::debug!("received global config {config:#?}");

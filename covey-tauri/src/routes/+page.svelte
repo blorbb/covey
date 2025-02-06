@@ -6,9 +6,9 @@
   import type { ListStyle } from "$lib/bindings";
   import ScrollShadow from "$lib/components/scroll_shadow.svelte";
 
-  import type { LayoutData } from "./$types";
+  import type { PageData } from "./$types";
 
-  const { data }: { data: LayoutData } = $props();
+  const { data }: { data: PageData } = $props();
   const menu = data.menu;
   const iconCache = data.iconCache;
 

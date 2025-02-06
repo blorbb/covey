@@ -165,6 +165,13 @@
           {/each}
         </div>
       </ScrollShadow>
+      <div class="menu-footer">
+        {#each menu.getAvailableCommands() as command}
+          <button onclick={() => menu.activateById(command.id)}>
+            {command.title}
+          </button>
+        {/each}
+      </div>
     </main>
   </div>
 </div>
@@ -200,7 +207,7 @@
     width: 800px;
     max-height: 600px;
     @include grid-container();
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto 1fr auto;
   }
 
   .search-bar {
@@ -333,6 +340,12 @@
 
   .list-item-radio {
     display: none;
+  }
+
+  .menu-footer {
+    background: var(--color-surface);
+    display: flex;
+    padding: 1rem;
   }
 
   .positioner {

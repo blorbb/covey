@@ -2,9 +2,12 @@
 
 import { Channel, invoke } from "@tauri-apps/api/core";
 
-import type { Event, Hotkey, ListItem, ListStyle } from "./bindings";
+import type { Command, Event, Hotkey, ListItem, ListStyle } from "./bindings";
 import * as keys from "./keys";
 import { Settings } from "./settings.svelte";
+import type { DeepReadonly } from "./utils";
+
+export type CommandInfo = Command & { customHotkey?: Hotkey };
 
 export class Menu {
   public items = $state<ListItem[]>([]);
@@ -55,10 +58,10 @@ export class Menu {
     void invoke("query", { text: this.inputText });
   }
 
-  private activate(commandName: string) {
+  public activateById(commandId: string) {
     void invoke("activate", {
       listItemId: this.items[this.selection].id,
-      commandName,
+      commandName: commandId,
     });
   }
 
@@ -75,40 +78,47 @@ export class Menu {
   }
 
   public activateByHotkey(pressedHotkey: Hotkey): boolean {
-    // get the config of the currently focused plugin
-    const currentItem = this.items[this.selection];
-    const pluginId = currentItem.id.pluginId;
-    const pluginConfig = this.settings.getPlugin(pluginId);
-    if (pluginConfig == null) return false;
-
-    const pluginManifest = this.settings.manifests[pluginId];
+    const commands = this.getAvailableCommands();
 
     // find a command id that is in the `availableCommands` and matches
     // the hotkey (either custom or default)
-    const commandId = currentItem.availableCommands.find((id) => {
-      if (pluginConfig.commands[id] == null) {
-        // no custom hotkey defined, look for defaults
-        const defaultHotkey = pluginManifest.commands.find(
-          (cmd) => cmd.id === id,
-        )?.["default-hotkey"];
-
-        return (
-          defaultHotkey != null &&
-          keys.hotkeysEqual(defaultHotkey, pressedHotkey)
-        );
-      } else {
-        return keys.hotkeysEqual(pluginConfig.commands[id], pressedHotkey);
-      }
-    });
+    const commandId = commands.find((cmd) => {
+      const hotkey = cmd.customHotkey ?? cmd["default-hotkey"];
+      return hotkey != null && keys.hotkeysEqual(hotkey, pressedHotkey);
+    })?.id;
 
     if (commandId == null) return false;
 
     // activate the found command
-    this.activate(commandId);
+    this.activateById(commandId);
     return true;
   }
 
   public showSettingsWindow() {
     void invoke("show_settings_window");
+  }
+
+  public currentItem(): ListItem | undefined {
+    return this.items[this.selection];
+  }
+
+  /// Returns an empty list if there is not currently selected item
+  public getAvailableCommands(): DeepReadonly<CommandInfo[]> {
+    // get the config of the currently focused plugin
+    const currentItem = this.currentItem();
+    if (currentItem == null) return [];
+    const pluginId = currentItem.id.pluginId;
+    const pluginConfig = this.settings.getPlugin(pluginId);
+    const pluginManifest = this.settings.manifests[pluginId];
+
+    return (
+      pluginManifest.commands
+        .filter((cmd) => currentItem.availableCommands.includes(cmd.id))
+        // add custom hotkey to the info
+        .map((cmd) => ({
+          ...cmd,
+          customHotkey: pluginConfig?.commands[cmd.id],
+        }))
+    );
   }
 }

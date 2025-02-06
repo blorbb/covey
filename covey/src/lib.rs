@@ -6,6 +6,7 @@ mod spawn;
 
 use std::{path::PathBuf, sync::LazyLock};
 
+use covey_config::config::GlobalConfig;
 pub use event::{Icon, Input, List, ListItem, ListItemId, ListStyle};
 pub use host::Host;
 pub use plugin::Plugin;
@@ -37,6 +38,9 @@ pub trait Frontend: Send + 'static {
 
     /// Set the UI results list to the provided list.
     fn set_list(&mut self, list: List);
+
+    /// Reset the frontend with a new configuration.
+    fn reload(&mut self, config: GlobalConfig);
 
     // TODO: refactor this lib to have a custom error type
     fn display_error(&mut self, title: &str, error: color_eyre::eyre::Report);

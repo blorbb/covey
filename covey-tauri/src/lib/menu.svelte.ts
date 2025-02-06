@@ -33,6 +33,11 @@ export class Menu {
           self.style = msg.style ?? undefined;
           self.selection = 0;
           break;
+        case "reload":
+          self.items = [];
+          self.selection = 0;
+          // re-query the current input
+          self.query();
       }
     };
 

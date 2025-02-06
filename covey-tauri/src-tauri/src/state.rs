@@ -115,6 +115,11 @@ impl covey::Frontend for EventChannel {
             .unwrap();
     }
 
+    fn reload(&mut self, config: covey_config::config::GlobalConfig) {
+        tracing::info!("reloading at the front end");
+        self.channel.send(Event::Reload { config }).unwrap();
+    }
+
     fn display_error(&mut self, title: &str, error: color_eyre::eyre::Report) {
         self.app
             .notification()

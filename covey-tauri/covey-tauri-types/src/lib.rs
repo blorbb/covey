@@ -6,7 +6,7 @@
 
 use std::path::PathBuf;
 
-use covey_config::keyed_list::Key;
+use covey_config::{config::GlobalConfig, keyed_list::Key};
 use serde::{Deserialize, Serialize};
 
 /// This must have an equivalent type on the frontend
@@ -21,6 +21,9 @@ pub enum Event {
     SetList {
         items: Vec<ListItem>,
         style: Option<ListStyle>,
+    },
+    Reload {
+        config: GlobalConfig,
     },
 }
 

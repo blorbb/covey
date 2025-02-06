@@ -165,6 +165,8 @@ impl Host {
     }
 
     /// Reloads all plugins with the new configuration.
+    ///
+    /// This will also call [`Frontend::reload`].
     #[tracing::instrument(skip_all)]
     pub fn reload(&self, config: GlobalConfig) {
         debug!("reloading");
@@ -172,7 +174,8 @@ impl Host {
         inner.plugins = Self::load_plugins(&config);
         // TODO: spawn this in another task and handle errors properly
         Self::write_config(&config).expect("TODO");
-        inner.config = config;
+        inner.config = config.clone();
+        inner.fe.reload(config);
     }
 
     pub fn config(&self) -> GlobalConfig {

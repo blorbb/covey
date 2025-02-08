@@ -9,16 +9,20 @@
 
   const { data, children }: { data: LayoutData; children: Snippet } = $props();
   const settings = data.settings;
+
+  $effect(() => {
+    settings.updateBackendConfig();
+  });
 </script>
 
 <main class="settings-layout">
   <nav class="settings-nav">
-    <div class="global-settings">
+    <div class="app-settings">
       <a
         href="/settings"
         aria-current={page.url.pathname === "/settings" && "page"}
       >
-        Global settings
+        App settings
       </a>
     </div>
     <Divider margin="0.5rem" />

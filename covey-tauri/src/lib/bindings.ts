@@ -4,6 +4,7 @@
 
 import type { Command } from "./bindings/Command";
 import type { Event } from "./bindings/Event";
+import type { GlobalConfig as GlobalConfigBinding } from "./bindings/GlobalConfig";
 import type { Hotkey } from "./bindings/Hotkey";
 import type { Icon } from "./bindings/Icon";
 import type { Key } from "./bindings/Key";
@@ -81,7 +82,7 @@ type PluginConfigSchema = PluginConfigSchemaBinding & {
   type: SchemaType;
 };
 
-type GlobalConfig = {
+type GlobalConfig = Omit<GlobalConfigBinding, "plugins"> & {
   plugins: KeyedList<PluginConfig>;
 };
 

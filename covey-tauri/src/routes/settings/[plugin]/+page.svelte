@@ -15,10 +15,6 @@
   const plugin = $derived(settings.getPlugin(pluginId)) as PluginConfig;
 
   const manifest = $derived(settings.manifests[pluginId]);
-
-  $effect(() => {
-    settings.updateBackendConfig();
-  });
 </script>
 
 <h1 class="plugin-title">{manifest.name}</h1>

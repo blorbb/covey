@@ -29,4 +29,13 @@
     display: grid;
     gap: 0.5rem;
   }
+
+  .command-title {
+    font-weight: bold;
+  }
+
+  .command-description {
+    color: var(--color-on-surface-variant);
+    font-size: var(--fs-small);
+  }
 </style>

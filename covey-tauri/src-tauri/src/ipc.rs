@@ -1,5 +1,5 @@
 use color_eyre::eyre::Result;
-use covey_config::{config::GlobalConfig, manifest::PluginManifest};
+use covey_config::{config::GlobalConfig, keyed_list::Key, manifest::PluginManifest};
 use covey_tauri_types::{Event, ListItemId};
 use tauri::{ipc::Channel, Manager, State, WebviewWindowBuilder};
 
@@ -40,6 +40,11 @@ pub fn activate(state: State<'_, AppState>, list_item_id: ListItemId, command_na
     } else {
         tracing::warn!("list item with id {id:?} not found")
     }
+}
+
+#[tauri::command]
+pub fn reload_plugin(state: State<'_, AppState>, plugin_id: Key) {
+    state.host().reload_plugin(&plugin_id);
 }
 
 #[tauri::command]

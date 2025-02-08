@@ -5,10 +5,13 @@ use std::{
     sync::Arc,
 };
 
-use color_eyre::eyre::{bail, Context, Result};
-use covey_config::{config::GlobalConfig, keyed_list::KeyedList};
+use color_eyre::eyre::{bail, eyre, Context, Result};
+use covey_config::{
+    config::GlobalConfig,
+    keyed_list::{Key, KeyedList},
+};
 use parking_lot::Mutex;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     event::{Action, ListItemId, PluginEvent},
@@ -176,6 +179,46 @@ impl Host {
         Self::write_config(&config).expect("TODO");
         inner.config = config.clone();
         inner.fe.reload(config);
+    }
+
+    pub fn reload_plugin(&self, plugin_id: &Key) {
+        debug!("reloading plugin {plugin_id:?}");
+        let Some(plugin_config) = self
+            .inner
+            .lock()
+            .config
+            .plugins
+            .get(plugin_id.as_str())
+            .cloned()
+        else {
+            self.inner.lock().fe.display_error(
+                "Failed to reload plugin",
+                eyre!("could not find plugin's config"),
+            );
+            return;
+        };
+
+        let old_plugins: Vec<_> = self.inner.lock().plugins.iter().cloned().collect();
+
+        let new_plugins = old_plugins.into_iter().filter_map(|plugin| {
+            if plugin.id() == plugin_id {
+                match Plugin::new(plugin_config.clone()) {
+                    Ok(plugin) => Some(plugin),
+                    Err(e) => {
+                        self.inner
+                            .lock()
+                            .fe
+                            .display_error("Failed to reload plugin", e);
+                        None
+                    }
+                }
+            } else {
+                Some(plugin)
+            }
+        });
+
+        self.inner.lock().plugins =
+            KeyedList::new(new_plugins).expect("new keyed list should have same keys");
     }
 
     pub fn config(&self) -> GlobalConfig {

@@ -69,6 +69,8 @@ export class Menu {
    * Tries to activate a command from a keyboard event.
    *
    * Returns `true` if something was activated.
+   *
+   * This may also reload the plugin if the hotkey matches.
    */
   public activateByEvent(ev: KeyboardEvent): boolean {
     const pressedHotkey = keys.hotkeyFromKeyboardEvent(ev);
@@ -78,6 +80,18 @@ export class Menu {
   }
 
   public activateByHotkey(pressedHotkey: Hotkey): boolean {
+    // check reload
+    if (
+      keys.hotkeysEqual(
+        pressedHotkey,
+        this.settings.globalConfig.app["refresh-hotkey"],
+      )
+    ) {
+      void invoke("reload_plugin", {
+        pluginId: this.items[this.selection].id.pluginId,
+      }).then(() => this.query());
+    }
+
     const commands = this.getAvailableCommands();
 
     // find a command id that is in the `availableCommands` and matches

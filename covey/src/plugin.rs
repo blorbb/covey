@@ -177,7 +177,7 @@ mod implementation {
     use tokio::{
         io::{AsyncBufReadExt as _, BufReader},
         process::Command,
-        sync::{Mutex, OnceCell},
+        sync::OnceCell,
     };
     use tonic::{transport::Channel, Request};
     use tracing::info;
@@ -192,8 +192,6 @@ mod implementation {
     /// The manifest is loaded on construction.
     pub(super) struct LazyPlugin {
         cell: OnceCell<PluginInner>,
-        // making the manifest sync makes it easier to use in settings
-        called_initialise: Mutex<bool>,
         pub(super) manifest: PluginManifest,
         pub(super) config: PluginConfig,
     }
@@ -209,7 +207,6 @@ mod implementation {
 
             Ok(Self {
                 cell: OnceCell::new(),
-                called_initialise: Mutex::new(false),
                 manifest,
                 config,
             })
@@ -219,34 +216,18 @@ mod implementation {
         ///
         /// Locks exclusive access to the plugin while initialising.
         pub(super) async fn get_and_init(&self) -> Result<&PluginInner> {
-            let inner = self.get_without_init().await?;
-
-            // ensures that the plugin initialisation function has been called.
-            // if already initialised, the lock should be very quickly dropped.
-            // otherwise, blocks any other accesses until initialisation
-            // either succeeds or fails.
-            let mut initialise_guard = self.called_initialise.lock().await;
-            if !*initialise_guard {
-                let config_json = serde_json::to_string(&self.config.config)?;
-
-                inner
-                    .plugin
-                    .clone()
-                    .initialise(Request::new(proto::InitialiseRequest { json: config_json }))
-                    .await
-                    .context("plugin initialisation function failed")?;
-                *initialise_guard = true;
-            }
-
-            Ok(inner)
-        }
-
-        async fn get_without_init(&self) -> Result<&PluginInner> {
             self.cell
                 .get_or_try_init(|| async {
                     info!("initialising plugin {:?}", self.config.id);
+                    let config_json = serde_json::to_string(&self.config.config)?;
                     let bin_path = binary_path(self.config.id.as_str());
-                    PluginInner::new(bin_path).await
+                    let plugin = PluginInner::new(bin_path).await?;
+
+                    plugin
+                        .call_initialise(config_json)
+                        .await
+                        .context("plugin initialisation function failed")?;
+                    color_eyre::eyre::Ok(plugin)
                 })
                 .await
                 .context(format!("failed to initialise plugin {:?}", self.config.id))
@@ -307,6 +288,14 @@ mod implementation {
 
             info!("finished initialising plugin binary");
             Ok(Self { plugin: client })
+        }
+
+        pub(super) async fn call_initialise(&self, config_json: String) -> Result<()> {
+            self.plugin
+                .clone()
+                .initialise(Request::new(proto::InitialiseRequest { json: config_json }))
+                .await?;
+            Ok(())
         }
 
         pub(super) async fn call_query(&self, query: String) -> Result<proto::QueryResponse> {

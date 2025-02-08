@@ -84,7 +84,7 @@ export class Menu {
     if (
       keys.hotkeysEqual(
         pressedHotkey,
-        this.settings.globalConfig.app["refresh-hotkey"],
+        this.settings.globalConfig.app["reload-hotkey"],
       )
     ) {
       void invoke("reload_plugin", {

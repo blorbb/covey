@@ -8,8 +8,8 @@
 
 <Command
   command={{
-    id: "refresh-command",
-    title: "Refresh hotkey",
+    id: "reload-command",
+    title: "Reload hotkey",
     description: "Hotkey to re-initialise the current plugin.",
     "default-hotkey": {
       ctrl: true,
@@ -19,5 +19,5 @@
       key: "r",
     },
   }}
-  bind:userHotkey={appSettings["refresh-hotkey"]}
+  bind:userHotkey={appSettings["reload-hotkey"]}
 />

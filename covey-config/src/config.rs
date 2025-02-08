@@ -26,13 +26,13 @@ pub struct AppConfig {
     /// Hotkey to re-initialise the current plugin.
     ///
     /// Default is Ctrl+R.
-    refresh_hotkey: Hotkey,
+    reload_hotkey: Hotkey,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            refresh_hotkey: Hotkey {
+            reload_hotkey: Hotkey {
                 key: KeyCode::R,
                 ctrl: true,
                 alt: false,

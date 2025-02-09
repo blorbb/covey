@@ -327,10 +327,12 @@
     .title {
       grid-area: title;
       font-weight: bold;
+      white-space: pre-line;
     }
 
     .description {
       grid-area: description;
+      white-space: pre-line;
       font-size: var(--fs-small);
       color: var(--color-on-surface-variant);
       margin-top: var(--_row-gap);

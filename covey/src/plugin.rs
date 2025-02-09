@@ -176,7 +176,7 @@ mod implementation {
     use covey_config::{config::PluginConfig, manifest::PluginManifest};
     use tokio::{
         io::{AsyncBufReadExt as _, BufReader},
-        process::Command,
+        process::{Child, Command},
         sync::OnceCell,
     };
     use tonic::{transport::Channel, Request};
@@ -242,6 +242,8 @@ mod implementation {
     /// initialised state.
     pub(super) struct PluginInner {
         plugin: PluginClient<Channel>,
+        // killed on drop, need to hold it so that it's dropped when this struct is dropped.
+        _process: Child,
     }
 
     impl PluginInner {
@@ -251,11 +253,14 @@ mod implementation {
             let mut process = Command::new(&bin_path)
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
+                .kill_on_drop(true)
                 .spawn()
                 .context("failed to spawn plugin server")?;
 
             let stdout = process.stdout.take().expect("stdout should be captured");
+            let stderr = process.stderr.take().expect("stderr should be captured");
             let mut stdout = BufReader::new(stdout);
+            let stderr = BufReader::new(stderr);
 
             let mut first_line = String::new();
             stdout.read_line(&mut first_line).await.context(
@@ -269,9 +274,7 @@ mod implementation {
                 }
             });
             tokio::spawn(async move {
-                let mut lines =
-                    BufReader::new(process.stderr.take().expect("stderr should be captured"))
-                        .lines();
+                let mut lines = stderr.lines();
                 while let Ok(Some(line)) = lines.next_line().await {
                     tracing::info!("plugin: {line}");
                 }
@@ -287,7 +290,10 @@ mod implementation {
                 .context(format!("failed to connect to plugin server on port {port}"))?;
 
             info!("finished initialising plugin binary");
-            Ok(Self { plugin: client })
+            Ok(Self {
+                plugin: client,
+                _process: process,
+            })
         }
 
         pub(super) async fn call_initialise(&self, config_json: String) -> Result<()> {

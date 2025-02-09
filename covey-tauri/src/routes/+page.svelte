@@ -19,12 +19,15 @@
     switch (ev.key) {
       case "ArrowDown":
         menu.selection = Math.min(menu.items.length - 1, menu.selection + 1);
+        ev.preventDefault();
         break;
       case "ArrowUp":
         menu.selection = Math.max(0, menu.selection - 1);
+        ev.preventDefault();
         break;
       case "Escape":
         void getCurrentWindow().hide();
+        ev.preventDefault();
         break;
       default: {
         const didActivate = menu.activateByEvent(ev);

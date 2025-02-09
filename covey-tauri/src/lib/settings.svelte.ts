@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 import type {
   GlobalConfig,
-  Key,
+  Id,
   PluginConfig,
   PluginManifest,
 } from "./bindings";
@@ -26,7 +26,7 @@ export class Settings {
     console.debug("received settings", config);
 
     const manifests = await Promise.all(
-      config.plugins.map<Promise<[Key, PluginManifest]>>(async (plugin) => [
+      config.plugins.map<Promise<[Id, PluginManifest]>>(async (plugin) => [
         plugin.id,
         await invoke("get_manifest", {
           pluginName: plugin.id,

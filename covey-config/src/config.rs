@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     hotkey::{Hotkey, KeyCode},
-    keyed_list::{Key, Keyed, KeyedList},
+    keyed_list::{Id, Identify, KeyedList},
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -47,16 +47,16 @@ impl Default for AppConfig {
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub struct PluginConfig {
-    pub id: Key,
+    pub id: Id,
     pub prefix: String,
     #[serde(default)] // empty table if missing
     pub config: serde_json::Map<String, serde_json::Value>,
     #[serde(default)]
-    pub commands: HashMap<Key, Hotkey>,
+    pub commands: HashMap<Id, Hotkey>,
 }
 
-impl Keyed for PluginConfig {
-    fn key(&self) -> &Key {
+impl Identify for PluginConfig {
+    fn id(&self) -> &Id {
         &self.id
     }
 }

@@ -1,5 +1,5 @@
 use color_eyre::eyre::Result;
-use covey_config::{config::GlobalConfig, keyed_list::Key, manifest::PluginManifest};
+use covey_config::{config::GlobalConfig, keyed_list::Id, manifest::PluginManifest};
 use covey_tauri_types::{Event, ListItemId};
 use tauri::{ipc::Channel, Manager, State, WebviewWindowBuilder};
 
@@ -43,7 +43,7 @@ pub fn activate(state: State<'_, AppState>, list_item_id: ListItemId, command_na
 }
 
 #[tauri::command]
-pub fn reload_plugin(state: State<'_, AppState>, plugin_id: Key) {
+pub fn reload_plugin(state: State<'_, AppState>, plugin_id: Id) {
     state.host().reload_plugin(&plugin_id);
 }
 

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 /// A list of items with unique keys.
 ///
-/// The value must implement the [`Keyed`] trait, which should be a unique
+/// The value must implement the [`Identify`] trait, which should be a unique
 /// value across all items in this map.
 ///
 /// Implements Serialize/Deserialize as a [`Vec<T>`].
@@ -23,23 +23,23 @@ pub struct KeyedList<T> {
     items: Vec<T>,
 }
 
-impl<T: Keyed> KeyedList<T> {
+impl<T: Identify> KeyedList<T> {
     /// Constructs a keyed list with unique ids.
     ///
     /// # Errors
     /// Errors if multiple values have the same id.
-    pub fn new(items: impl IntoIterator<Item = T>) -> Result<Self, UniqueKeyError> {
+    pub fn new(items: impl IntoIterator<Item = T>) -> Result<Self, UniqueIdError> {
         // Check that all ids are unique.
         let mut used = HashSet::new();
 
         let mut checked_items = Vec::new();
         for item in items {
-            let is_new = used.insert(item.key().clone());
+            let is_new = used.insert(item.id().clone());
             if is_new {
                 checked_items.push(item);
             } else {
-                return Err(UniqueKeyError {
-                    duplicate: item.key().clone(),
+                return Err(UniqueIdError {
+                    duplicate: item.id().clone(),
                 });
             }
         }
@@ -57,7 +57,7 @@ impl<T: Keyed> KeyedList<T> {
         let filtered_items = items
             .into_iter()
             // true if id is new, so can be included
-            .filter(|item| used.insert(item.key().clone()))
+            .filter(|item| used.insert(item.id().clone()))
             .collect();
 
         Self {
@@ -67,7 +67,7 @@ impl<T: Keyed> KeyedList<T> {
 
     /// Get an item by its id.
     pub fn get(&self, id: &str) -> Option<&T> {
-        self.items.iter().find(|item| item.key().as_str() == id)
+        self.items.iter().find(|item| item.id().as_str() == id)
     }
 
     pub fn iter(&self) -> slice::Iter<'_, T> {
@@ -83,15 +83,15 @@ impl<T> Default for KeyedList<T> {
     }
 }
 
-impl<T: Keyed> TryFrom<Vec<T>> for KeyedList<T> {
-    type Error = UniqueKeyError;
+impl<T: Identify> TryFrom<Vec<T>> for KeyedList<T> {
+    type Error = UniqueIdError;
 
     fn try_from(value: Vec<T>) -> Result<Self, Self::Error> {
         Self::new(value)
     }
 }
 
-impl<'de, T: Keyed + Deserialize<'de>> Deserialize<'de> for KeyedList<T> {
+impl<'de, T: Identify + Deserialize<'de>> Deserialize<'de> for KeyedList<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -115,9 +115,9 @@ impl<T> IntoIterator for KeyedList<T> {
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 // ts-rs doesn't support transparent but this is still typed as a string
 #[serde(transparent)]
-pub struct Key(Arc<str>);
+pub struct Id(Arc<str>);
 
-impl Key {
+impl Id {
     pub fn new(s: &str) -> Self {
         Self(Arc::from(s))
     }
@@ -128,19 +128,19 @@ impl Key {
 }
 
 /// A type that has a key that should be unique.
-pub trait Keyed {
-    fn key(&self) -> &Key;
+pub trait Identify {
+    fn id(&self) -> &Id;
 }
 
 #[derive(Debug, Clone)]
-pub struct UniqueKeyError {
-    duplicate: Key,
+pub struct UniqueIdError {
+    duplicate: Id,
 }
 
-impl fmt::Display for UniqueKeyError {
+impl fmt::Display for UniqueIdError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "id {:?} is duplicated", self.duplicate.as_str())
     }
 }
 
-impl core::error::Error for UniqueKeyError {}
+impl core::error::Error for UniqueIdError {}

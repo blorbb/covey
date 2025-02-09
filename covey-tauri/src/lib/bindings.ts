@@ -7,7 +7,7 @@ import type { Event } from "./bindings/Event";
 import type { GlobalConfig as GlobalConfigBinding } from "./bindings/GlobalConfig";
 import type { Hotkey } from "./bindings/Hotkey";
 import type { Icon } from "./bindings/Icon";
-import type { Key } from "./bindings/Key";
+import type { Id } from "./bindings/Id";
 import type { KeyCode } from "./bindings/KeyCode";
 import type { KeyedList } from "./bindings/KeyedList";
 import type { ListItem } from "./bindings/ListItem";
@@ -33,8 +33,8 @@ export type {
   GlobalConfig,
   Hotkey,
   Icon,
+  Id,
   JsonValue,
-  Key,
   KeyCode,
   KeyedList,
   ListItem,
@@ -88,7 +88,7 @@ type GlobalConfig = Omit<GlobalConfigBinding, "plugins"> & {
 
 type PluginConfig = PluginConfigBinding & {
   config: Record<string, JsonValue>;
-  commands: Record<Key, Hotkey>;
+  commands: Record<Id, Hotkey>;
 };
 
 type PluginManifest = PluginManifestBinding & {

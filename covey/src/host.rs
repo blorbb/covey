@@ -8,7 +8,7 @@ use std::{
 use color_eyre::eyre::{bail, eyre, Context, Result};
 use covey_config::{
     config::GlobalConfig,
-    keyed_list::{Key, KeyedList},
+    keyed_list::{Id, KeyedList},
 };
 use parking_lot::Mutex;
 use tracing::{debug, error, info, warn};
@@ -181,7 +181,7 @@ impl Host {
         inner.fe.reload(config);
     }
 
-    pub fn reload_plugin(&self, plugin_id: &Key) {
+    pub fn reload_plugin(&self, plugin_id: &Id) {
         debug!("reloading plugin {plugin_id:?}");
         let Some(plugin_config) = self
             .inner

@@ -7,7 +7,7 @@ use syn::ext::IdentExt;
 
 use super::{CratePaths, Path};
 use crate::{
-    keyed_list::Keyed,
+    keyed_list::Identify,
     manifest::{
         PluginManifest, SchemaBool, SchemaFilePath, SchemaFolderPath, SchemaInt, SchemaList,
         SchemaMap, SchemaStruct, SchemaText, SchemaType,
@@ -20,7 +20,7 @@ pub(super) fn generate_types(manifest: &PluginManifest, paths: &CratePaths) -> T
             fields: manifest
                 .schema
                 .iter()
-                .map(|val| (val.key().as_str().to_owned(), val.r#type.clone()))
+                .map(|val| (val.id().as_str().to_owned(), val.r#type.clone()))
                 .collect(),
         },
         paths,

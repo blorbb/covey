@@ -13,7 +13,7 @@ use serde::{
 
 use crate::{
     hotkey::Hotkey,
-    keyed_list::{Key, Keyed, KeyedList},
+    keyed_list::{Id, Identify, KeyedList},
 };
 
 /// A manifest for a single plugin.
@@ -57,14 +57,14 @@ impl PluginManifest {
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub struct Command {
-    pub id: Key,
+    pub id: Id,
     pub title: String,
     pub description: Option<String>,
     pub default_hotkey: Option<Hotkey>,
 }
 
-impl Keyed for Command {
-    fn key(&self) -> &Key {
+impl Identify for Command {
+    fn id(&self) -> &Id {
         &self.id
     }
 }
@@ -72,19 +72,19 @@ impl Keyed for Command {
 fn default_commands() -> KeyedList<Command> {
     KeyedList::new(vec![
         Command {
-            id: Key::new("activate"),
+            id: Id::new("activate"),
             title: String::from("Activate"),
             description: None,
             default_hotkey: Some("enter".parse().expect("enter should be a hotkey")),
         },
         Command {
-            id: Key::new("complete"),
+            id: Id::new("complete"),
             title: String::from("Complete"),
             description: None,
             default_hotkey: Some("tab".parse().expect("tab should be a hotkey")),
         },
         Command {
-            id: Key::new("alt-activate"),
+            id: Id::new("alt-activate"),
             title: String::from("Alt activate"),
             description: None,
             default_hotkey: Some("alt+enter".parse().expect("alt+enter should be a hotkey")),
@@ -97,14 +97,14 @@ fn default_commands() -> KeyedList<Command> {
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[non_exhaustive]
 pub struct PluginConfigSchema {
-    pub id: Key,
+    pub id: Id,
     pub title: String,
     pub description: Option<String>,
     pub r#type: SchemaType,
 }
 
-impl Keyed for PluginConfigSchema {
-    fn key(&self) -> &Key {
+impl Identify for PluginConfigSchema {
+    fn id(&self) -> &Id {
         &self.id
     }
 }
@@ -355,7 +355,7 @@ mod tests {
         SchemaType,
     };
     use crate::{
-        keyed_list::{Key, KeyedList},
+        keyed_list::{Id, KeyedList},
         manifest::default_commands,
     };
 
@@ -377,7 +377,7 @@ mod tests {
             repository: None,
             authors: vec![],
             schema: KeyedList::new([PluginConfigSchema {
-                id: Key::new("first-option"),
+                id: Id::new("first-option"),
                 title: "first option".to_string(),
                 description: None,
                 r#type: SchemaType::Int(SchemaInt::default())
@@ -413,7 +413,7 @@ mod tests {
         "#;
         let output: PluginConfigSchema = toml::from_str(input).unwrap();
         assert_eq!(output, PluginConfigSchema {
-            id: Key::new("thing-id"),
+            id: Id::new("thing-id"),
             title: "thing".to_string(),
             description: None,
             r#type: SchemaType::List(SchemaList {
@@ -444,7 +444,7 @@ mod tests {
             repository: Some("https://github.com/blorbb/covey-plugins".to_string()),
             authors: vec!["blorbb".to_string()],
             schema: KeyedList::new([PluginConfigSchema {
-                id: Key::new("urls"),
+                id: Id::new("urls"),
                 title: "List of URLs to show".to_string(),
                 description: None,
                 r#type: SchemaType::Map(SchemaMap {

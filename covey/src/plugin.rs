@@ -4,7 +4,7 @@ use std::{hash::Hash, path::PathBuf, sync::Arc};
 use color_eyre::eyre::Result;
 use covey_config::{
     config::PluginConfig,
-    keyed_list::{Key, Keyed},
+    keyed_list::{Id, Identify},
     manifest::PluginManifest,
 };
 
@@ -32,7 +32,7 @@ impl Plugin {
         })
     }
 
-    pub fn id(&self) -> &Key {
+    pub fn id(&self) -> &Id {
         &self.plugin.config.id
     }
 
@@ -148,8 +148,8 @@ impl Hash for Plugin {
 // Allow looking up a plugin in a hash set by it's name.
 // Implement `Equivalent` instead of `Borrow` as plugins should be used
 // in an indexmap. It also doesn't completely fit the `Borrow` contract.
-impl Keyed for Plugin {
-    fn key(&self) -> &covey_config::keyed_list::Key {
+impl Identify for Plugin {
+    fn id(&self) -> &covey_config::keyed_list::Id {
         self.id()
     }
 }

@@ -49,6 +49,9 @@ pub fn run() {
                         window::show_menu(app);
                     }
                     "quit" => {
+                        // state must be manually unmanaged to drop them
+                        // this must be dropped to kill child processes.
+                        app.unmanage::<AppState>();
                         app.exit(0);
                     }
                     other => panic!("unknown tray menu event {other}"),

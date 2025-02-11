@@ -64,10 +64,11 @@ impl Input {
 }
 
 /// A list of results to show provided by a plugin.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct List {
     pub items: Vec<ListItem>,
     pub style: Option<ListStyle>,
+    pub plugin: Plugin,
 }
 
 impl List {
@@ -86,7 +87,11 @@ impl List {
             .into_iter()
             .map(|li| ListItem::new(Plugin::clone(plugin), li))
             .collect();
-        Self { style, items: list }
+        Self {
+            style,
+            items: list,
+            plugin: plugin.clone(),
+        }
     }
 }
 

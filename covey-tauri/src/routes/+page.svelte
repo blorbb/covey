@@ -3,7 +3,7 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { onDestroy } from "svelte";
 
-  import type { ListStyle } from "$lib/bindings";
+  import type { Id, ListStyle } from "$lib/bindings";
   import Button from "$lib/components/button.svelte";
   import HotkeyKeys from "$lib/components/hotkey_keys.svelte";
   import ScrollShadow from "$lib/components/scroll_shadow.svelte";
@@ -101,8 +101,10 @@
     }
   });
 
-  const navSettings = () => {
-    menu.showSettingsWindow();
+  const navSettings = async (_plugin?: Id) => {
+    await menu.showSettingsWindow();
+    // TODO: navigate settings window to the plugin's settings
+    // if a plugin is specified
   };
 </script>
 
@@ -121,7 +123,7 @@
           placeholder="Search..."
         />
         <div class="settings-button">
-          <Button theme="tertiary" pill onclick={navSettings}>
+          <Button theme="tertiary" pill onclick={() => navSettings()}>
             <iconify-icon icon="ph:gear-bold"></iconify-icon>
           </Button>
         </div>
@@ -174,23 +176,42 @@
       </ScrollShadow>
 
       <div class="menu-footer">
-        {#each menu.getAvailableCommands() as command}
-          <Button
-            theme="tertiary"
-            rounding="large"
-            onclick={() => menu.activateById(command.id)}
-          >
-            {@const hotkey = command.customHotkey ?? command["default-hotkey"]}
-            <div class="footer-command-button">
-              {#if hotkey}
-                <HotkeyKeys theme="tertiary" {hotkey} />
-              {/if}
-              <span>
-                {command.title}
-              </span>
-            </div>
-          </Button>
-        {/each}
+        <div class="menu-footer-commands">
+          {#each menu.getAvailableCommands() as command}
+            <Button
+              theme="tertiary"
+              rounding="large"
+              onclick={() => menu.activateById(command.id)}
+            >
+              {@const hotkey =
+                command.customHotkey ?? command["default-hotkey"]}
+              <div class="footer-command-button">
+                {#if hotkey}
+                  <HotkeyKeys theme="tertiary" {hotkey} />
+                {/if}
+                <span>
+                  {command.title}
+                </span>
+              </div>
+            </Button>
+          {/each}
+        </div>
+        <div class="menu-footer-plugin-info">
+          {#if menu.activePlugin != null}
+            {@const manifest = menu.manifestOf(menu.activePlugin)}
+            {#if manifest != null}
+              <Button
+                theme="tertiary"
+                rounding="large"
+                onclick={() => navSettings()}
+              >
+                <div class="footer-plugin-button">
+                  {manifest.name}
+                </div>
+              </Button>
+            {/if}
+          {/if}
+        </div>
       </div>
     </main>
   </div>
@@ -362,9 +383,16 @@
     background: var(--color-surface);
     display: flex;
     padding: 0.5rem 1rem;
+    justify-content: space-between;
   }
 
-  .footer-command-button {
+  .menu-footer-commands {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .footer-command-button,
+  .footer-plugin-button {
     padding: 0.25rem 0.5rem;
     display: flex;
     gap: 0.5rem;

@@ -2,7 +2,15 @@
 
 import { Channel, invoke } from "@tauri-apps/api/core";
 
-import type { Command, Event, Hotkey, ListItem, ListStyle } from "./bindings";
+import type {
+  Command,
+  Event,
+  Hotkey,
+  Id,
+  ListItem,
+  ListStyle,
+  PluginManifest,
+} from "./bindings";
 import * as keys from "./keys";
 import { Settings } from "./settings.svelte";
 import type { DeepReadonly } from "./utils";
@@ -12,6 +20,7 @@ export type CommandInfo = Command & { customHotkey?: Hotkey };
 export class Menu {
   public items = $state<ListItem[]>([]);
   public style = $state<ListStyle | undefined>();
+  public activePlugin = $state<Id | undefined>();
   public selection = $state<number>(0);
   public inputText = $state<string>("");
   // this is only updated by plugins, so no need to keep live
@@ -37,6 +46,7 @@ export class Menu {
         case "setList":
           self.items = msg.items;
           self.style = msg.style ?? undefined;
+          self.activePlugin = msg.plugin_id;
           self.selection = 0;
           break;
         case "reload":
@@ -88,7 +98,7 @@ export class Menu {
       )
     ) {
       void invoke("reload_plugin", {
-        pluginId: this.items[this.selection].id.pluginId,
+        pluginId: this.activePlugin,
       }).then(() => this.query());
     }
 
@@ -108,8 +118,8 @@ export class Menu {
     return true;
   }
 
-  public showSettingsWindow() {
-    void invoke("show_settings_window");
+  public async showSettingsWindow() {
+    await invoke("show_settings_window");
   }
 
   public currentItem(): ListItem | undefined {
@@ -134,5 +144,9 @@ export class Menu {
           customHotkey: pluginConfig?.commands[cmd.id],
         }))
     );
+  }
+
+  public manifestOf(plugin: Id): DeepReadonly<PluginManifest> | undefined {
+    return this.settings.manifests[plugin];
   }
 }

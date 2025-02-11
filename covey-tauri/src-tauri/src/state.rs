@@ -111,6 +111,7 @@ impl covey::Frontend for EventChannel {
             .send(Event::SetList {
                 items: state.register_list_items(list.items.into_iter()),
                 style: list.style.map(list_style_from_covey),
+                plugin_id: list.plugin.id().clone(),
             })
             .unwrap();
     }

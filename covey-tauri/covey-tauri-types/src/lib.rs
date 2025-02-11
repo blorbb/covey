@@ -21,6 +21,7 @@ pub enum Event {
     SetList {
         items: Vec<ListItem>,
         style: Option<ListStyle>,
+        plugin_id: Id,
     },
     Reload {
         config: GlobalConfig,

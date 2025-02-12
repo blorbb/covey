@@ -26,7 +26,37 @@ pub struct AppConfig {
     /// Hotkey to re-initialise the current plugin.
     ///
     /// Default is Ctrl+R.
-    reload_hotkey: Hotkey,
+    pub reload_hotkey: Hotkey,
+    /// List of icon themes to use when rendering a named icon from a plugin.
+    ///
+    /// Icons will try to be loaded from top to bottom.
+    pub icon_themes: Vec<IconTheme>,
+}
+
+/// A theme to try render a named icon with.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
+#[serde(rename_all = "kebab-case")]
+pub struct IconTheme {
+    pub kind: IconThemeKind,
+    /// Name of the icon theme within the kind.
+    pub name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
+#[serde(rename_all = "kebab-case")]
+pub enum IconThemeKind {
+    /// Icon theme from the operating system.
+    ///
+    /// On linux, "hicolor" is usually the default system theme.
+    System,
+    /// Icon theme from [iconify-icon](https://icon-sets.iconify.design/).
+    ///
+    /// The associated name should be the prefix of the icon set, before the colon.
+    ///
+    /// E.g. Phosphor icons has prefix "ph", Material Design Icons has prefix "mdi".
+    IconifyIcon,
 }
 
 impl Default for AppConfig {
@@ -39,6 +69,10 @@ impl Default for AppConfig {
                 shift: false,
                 meta: false,
             },
+            icon_themes: vec![IconTheme {
+                kind: IconThemeKind::System,
+                name: "hicolor".to_string(),
+            }],
         }
     }
 }

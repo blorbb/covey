@@ -68,54 +68,86 @@ impl std::error::Error for DeserializationError {}
 mod tests {
     use std::collections::HashMap;
 
+    mod config {
+        use crate::manifest::__private_generation;
+
+        __private_generation::include_manifest!(
+            serde_path = crate::manifest::__private_generation::serde,
+            ext_impl_ty = crate::ListItem,
+            command_return_ty = crate::Result<R>,
+            command_return_trait = ::core::convert::Into<crate::Actions>,
+            inline = r#"
+                name = "Open"
+                description = "Open URLs with a query"
+                repository = "https://github.com/blorbb/covey-plugins"
+                authors = ["blorbb"]
+
+                [[schema]]
+                id = "urls"
+                title = "List of URLs to show"
+                type.map.value-type.struct.fields = { name = "text", url = "text", extra-field = "int" }
+
+                [[schema]]
+                id = "thing-with-dash"
+                title = "Some selection"
+                type.selection.allowed-values = ["a", "ab", "ab-cde"]
+
+                [[schema]]
+                id = "with-default"
+                title = "Yet another selection"
+                type.selection.allowed-values = ["oaiwrha", "iosdg"]
+                type.selection.default = "iosdg"
+            "#
+        );
+    }
+
     #[test]
     fn expanded_types_exist() {
-        mod config {
-            use crate::manifest::__private_generation;
-
-            __private_generation::include_manifest!(
-                serde_path = crate::manifest::__private_generation::serde,
-                ext_impl_ty = crate::ListItem,
-                command_return_ty = crate::Result<R>,
-                command_return_trait = ::core::convert::Into<crate::Actions>,
-                inline = r#"
-                    name = "Open"
-                    description = "Open URLs with a query"
-                    repository = "https://github.com/blorbb/covey-plugins"
-                    authors = ["blorbb"]
-
-                    [[schema]]
-                    id = "urls"
-                    title = "List of URLs to show"
-                    type.map.value-type.struct.fields = { name = "text", url = "text" }
-
-                    [[schema]]
-                    id = "thing"
-                    title = "Some selection"
-                    type.selection.allowed-values = ["a", "ab", "ab-cde"]
-
-                    [[schema]]
-                    id = "with-default"
-                    title = "Yet another selection"
-                    type.selection.allowed-values = ["oaiwrha", "iosdg"]
-                    type.selection.default = "iosdg"
-                "#
-            );
-        }
-
         config::Config {
             urls: HashMap::from([(
                 "key".to_string(),
                 config::urls::UrlsValue {
                     name: "name".to_string(),
                     url: "urls".to_string(),
+                    extra_field: 10,
                 },
             )]),
-            thing: config::thing::ThingSelection::AbCde,
+            thing_with_dash: config::thing_with_dash::ThingWithDashSelection::AbCde,
             with_default: config::with_default::WithDefaultSelection::default(),
         };
 
         use config::CommandExt;
         crate::ListItem::new("ajwroiajw").on_activate(|| async { Ok(vec![]) });
+    }
+
+    #[test]
+    fn deserialize_impls() {
+        let input = serde_json::json!({
+            "urls": {
+                "crates": {
+                    "name": "crates docs",
+                    "url": "docs.rs",
+                    "extra-field": 500
+                }
+            },
+            "thing-with-dash": "ab-cde",
+        });
+
+        let deserialized: config::Config = serde_json::from_str(&input.to_string()).unwrap();
+        assert_eq!(
+            deserialized,
+            config::Config {
+                urls: HashMap::from([(
+                    "crates".to_string(),
+                    config::urls::UrlsValue {
+                        name: "crates docs".to_string(),
+                        url: "docs.rs".to_string(),
+                        extra_field: 500,
+                    }
+                )]),
+                thing_with_dash: config::thing_with_dash::ThingWithDashSelection::AbCde,
+                with_default: config::with_default::WithDefaultSelection::Iosdg,
+            }
+        )
     }
 }

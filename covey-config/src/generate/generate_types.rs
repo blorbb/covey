@@ -400,6 +400,7 @@ impl FieldType {
                     #serde::Deserialize,
                 )]
                 #[serde(crate = #serde_path_string)]
+                #[serde(rename_all = "kebab-case")]
                 pub struct #struct_name {
                     #this_fields
                 }
@@ -470,6 +471,7 @@ impl FieldType {
                 )]
                 #default_annotation
                 #[serde(crate = #serde_path_string)]
+                #[serde(rename_all = "kebab-case")]
                 pub enum #enum_name {
                     #(#variants,)*
                 }

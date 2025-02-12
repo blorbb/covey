@@ -121,6 +121,7 @@ pub enum SchemaType {
     Bool(SchemaBool),
     FilePath(SchemaFilePath),
     FolderPath(SchemaFolderPath),
+    Selection(SchemaSelection),
     List(SchemaList),
     Map(SchemaMap),
     Struct(SchemaStruct),
@@ -213,6 +214,7 @@ enum __SchemaTypeSerdeDerive {
     Bool(SchemaBool),
     FilePath(SchemaFilePath),
     FolderPath(SchemaFolderPath),
+    Selection(SchemaSelection),
     List(SchemaList),
     Map(SchemaMap),
     Struct(SchemaStruct),
@@ -252,6 +254,7 @@ impl<'de> Deserialize<'de> for SchemaType {
             Derived::Bool(config_bool) => Self::Bool(config_bool),
             Derived::FilePath(config_file_path) => Self::FilePath(config_file_path),
             Derived::FolderPath(config_folder_path) => Self::FolderPath(config_folder_path),
+            Derived::Selection(selection) => Self::Selection(selection),
             Derived::List(config_list) => Self::List(config_list),
             Derived::Map(config_map) => Self::Map(config_map),
             Derived::Struct(config_struct) => Self::Struct(config_struct),
@@ -356,7 +359,7 @@ mod tests {
     };
     use crate::{
         keyed_list::{Id, KeyedList},
-        manifest::default_commands,
+        manifest::{SchemaSelection, default_commands},
     };
 
     #[test]
@@ -460,5 +463,25 @@ mod tests {
             .unwrap(),
             commands: default_commands(),
         })
+    }
+
+    #[test]
+    fn selection() {
+        let input = r#"
+            selection.allowed-values = ["some-thing", "another-thing", "and-yet-another"]
+            selection.default = "some-thing"
+        "#;
+        let output: SchemaType = toml::from_str(&input).unwrap();
+        assert_eq!(
+            output,
+            SchemaType::Selection(SchemaSelection {
+                allowed_values: vec![
+                    "some-thing".to_string(),
+                    "another-thing".to_string(),
+                    "and-yet-another".to_string()
+                ],
+                default: Some("some-thing".to_string())
+            })
+        )
     }
 }

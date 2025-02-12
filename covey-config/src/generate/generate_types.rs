@@ -10,7 +10,7 @@ use crate::{
     keyed_list::Identify,
     manifest::{
         PluginManifest, SchemaBool, SchemaFilePath, SchemaFolderPath, SchemaInt, SchemaList,
-        SchemaMap, SchemaStruct, SchemaText, SchemaType,
+        SchemaMap, SchemaSelection, SchemaStruct, SchemaText, SchemaType,
     },
 };
 
@@ -100,6 +100,7 @@ impl FieldType {
             SchemaType::Bool(bool) => Self::from_bool(bool, paths),
             SchemaType::FilePath(file) => Self::from_file_path(file, paths),
             SchemaType::FolderPath(folder) => Self::from_folder_path(folder, paths),
+            SchemaType::Selection(selection) => Self::from_selection(selection, paths, parent_key),
             SchemaType::List(list) => Self::from_list(list, paths, parent_key),
             SchemaType::Map(map) => Self::from_map(map, paths, parent_key),
             SchemaType::Struct(st) => Self::from_struct(st, paths, parent_key),
@@ -407,6 +408,74 @@ impl FieldType {
             },
         }
     }
+
+    fn from_selection(
+        selection: SchemaSelection,
+        paths: &CratePaths,
+        parent_key: &Ident,
+    ) -> FieldType {
+        let serde = &paths.serde;
+        let serde_path_string = serde.to_string();
+
+        let enum_name = snake_to_upper_camel(&Ident::new(
+            &format!("{}_selection", parent_key.unraw()),
+            parent_key.span(),
+        ));
+
+        // default must be one of the items in the selection
+        if let Some(default) = &selection.default {
+            if !selection.allowed_values.contains(&default) {
+                panic!(
+                    "selection has default {default} but is not one of the variants {:?}",
+                    selection.allowed_values
+                );
+            }
+        }
+
+        // add #[derive(Default)] if there is a default
+        let default_annotation = selection.default.is_some().then(|| {
+            quote! {
+                #[derive(::std::default::Default)]
+            }
+        });
+
+        let variants = selection.allowed_values.into_iter().map(|variant| {
+            let variant_ident = kebab_to_upper_camel(&variant, parent_key.span());
+
+            if selection.default == Some(variant) {
+                quote! {
+                    #[default]
+                    #variant_ident
+                }
+            } else {
+                quote! {
+                    #variant_ident
+                }
+            }
+        });
+
+        Self {
+            type_path: TypePath::relative(quote! { #enum_name }),
+            validator: TokenStream::new(),
+            default: if selection.default.is_some() {
+                TypeDefault::DefaultTrait
+            } else {
+                TypeDefault::Required
+            },
+            extras: quote! {
+                #[derive(
+                    ::std::fmt::Debug,
+                    ::std::cmp::PartialEq,
+                    #serde::Deserialize,
+                )]
+                #default_annotation
+                #[serde(crate = #serde_path_string)]
+                pub enum #enum_name {
+                    #(#variants,)*
+                }
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -497,4 +566,22 @@ fn snake_to_upper_camel(snake: &Ident) -> Ident {
         })
         .collect::<String>();
     Ident::new_raw(&str, snake.span())
+}
+
+fn kebab_to_upper_camel(kebab: &str, span: Span) -> Ident {
+    let str = kebab
+        .split('-')
+        .filter_map(|str| {
+            // capitalise first character
+            let mut chars = str.chars();
+            Some(
+                chars
+                    .next()?
+                    .to_uppercase()
+                    .chain(chars)
+                    .collect::<String>(),
+            )
+        })
+        .collect::<String>();
+    Ident::new_raw(&str, span)
 }

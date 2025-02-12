@@ -88,6 +88,17 @@ mod tests {
                     id = "urls"
                     title = "List of URLs to show"
                     type.map.value-type.struct.fields = { name = "text", url = "text" }
+
+                    [[schema]]
+                    id = "thing"
+                    title = "Some selection"
+                    type.selection.allowed-values = ["a", "ab", "ab-cde"]
+
+                    [[schema]]
+                    id = "with-default"
+                    title = "Yet another selection"
+                    type.selection.allowed-values = ["oaiwrha", "iosdg"]
+                    type.selection.default = "iosdg"
                 "#
             );
         }
@@ -100,6 +111,8 @@ mod tests {
                     url: "urls".to_string(),
                 },
             )]),
+            thing: config::thing::ThingSelection::AbCde,
+            with_default: config::with_default::WithDefaultSelection::default(),
         };
 
         use config::CommandExt;

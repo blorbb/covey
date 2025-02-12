@@ -22,6 +22,7 @@ import type { SchemaFolderPath } from "./bindings/SchemaFolderPath";
 import type { SchemaInt } from "./bindings/SchemaInt";
 import type { SchemaList as SchemaListBinding } from "./bindings/SchemaList";
 import type { SchemaMap as SchemaMapBinding } from "./bindings/SchemaMap";
+import type { SchemaSelection } from "./bindings/SchemaSelection";
 import type { SchemaStruct as SchemaStructBinding } from "./bindings/SchemaStruct";
 import type { SchemaText } from "./bindings/SchemaText";
 import type { SchemaType as SchemaTypeBinding } from "./bindings/SchemaType";
@@ -49,6 +50,7 @@ export type {
   SchemaInt,
   SchemaList,
   SchemaMap,
+  SchemaSelection,
   SchemaStruct,
   SchemaText,
   SchemaType,

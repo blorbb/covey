@@ -8,6 +8,7 @@
   import InputInt from "./input_int.svelte";
   import InputList from "./input_list.svelte";
   import InputMap from "./input_map.svelte";
+  import InputSelection from "./input_selection.svelte";
   import InputStruct from "./input_struct.svelte";
   import InputText from "./input_text.svelte";
 
@@ -74,6 +75,12 @@
 {:else if "folder-path" in schema}
   <InputFolderPath
     schema={schema["folder-path"]}
+    bind:userValue={() => asString, setUserValue}
+    bind:error
+  />
+{:else if "selection" in schema}
+  <InputSelection
+    schema={schema.selection}
     bind:userValue={() => asString, setUserValue}
     bind:error
   />

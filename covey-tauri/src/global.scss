@@ -63,9 +63,11 @@ code {
 }
 
 input,
+select,
 button {
   font: inherit;
   color: inherit;
+  width: inherit;
 
   border: none;
   background-color: transparent;

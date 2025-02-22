@@ -13,7 +13,6 @@ mod plugin;
 pub use plugin::Plugin;
 mod server;
 pub use server::run_server as main;
-mod plugin_lock;
 mod store;
 
 #[allow(clippy::pedantic)]

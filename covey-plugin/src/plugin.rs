@@ -1,8 +1,6 @@
 use std::future::Future;
 
-use crate::{
-    Action, List, Result, manifest::ManifestDeserialization, plugin_lock::ServerState, proto,
-};
+use crate::{Action, List, Result, manifest::ManifestDeserialization, proto, server::ServerState};
 
 pub trait Plugin: Sized + Send + Sync + 'static {
     /// The user's configuration for this plugin.

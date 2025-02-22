@@ -1,9 +1,24 @@
 use std::process;
 
-use tokio::net::TcpListener;
+use parking_lot::Mutex;
+use tokio::{net::TcpListener, sync::RwLock};
 use tonic::transport::Server;
 
-use crate::{Plugin, plugin_lock::ServerState, proto::plugin_server::PluginServer};
+use crate::{Plugin, proto::plugin_server::PluginServer, store::ListItemStore};
+
+pub(crate) struct ServerState<P> {
+    pub(crate) plugin: RwLock<Option<P>>,
+    pub(crate) list_item_store: Mutex<ListItemStore>,
+}
+
+impl<T: Plugin> ServerState<T> {
+    pub(crate) fn new_empty() -> Self {
+        Self {
+            plugin: RwLock::new(None),
+            list_item_store: Mutex::new(ListItemStore::new()),
+        }
+    }
+}
 
 /// Starts up the server with a specified plugin implementation.
 ///

@@ -59,7 +59,7 @@ fn main() {
     // this will run the server.
     // it requires the name of the binary to be passed in.
     // use `env!` to get it from the cargo project.
-    covey_plugin::main::<Open>(env!("CARGO_BIN_NAME"))
+    covey_plugin::run_server::<Open>(env!("CARGO_BIN_NAME"))
 }
 ```
 

@@ -12,7 +12,7 @@ pub use input::{Input, SelectionRange};
 mod plugin;
 pub use plugin::Plugin;
 mod server;
-pub use server::run_server as main;
+pub use server::run_server;
 mod store;
 
 #[allow(clippy::pedantic)]

@@ -18,13 +18,11 @@ pub(super) fn generate_ext_trait(manifest: &PluginManifest, paths: &CratePaths) 
             let method = Ident::new(&format!("on_{}", key.id().as_str().replace('-', "_")), Span::call_site());
 
             quote! {
-                fn #method<Fut, R>(
+                fn #method<R>(
                     self,
-                    callback: impl Fn() -> Fut + ::core::marker::Send + ::core::marker::Sync + 'static
+                    callback: impl AsyncFn() -> #ret + ::core::marker::Send + ::core::marker::Sync + 'static
                 ) -> Self
                 where
-                    Fut: ::core::future::Future<Output = #ret>
-                        + ::core::marker::Send + ::core::marker::Sync + 'static,
                     R: #ret_trait
             }
         })

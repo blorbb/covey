@@ -54,9 +54,13 @@ pub fn plugin_data_dir() -> PathBuf {
 /// The closure will automatically be turned into a
 /// `move || async move {...}` closure. Closure arguments are supported.
 ///
+/// All variables will be cloned immediately for the closure to own
+/// the variable. The variable will also be cloned every time the
+/// closure is called, so that the async body can also own the variables.
+///
 /// # Examples
 /// Expansion:
-/// ```ignore
+/// ```
 /// # use covey_plugin::clone_async;
 /// let thing = String::from("important info");
 /// let foo = String::from("bar");
@@ -64,6 +68,8 @@ pub fn plugin_data_dir() -> PathBuf {
 ///     println!("some {thing} from {foo}");
 /// });
 /// // Expands to:
+/// // let thing = thing.to_owned();
+/// // let foo = foo.to_owned();
 /// // move || {
 /// //     let thing = thing.to_owned();
 /// //     let foo = foo.to_owned();
@@ -102,64 +108,40 @@ pub fn plugin_data_dir() -> PathBuf {
 ///         todo!()
 ///     }));
 /// ```
-///
-/// Sometimes there are still some lifetime issues when cloning.
-/// ```compile_fail
-/// # use covey_plugin::{clone_async, ListItem};
-/// // this fails to compile [E0597]: `thing` does not live long enough
-/// {
-///     let thing = String::from("really important info!!");
-///     let temp = &thing;
-///     ListItem::new("oh no")
-///         .on_activate(clone_async!(temp, || {
-///             todo!("temporary {temp}")
-///         }))
-/// };
-/// ```
-///
-/// Add `#[double]` to clone the value into the closure as well
-/// as the async block.
-/// ```ignore
-/// # use covey_plugin::{clone_async, ListItem};
-/// {
-///     let thing = String::from("really important info!!");
-///     let temp = &thing;
-///     ListItem::new("oh no")
-///         .on_activate(clone_async!(#[double] temp, || {
-///             todo!("temporary {temp}")
-///         }))
-/// };
-/// ```
 #[macro_export]
 macro_rules! clone_async {
     // this isn't correctly matched with the below so need a special case
     // for empty closure args
     (
-        $( $(#[$double:ident])? $ident:ident $(= $expr:expr)? , )*
+        $( $ident:ident $(= $expr:expr)? , )*
         || $($tt:tt)*
     ) => {
         {
-            $(
-                $crate::__clone_helper!($($double)? @ $ident $(, $expr)?);
-            )*
+            $(let $ident = ($crate::__clone_helper_choose_first!($($expr,)? $ident)).to_owned();)*
             move || {
-                $(let $ident = ($ident).to_owned();)*
-                async move {$($tt)*}
+                // TODO: this extra clone isn't necessary.
+                // with an async closure, the future can *borrow* from variables
+                // captured (and owned) by the closure. however, this isn't clear
+                // from the types and the compiler errors are sub-par right now.
+                // this macro name also suggests that all variables should be owned.
+                // This will always clone the captured variables every time this
+                // closure is called, which is simpler to reason about and
+                // this has little impact to performance anyways.
+                $(let $ident = $ident.to_owned();)*
+                async move { $($tt)* }
             }
         }
     };
 
     (
-        $( $(#[$double:ident])? $ident:ident $(= $expr:expr)? , )*
+        $( $ident:ident $(= $expr:expr)? , )*
         | $($args:pat_param),* $(,)? | $($tt:tt)*
     ) => {
         {
-            $(
-                $crate::__clone_helper!($($double)? @ $ident $(, $expr)?);
-            )*
+            $(let $ident = ($crate::__clone_helper_choose_first!($($expr,)? $ident)).to_owned();)*
             move | $($args),* | {
-                $(let $ident = ($ident).to_owned();)*
-                async move {$($tt)*}
+                $(let $ident = $ident.to_owned();)*
+                async move { $($tt)* }
             }
         }
     };
@@ -168,20 +150,11 @@ macro_rules! clone_async {
 /// Private implementation detail of [`clone_async!`].
 #[doc(hidden)]
 #[macro_export]
-macro_rules! __clone_helper {
-    // clone either the ident given, or the expr if there exists one.
-    // first clone: if `double` is present, actually do a clone.
-    // otherwise a no-op.
-    (double @ $ident:ident) => {
-        let $ident = ($ident).to_owned();
+macro_rules! __clone_helper_choose_first {
+    ($a:expr) => {
+        $a
     };
-    (@ $ident:ident) => {};
-
-    (double @ $ident:ident, $expr:expr) => {
-        let $ident = ($expr).to_owned();
-    };
-    (@ $ident:ident, $expr:expr) => {
-        // let ident = expr, easier for later, only need to handle cloning idents
-        let $ident = $expr;
+    ($a:expr, $b: expr) => {
+        $a
     };
 }

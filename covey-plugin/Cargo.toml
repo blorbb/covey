@@ -2,13 +2,17 @@
 name = "covey-plugin"
 version = "0.1.0"
 edition.workspace = true
+# 1.85 required for async closures / AsyncFn.
+# this might be outdated, im not really gonna update this.
+# i only guarantee that this runs on latest stable.
+rust-version = "1.85"
 
 [lints]
 workspace = true
 
 [dependencies]
 prost.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio = { workspace = true, features = ["rt"] }
 tokio-stream = { version = "0.1.16", default-features = false, features = [
     "net",
 ] }

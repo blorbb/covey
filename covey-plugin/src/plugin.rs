@@ -72,12 +72,20 @@ where
                     "failed to fetch callback of list item with id {id}"
                 )))?;
 
-        let response = callbacks
-            .call_command(&request.command_name)
-            .await
-            .map(|a| proto::ActivationResponse {
-                actions: a.into_iter().map(Action::into_proto).collect(),
-            });
+        // tonic plugin requires methods to be Send + Sync, but this
+        // is annoying. spawn_local makes this future no longer require
+        // Send + Sync.
+        let response = tokio::task::spawn_local(async move {
+            callbacks
+                .call_command(&request.command_name)
+                .await
+                .map(|a| proto::ActivationResponse {
+                    actions: a.into_iter().map(Action::into_proto).collect(),
+                })
+        })
+        .await
+        // JoinHandle resolves to an err if the task panicked.
+        .map_err(|e| tonic::Status::internal(e.to_string()))?;
 
         match response {
             Ok(response) => Ok(tonic::Response::new(response)),

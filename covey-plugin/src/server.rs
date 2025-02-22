@@ -8,11 +8,15 @@ use crate::{Plugin, plugin_lock::ServerState, proto::plugin_server::PluginServer
 /// Starts up the server with a specified plugin implementation.
 ///
 /// The plugin id should be `env!("CARGO_PKG_NAME")`.
+///
+/// This will start a single-threaded tokio runtime.
 pub fn run_server<T: Plugin>(plugin_id: &'static str) -> ! {
     crate::PLUGIN_ID
         .set(plugin_id)
         .expect("plugin id should only be set from main");
-    let result = tokio::runtime::Runtime::new()
+    let result = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
         .map_err(|e| anyhow::anyhow!(e))
         .and_then(|rt| {
             rt.block_on(async {

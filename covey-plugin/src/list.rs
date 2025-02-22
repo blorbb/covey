@@ -128,7 +128,31 @@ impl Icon {
     }
 }
 
-type DynFuture<T> = Pin<Box<dyn Future<Output = T> + Send + Sync>>;
+// TODO: figure out the bounds to put here and on the generated extension trait
+// methods (covey-config/src/generate/generate_ext.rs#generate_ext_trait).
+//
+// a tonic server requires that all the functions are Send + Sync.
+// this means that all futures called must be Send + Sync.
+//
+// the type of the callback basically has two options:
+// 1) impl AsyncFn() -> T + Send + Sync
+// 2) impl Fn() -> Fut + Send + Sync where Fut: Future<Output = T> + Send + Sync
+//
+// with 1) the returned future can borrow from variables captured by the closure.
+// however, there's no way to write the Send + Sync bound on the future itself.
+//
+// with 2) the returned future requires Send + Sync but cannot borrow from
+// variables captured by the closure.
+//
+// the best option would be once return-type notation is stabilised, to annotate
+// the future of AsyncFn as requiring Send + Sync.
+//
+// Alternatively, use `tokio::task::spawn_local` so that the future does not
+// need to be Send + Sync. This makes 1) work fine, but means that the server
+// cannot be multi-threaded. This is probably fine, as local async executors
+// are easier to work with (https://maciej.codes/2022-06-09-local-async.html).
+
+type DynFuture<T> = Pin<Box<dyn Future<Output = T>>>;
 type ActivationFunction = Arc<dyn Fn() -> DynFuture<Result<Actions>> + Send + Sync>;
 
 #[derive(Clone)]

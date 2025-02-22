@@ -1,7 +1,7 @@
 [package]
 name = "covey-config-macro"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
 
 [dependencies]
 proc-macro-error2 = "2"

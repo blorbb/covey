@@ -374,20 +374,23 @@ mod tests {
             type = "int"
         "#;
         let output: PluginManifest = toml::from_str(input)?;
-        assert_eq!(output, PluginManifest {
-            name: "test".to_string(),
-            description: Some("my description".to_string()),
-            repository: None,
-            authors: vec![],
-            schema: KeyedList::new([PluginConfigSchema {
-                id: Id::new("first-option"),
-                title: "first option".to_string(),
-                description: None,
-                r#type: SchemaType::Int(SchemaInt::default())
-            }])
-            .unwrap(),
-            commands: default_commands(),
-        });
+        assert_eq!(
+            output,
+            PluginManifest {
+                name: "test".to_string(),
+                description: Some("my description".to_string()),
+                repository: None,
+                authors: vec![],
+                schema: KeyedList::new([PluginConfigSchema {
+                    id: Id::new("first-option"),
+                    title: "first option".to_string(),
+                    description: None,
+                    r#type: SchemaType::Int(SchemaInt::default())
+                }])
+                .unwrap(),
+                commands: default_commands(),
+            }
+        );
 
         Ok(())
     }
@@ -415,16 +418,19 @@ mod tests {
             type = { list = { item-type = "int", unique = true } }
         "#;
         let output: PluginConfigSchema = toml::from_str(input).unwrap();
-        assert_eq!(output, PluginConfigSchema {
-            id: Id::new("thing-id"),
-            title: "thing".to_string(),
-            description: None,
-            r#type: SchemaType::List(SchemaList {
-                item_type: Box::new(SchemaType::Int(SchemaInt::default())),
-                min_items: 0,
-                unique: true,
-            })
-        });
+        assert_eq!(
+            output,
+            PluginConfigSchema {
+                id: Id::new("thing-id"),
+                title: "thing".to_string(),
+                description: None,
+                r#type: SchemaType::List(SchemaList {
+                    item_type: Box::new(SchemaType::Int(SchemaInt::default())),
+                    min_items: 0,
+                    unique: true,
+                })
+            }
+        );
     }
 
     #[test]
@@ -441,28 +447,31 @@ mod tests {
             type.map.value-type.struct.fields = { name = "text", url = "text" }
         "#;
         let output: PluginManifest = toml::from_str(input).unwrap();
-        assert_eq!(output, PluginManifest {
-            name: "Open".to_string(),
-            description: Some("Open URLs with a query".to_string()),
-            repository: Some("https://github.com/blorbb/covey-plugins".to_string()),
-            authors: vec!["blorbb".to_string()],
-            schema: KeyedList::new([PluginConfigSchema {
-                id: Id::new("urls"),
-                title: "List of URLs to show".to_string(),
-                description: None,
-                r#type: SchemaType::Map(SchemaMap {
-                    value_type: Box::new(SchemaType::Struct(SchemaStruct {
-                        fields: HashMap::from([
-                            ("name".to_string(), SchemaType::Text(Default::default())),
-                            ("url".to_string(), SchemaType::Text(Default::default()))
-                        ])
-                    })),
-                    min_items: Default::default()
-                })
-            }])
-            .unwrap(),
-            commands: default_commands(),
-        })
+        assert_eq!(
+            output,
+            PluginManifest {
+                name: "Open".to_string(),
+                description: Some("Open URLs with a query".to_string()),
+                repository: Some("https://github.com/blorbb/covey-plugins".to_string()),
+                authors: vec!["blorbb".to_string()],
+                schema: KeyedList::new([PluginConfigSchema {
+                    id: Id::new("urls"),
+                    title: "List of URLs to show".to_string(),
+                    description: None,
+                    r#type: SchemaType::Map(SchemaMap {
+                        value_type: Box::new(SchemaType::Struct(SchemaStruct {
+                            fields: HashMap::from([
+                                ("name".to_string(), SchemaType::Text(Default::default())),
+                                ("url".to_string(), SchemaType::Text(Default::default()))
+                            ])
+                        })),
+                        min_items: Default::default()
+                    })
+                }])
+                .unwrap(),
+                commands: default_commands(),
+            }
+        )
     }
 
     #[test]

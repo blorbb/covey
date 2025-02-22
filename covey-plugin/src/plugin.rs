@@ -1,7 +1,7 @@
 use std::future::Future;
 
 use crate::{
-    manifest::ManifestDeserialization, plugin_lock::ServerState, proto, Action, List, Result,
+    Action, List, Result, manifest::ManifestDeserialization, plugin_lock::ServerState, proto,
 };
 
 pub trait Plugin: Sized + Send + Sync + 'static {

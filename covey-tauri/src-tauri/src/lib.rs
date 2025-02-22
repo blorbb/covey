@@ -4,9 +4,9 @@ mod window;
 
 use state::AppState;
 use tauri::{
+    Manager,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

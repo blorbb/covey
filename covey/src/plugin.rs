@@ -8,7 +8,7 @@ use covey_config::{
     manifest::PluginManifest,
 };
 
-use crate::{event::Action, proto, Input, List, DATA_DIR};
+use crate::{DATA_DIR, Input, List, event::Action, proto};
 
 /// A ref-counted reference to a plugin instance.
 ///
@@ -179,7 +179,7 @@ mod implementation {
         process::{Child, Command},
         sync::OnceCell,
     };
-    use tonic::{transport::Channel, Request};
+    use tonic::{Request, transport::Channel};
     use tracing::info;
 
     use super::{

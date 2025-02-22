@@ -1,7 +1,7 @@
 use color_eyre::eyre::Result;
 use covey_config::{config::GlobalConfig, keyed_list::Id, manifest::PluginManifest};
 use covey_tauri_types::{Event, ListItemId};
-use tauri::{ipc::Channel, Manager, State, WebviewWindowBuilder};
+use tauri::{Manager, State, WebviewWindowBuilder, ipc::Channel};
 
 use crate::state::{AppState, EventChannel};
 

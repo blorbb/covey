@@ -56,7 +56,7 @@ pub fn plugin_data_dir() -> PathBuf {
 ///
 /// # Examples
 /// Expansion:
-/// ```
+/// ```ignore
 /// # use covey_plugin::clone_async;
 /// let thing = String::from("important info");
 /// let foo = String::from("bar");
@@ -75,7 +75,7 @@ pub fn plugin_data_dir() -> PathBuf {
 ///
 /// This will most often be used in the context of adding callbacks to
 /// list items.
-/// ```
+/// ```ignore
 /// # use covey_plugin::{clone_async, ListItem};
 /// let thing = String::from("important info");
 /// let foo = String::from("bar");
@@ -92,7 +92,7 @@ pub fn plugin_data_dir() -> PathBuf {
 ///
 /// If you have a more complex expression that you want to clone, you can
 /// bind it to an identifier using `ident = expr` syntax.
-/// ```
+/// ```ignore
 /// # use covey_plugin::{clone_async, ListItem};
 /// let thing = String::from("important info");
 /// let item = ListItem::new("get me out of here");
@@ -119,7 +119,7 @@ pub fn plugin_data_dir() -> PathBuf {
 ///
 /// Add `#[double]` to clone the value into the closure as well
 /// as the async block.
-/// ```
+/// ```ignore
 /// # use covey_plugin::{clone_async, ListItem};
 /// {
 ///     let thing = String::from("really important info!!");

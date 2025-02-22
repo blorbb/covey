@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use color_eyre::eyre::{bail, eyre, Context, Result};
+use color_eyre::eyre::{Context, Result, bail, eyre};
 use covey_config::{
     config::GlobalConfig,
     keyed_list::{Id, KeyedList},
@@ -14,8 +14,8 @@ use parking_lot::Mutex;
 use tracing::{debug, error, info, warn};
 
 use crate::{
+    CONFIG_PATH, Frontend, Plugin,
     event::{Action, ListItemId, PluginEvent},
-    Frontend, Plugin, CONFIG_PATH,
 };
 
 struct HostInner {

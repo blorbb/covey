@@ -1,7 +1,7 @@
 use parking_lot::Mutex;
 use tokio::sync::RwLock;
 
-use crate::{store::ListItemStore, Plugin};
+use crate::{Plugin, store::ListItemStore};
 
 pub(crate) struct ServerState<P> {
     pub(crate) plugin: RwLock<Option<P>>,

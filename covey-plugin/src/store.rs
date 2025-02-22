@@ -7,7 +7,7 @@ use std::{
 
 use az::CheckedAs;
 
-use crate::{list::ListItemCallbacks, proto, Icon, List, ListItem, ListStyle};
+use crate::{Icon, List, ListItem, ListStyle, list::ListItemCallbacks, proto};
 
 /// Store to map list item IDs to their callbacks.
 pub(crate) struct ListItemStore {

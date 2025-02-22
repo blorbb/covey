@@ -146,7 +146,10 @@ impl Parse for Entry {
         } else if lookahead.peek(kw::command_return_trait) {
             let key = input.parse::<kw::command_return_trait>()?;
             input.parse::<Token![=]>()?;
-            Ok(Self::CommandReturnTrait(key, input.parse::<syn::TraitBound>()?))
+            Ok(Self::CommandReturnTrait(
+                key,
+                input.parse::<syn::TraitBound>()?,
+            ))
         } else if lookahead.peek(kw::file) {
             let key = input.parse::<kw::file>()?;
             input.parse::<Token![=]>()?;

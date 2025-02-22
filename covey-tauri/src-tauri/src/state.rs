@@ -4,7 +4,7 @@ use color_eyre::eyre::Result;
 use covey::{Frontend, Host};
 pub use covey_tauri_types::{Event, ListItem, ListStyle};
 use covey_tauri_types::{Icon, ListItemId};
-use tauri::{ipc::Channel, Manager};
+use tauri::{Manager, ipc::Channel};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_notification::NotificationExt;
 

@@ -4,7 +4,7 @@ use core::fmt;
 
 use az::SaturatingAs as _;
 
-use crate::{proto, Plugin};
+use crate::{Plugin, proto};
 
 /// Event returned by a plugin.
 pub(crate) enum PluginEvent {

@@ -351,11 +351,14 @@ impl FieldType {
                 TypeDefault::Custom(inner) => {
                     let path = quote! { self::#field_name::default }.to_string();
 
-                    (quote! { default = #path, }, quote! {
-                        pub(super) fn default() -> #field_type {
-                            #inner
-                        }
-                    })
+                    (
+                        quote! { default = #path, },
+                        quote! {
+                            pub(super) fn default() -> #field_type {
+                                #inner
+                            }
+                        },
+                    )
                 }
                 TypeDefault::Required => (quote!(), quote!()),
                 TypeDefault::DefaultTrait => (quote! { default, }, quote!()),

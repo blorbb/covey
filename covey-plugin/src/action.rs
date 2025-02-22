@@ -1,4 +1,4 @@
-use crate::{proto, Input};
+use crate::{Input, proto};
 
 #[derive(Debug, Clone)]
 pub enum Action {

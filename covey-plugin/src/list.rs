@@ -2,7 +2,7 @@ use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
 
 use anyhow::Result;
 
-use crate::{proto, Action, Actions};
+use crate::{Action, Actions, proto};
 
 pub struct List {
     pub(crate) items: Vec<ListItem>,

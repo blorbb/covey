@@ -3,7 +3,7 @@ use std::process;
 use tokio::net::TcpListener;
 use tonic::transport::Server;
 
-use crate::{plugin_lock::ServerState, proto::plugin_server::PluginServer, Plugin};
+use crate::{Plugin, plugin_lock::ServerState, proto::plugin_server::PluginServer};
 
 /// Starts up the server with a specified plugin implementation.
 ///

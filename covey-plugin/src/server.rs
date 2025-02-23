@@ -1,7 +1,7 @@
 use std::process;
 
 use parking_lot::Mutex;
-use tokio::{net::TcpListener, sync::RwLock};
+use tokio::{net::TcpListener, sync::RwLock, task::LocalSet};
 use tonic::transport::Server;
 
 use crate::{Plugin, proto::plugin_server::PluginServer, store::ListItemStore};
@@ -84,12 +84,15 @@ pub fn run_server<T: Plugin>(plugin_id: &'static str) -> ! {
     crate::PLUGIN_ID
         .set(plugin_id)
         .expect("plugin id should only be set from main");
+
     let result = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .map_err(|e| anyhow::anyhow!(e))
         .and_then(|rt| {
-            rt.block_on(async {
+            let set = LocalSet::new();
+            let _guard = set.enter();
+            rt.block_on(set.run_until(async {
                 // if port 0 is provided, asks the OS for a port
                 // https://github.com/hyperium/tonic/blob/master/tests/integration_tests/tests/timeout.rs#L77-L89
                 let listener = TcpListener::bind("[::1]:0").await?;
@@ -104,7 +107,7 @@ pub fn run_server<T: Plugin>(plugin_id: &'static str) -> ! {
                     .await?;
 
                 Ok(())
-            })
+            }))
         });
 
     match result {

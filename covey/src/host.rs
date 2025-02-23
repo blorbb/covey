@@ -14,7 +14,7 @@ use parking_lot::Mutex;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    CONFIG_PATH, Frontend, Plugin,
+    CONFIG_PATH, Frontend, List, Plugin,
     event::{Action, ListItemId, PluginEvent},
 };
 
@@ -133,11 +133,15 @@ impl Host {
     #[tracing::instrument(skip(self))]
     pub fn query(&self, input: String) -> impl Future<Output = ()> + use<> {
         debug!("setting input to {input:?}");
-        let (plugins, this_action_index) = {
+        let (plugins, this_action_index, icon_themes) = {
             let mut inner = self.inner.lock();
             inner.dispatched_actions += 1;
 
-            (inner.plugins.clone(), inner.dispatched_actions)
+            (
+                inner.plugins.clone(),
+                inner.dispatched_actions,
+                inner.config.app.icon_themes.clone(),
+            )
         };
 
         self.make_event_future(async move {
@@ -146,10 +150,10 @@ impl Host {
                     continue;
                 };
                 debug!("querying plugin {plugin:?}");
-                let list = plugin.query(stripped).await?;
+                let proto_list = plugin.query(stripped).await?;
 
                 return Ok(PluginEvent::SetList {
-                    list,
+                    list: List::from_proto(&plugin, &icon_themes, proto_list),
                     index: this_action_index,
                 });
             }

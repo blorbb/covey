@@ -43,6 +43,7 @@
 
   .config-title {
     grid-area: title;
+    font-weight: bold;
   }
 
   .config-description {

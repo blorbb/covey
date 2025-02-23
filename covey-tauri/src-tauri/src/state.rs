@@ -48,13 +48,9 @@ impl AppState {
         lis: impl ExactSizeIterator<Item = covey::ListItem>,
     ) -> Vec<ListItem> {
         lis.map(|li| {
-            let icon: Option<Icon> = match li.icon() {
-                Some(covey::Icon::Name(name)) => freedesktop_icons::lookup(&name)
-                    .with_cache()
-                    .with_size(48)
-                    .find()
-                    .map(|path| Icon::File { path }),
-                Some(covey::Icon::Text(text)) => Some(Icon::Text { text }),
+            let icon: Option<Icon> = match li.icon().cloned() {
+                Some(covey::ResolvedIcon::File(path)) => Some(Icon::File { path }),
+                Some(covey::ResolvedIcon::Text(text)) => Some(Icon::Text { text }),
                 None => None,
             };
             let id = ListItemId {

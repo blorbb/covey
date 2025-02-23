@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use color_eyre::eyre::Result;
 use covey_config::{config::GlobalConfig, keyed_list::Id, manifest::PluginManifest};
 use covey_tauri_types::{Event, ListItemId};
@@ -89,4 +91,12 @@ pub fn get_manifest(state: State<'_, AppState>, plugin_name: String) -> Option<P
         .get(&*plugin_name)
         .map(|plugin| plugin.manifest())
         .cloned()
+}
+
+/// Reads any file on the device without restrictions.
+#[tauri::command]
+pub fn read_any_file(path: PathBuf) -> Result<tauri::ipc::Response, String> {
+    Ok(tauri::ipc::Response::new(
+        std::fs::read(path).map_err(|e| e.to_string())?,
+    ))
 }

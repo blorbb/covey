@@ -32,7 +32,6 @@ tracing.workspace = true
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tokio.workspace = true
 covey-tauri-types = { path = "../covey-tauri-types" }
-freedesktop-icons = "0.2.6"
 tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
 

@@ -1,6 +1,7 @@
 //! Actions returned by a plugin.
 
 use core::fmt;
+use std::path::PathBuf;
 
 use az::SaturatingAs as _;
 
@@ -80,13 +81,25 @@ impl List {
         self.items.is_empty()
     }
 
-    pub(crate) fn from_proto(plugin: &Plugin, proto: proto::QueryResponse) -> Self {
+    pub(crate) fn from_proto(
+        plugin: &Plugin,
+        icon_themes: &[String],
+        proto: proto::QueryResponse,
+    ) -> Self {
         let style = proto.list_style.map(ListStyle::from_proto);
         let list: Vec<_> = proto
             .items
             .into_iter()
-            .map(|li| ListItem::new(Plugin::clone(plugin), li))
+            .map(|li| ListItem {
+                plugin: Plugin::clone(plugin),
+                icon: li
+                    .icon
+                    .clone()
+                    .and_then(|icon| ResolvedIcon::resolve(icon, icon_themes)),
+                item: li,
+            })
             .collect();
+
         Self {
             style,
             items: list,
@@ -119,13 +132,10 @@ impl ListStyle {
 pub struct ListItem {
     plugin: Plugin,
     item: proto::ListItem,
+    icon: Option<ResolvedIcon>,
 }
 
 impl ListItem {
-    pub(crate) fn new(plugin: Plugin, item: proto::ListItem) -> Self {
-        Self { plugin, item }
-    }
-
     pub fn plugin(&self) -> &Plugin {
         &self.plugin
     }
@@ -138,8 +148,8 @@ impl ListItem {
         &self.item.description
     }
 
-    pub fn icon(&self) -> Option<Icon> {
-        self.item.icon.clone().map(Icon::from_proto)
+    pub fn icon(&self) -> Option<&ResolvedIcon> {
+        self.icon.as_ref()
     }
 
     pub fn id(&self) -> ListItemId {
@@ -179,18 +189,31 @@ pub struct ListItemId {
     pub local_id: u64,
 }
 
+/// Icon with named system icons resolved to a file path.
 #[derive(Debug, Clone)]
-pub enum Icon {
-    Name(String),
+pub enum ResolvedIcon {
+    File(PathBuf),
     Text(String),
 }
 
-impl Icon {
-    pub(crate) fn from_proto(proto: proto::list_item::Icon) -> Self {
+impl ResolvedIcon {
+    pub(crate) fn resolve(proto: proto::list_item::Icon, icon_themes: &[String]) -> Option<Self> {
         use proto::list_item::Icon as Proto;
         match proto {
-            Proto::Name(name) => Self::Name(name),
-            Proto::Text(text) => Self::Text(text),
+            Proto::Name(name) => icon_themes
+                .iter()
+                .find_map(|theme| {
+                    freedesktop_icons::lookup(&name)
+                        .with_theme(&theme)
+                        .with_size(48)
+                        .with_cache()
+                        .find()
+                        .inspect(|path| {
+                            eprintln!("resolved {name} to theme {theme} at path {path:?}")
+                        })
+                })
+                .map(|icon| Self::File(icon)),
+            Proto::Text(text) => Some(Self::Text(text)),
         }
     }
 }

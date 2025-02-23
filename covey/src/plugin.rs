@@ -8,7 +8,7 @@ use covey_config::{
     manifest::PluginManifest,
 };
 
-use crate::{DATA_DIR, Input, List, event::Action, proto};
+use crate::{DATA_DIR, Input, event::Action, proto};
 
 /// A ref-counted reference to a plugin instance.
 ///
@@ -60,15 +60,13 @@ impl Plugin {
         &self.plugin.manifest
     }
 
-    pub(crate) async fn query(&self, query: impl Into<String>) -> Result<List> {
-        Ok(List::from_proto(
-            self,
-            self.plugin
-                .get_and_init()
-                .await?
-                .call_query(query.into())
-                .await?,
-        ))
+    pub(crate) async fn query(&self, query: impl Into<String>) -> Result<proto::QueryResponse> {
+        Ok(self
+            .plugin
+            .get_and_init()
+            .await?
+            .call_query(query.into())
+            .await?)
     }
 
     pub(crate) async fn activate(

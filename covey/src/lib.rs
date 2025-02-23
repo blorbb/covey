@@ -7,7 +7,7 @@ mod spawn;
 use std::{path::PathBuf, sync::LazyLock};
 
 use covey_config::config::GlobalConfig;
-pub use event::{Icon, Input, List, ListItem, ListItemId, ListStyle};
+pub use event::{Input, List, ListItem, ListItemId, ListStyle, ResolvedIcon};
 pub use host::Host;
 pub use plugin::Plugin;
 

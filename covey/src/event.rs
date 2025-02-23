@@ -204,7 +204,7 @@ impl ResolvedIcon {
                 .iter()
                 .find_map(|theme| {
                     let path = freedesktop_icons::lookup(&name)
-                        .with_theme(&theme)
+                        .with_theme(theme)
                         .with_size(48)
                         .with_cache()
                         .find()
@@ -226,7 +226,7 @@ impl ResolvedIcon {
                         None
                     }
                 })
-                .map(|icon| Self::File(icon)),
+                .map(Self::File),
             Proto::Text(text) => Some(Self::Text(text)),
         }
     }

@@ -4,7 +4,7 @@ use color_eyre::eyre::Result;
 use covey::{Frontend, Host};
 pub use covey_tauri_types::{Event, ListItem, ListStyle};
 use covey_tauri_types::{Icon, ListItemId};
-use tauri::{Manager, ipc::Channel};
+use tauri::ipc::Channel;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_notification::NotificationExt;
 
@@ -43,11 +43,17 @@ impl AppState {
         self.inner.get().expect("app state has not been set up")
     }
 
-    pub fn register_list_items(
-        &self,
-        lis: impl ExactSizeIterator<Item = covey::ListItem>,
-    ) -> Vec<ListItem> {
-        lis.map(|li| {
+    pub fn find_list_item(&self, id: &ListItemId) -> Option<covey::ListItemId> {
+        Some(covey::ListItemId {
+            plugin: self.host().plugins().get(id.plugin_id.as_str())?.clone(),
+            local_id: id.local_id.parse().ok()?,
+        })
+    }
+}
+
+fn convert_list_items(lis: &[covey::ListItem]) -> Vec<ListItem> {
+    lis.iter()
+        .map(|li| {
             let icon: Option<Icon> = match li.icon().cloned() {
                 Some(covey::ResolvedIcon::File(path)) => Some(Icon::File { path }),
                 Some(covey::ResolvedIcon::Text(text)) => Some(Icon::Text { text }),
@@ -67,14 +73,6 @@ impl AppState {
             }
         })
         .collect()
-    }
-
-    pub fn find_list_item(&self, id: &ListItemId) -> Option<covey::ListItemId> {
-        Some(covey::ListItemId {
-            plugin: self.host().plugins().get(id.plugin_id.as_str())?.clone(),
-            local_id: id.local_id.parse().ok()?,
-        })
-    }
 }
 
 #[derive(Clone)]
@@ -102,10 +100,9 @@ impl covey::Frontend for EventChannel {
     }
 
     fn set_list(&mut self, list: covey::List) {
-        let state = self.app.state::<AppState>();
         self.channel
             .send(Event::SetList {
-                items: state.register_list_items(list.items.into_iter()),
+                items: convert_list_items(&list.items),
                 style: list.style.map(list_style_from_covey),
                 plugin_id: list.plugin.id().clone(),
             })

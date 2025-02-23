@@ -106,6 +106,7 @@ impl ListItem {
     /// This should not be used directly, use the extension trait generated
     /// by [`crate::include_manifest!`] instead.
     #[doc(hidden)]
+    #[must_use]
     pub fn add_command(mut self, name: &'static str, callback: ActivationFunction) -> Self {
         self.commands.add_command(name, callback);
         self

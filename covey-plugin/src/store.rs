@@ -71,7 +71,7 @@ impl ListItemStore {
                     title: item.title,
                     description: item.description,
                     icon: item.icon.map(Icon::into_proto),
-                    available_commands: item.commands.ids().map(|s| s.to_owned()).collect(),
+                    available_commands: item.commands.ids().map(ToOwned::to_owned).collect(),
                 });
                 callbacks.push(item.commands);
             }

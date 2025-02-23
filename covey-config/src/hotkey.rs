@@ -3,6 +3,7 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
+#[expect(clippy::struct_excessive_bools, reason = "simpler to serialize")]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
@@ -149,7 +150,7 @@ impl FromStr for Hotkey {
                     }
                 }
                 _ => return Err(E::UnknownModifier(modifier.to_string())),
-            };
+            }
         }
 
         Ok(Self {

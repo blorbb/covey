@@ -69,7 +69,9 @@ impl<T: Identify> KeyedList<T> {
     pub fn get(&self, id: &str) -> Option<&T> {
         self.items.iter().find(|item| item.id().as_str() == id)
     }
+}
 
+impl<T> KeyedList<T> {
     pub fn iter(&self) -> slice::Iter<'_, T> {
         self.items.iter()
     }
@@ -78,7 +80,7 @@ impl<T: Identify> KeyedList<T> {
 impl<T> Default for KeyedList<T> {
     fn default() -> Self {
         Self {
-            items: Default::default(),
+            items: Vec::default(),
         }
     }
 }
@@ -110,6 +112,15 @@ impl<T> IntoIterator for KeyedList<T> {
         self.items.into_iter()
     }
 }
+
+impl<'a, T> IntoIterator for &'a KeyedList<T> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 /// A string ID that is cheap to clone.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]

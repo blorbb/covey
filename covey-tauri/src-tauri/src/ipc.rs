@@ -1,6 +1,9 @@
+#![expect(clippy::needless_pass_by_value, reason = "commands need owned types")]
+
 use std::path::PathBuf;
 
 use color_eyre::eyre::Result;
+use covey::Plugin;
 use covey_config::{config::GlobalConfig, keyed_list::Id, manifest::PluginManifest};
 use covey_tauri_types::{Event, ListItemId};
 use tauri::{Manager, State, WebviewWindowBuilder, ipc::Channel};
@@ -88,8 +91,8 @@ pub fn get_manifest(state: State<'_, AppState>, plugin_name: String) -> Option<P
     state
         .host()
         .plugins()
-        .get(&*plugin_name)
-        .map(|plugin| plugin.manifest())
+        .get(&plugin_name)
+        .map(Plugin::manifest)
         .cloned()
 }
 

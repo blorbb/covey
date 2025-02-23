@@ -27,24 +27,27 @@ struct ItemActivations {
     last_use: time::OffsetDateTime,
 }
 
-fn activations() -> Option<AllActivations> {
-    let mut file = std::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(false)
-        .read(true)
-        .open(activations_path())
-        .inspect_err(|e| eprintln!("error: {e}"))
-        .ok()?;
+fn activations() -> AllActivations {
+    (|| {
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(false)
+            .read(true)
+            .open(activations_path())
+            .inspect_err(|e| eprintln!("error: {e}"))
+            .ok()?;
 
-    let mut buf = Vec::new();
-    file.read_to_end(&mut buf).ok()?;
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf).ok()?;
 
-    serde_json::from_slice(&buf).ok()
+        serde_json::from_slice(&buf).ok()
+    })()
+    .unwrap_or_default()
 }
 
 pub(crate) fn register_usage(title: &str) {
-    let mut current = activations().unwrap_or_default();
+    let mut current = activations();
     println!("current {current:?}");
 
     // increment usage
@@ -68,6 +71,7 @@ pub(crate) fn register_usage(title: &str) {
     _ = std::fs::write(activations_path(), json_string);
 }
 
+#[expect(clippy::unused_async, reason = "may require async in the future")]
 pub async fn rank<'iter>(
     query: &str,
     items: impl IntoIterator<Item = &'iter ListItem>,
@@ -75,7 +79,7 @@ pub async fn rank<'iter>(
 ) -> Vec<ListItem> {
     let should_track_history = weights.frequency != 0.0 || weights.recency != 0.0;
     let activations = if should_track_history {
-        self::activations().unwrap_or_else(AllActivations::default)
+        self::activations()
     } else {
         AllActivations::default()
     };

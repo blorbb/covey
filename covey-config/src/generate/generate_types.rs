@@ -328,7 +328,7 @@ impl FieldType {
         parent_key: &Ident,
     ) -> Self {
         let serde = &paths.serde;
-        let struct_name = snake_to_upper_camel(&parent_key);
+        let struct_name = snake_to_upper_camel(parent_key);
         let mut extras = TokenStream::new();
         let mut this_fields = TokenStream::new();
 
@@ -428,12 +428,11 @@ impl FieldType {
 
         // default must be one of the items in the selection
         if let Some(default) = &selection.default {
-            if !selection.allowed_values.contains(&default) {
-                panic!(
-                    "selection has default {default} but is not one of the variants {:?}",
-                    selection.allowed_values
-                );
-            }
+            assert!(
+                selection.allowed_values.contains(default),
+                "selection has default {default} but is not one of the variants {:?}",
+                selection.allowed_values
+            )
         }
 
         // add #[derive(Default)] if there is a default

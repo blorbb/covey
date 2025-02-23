@@ -61,12 +61,11 @@ impl Plugin {
     }
 
     pub(crate) async fn query(&self, query: impl Into<String>) -> Result<proto::QueryResponse> {
-        Ok(self
-            .plugin
+        self.plugin
             .get_and_init()
             .await?
             .call_query(query.into())
-            .await?)
+            .await
     }
 
     pub(crate) async fn activate(
@@ -133,7 +132,7 @@ impl PartialOrd for Plugin {
 
 impl Ord for Plugin {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.id().cmp(&other.id())
+        self.id().cmp(other.id())
     }
 }
 

@@ -58,9 +58,9 @@ pub(super) fn generate_ext_trait(manifest: &PluginManifest, paths: &CratePaths) 
         }
     };
 
-    return quote! {
+    quote! {
         #trait_def
 
         #trait_impl
-    };
+    }
 }

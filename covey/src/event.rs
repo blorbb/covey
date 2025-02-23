@@ -203,14 +203,28 @@ impl ResolvedIcon {
             Proto::Name(name) => icon_themes
                 .iter()
                 .find_map(|theme| {
-                    freedesktop_icons::lookup(&name)
+                    let path = freedesktop_icons::lookup(&name)
                         .with_theme(&theme)
                         .with_size(48)
                         .with_cache()
                         .find()
                         .inspect(|path| {
-                            eprintln!("resolved {name} to theme {theme} at path {path:?}")
+                            tracing::trace!("found icon {name:?} with theme {theme:?} at {path:?}")
+                        });
+
+                    // lookup automatically goes through several backup options, including hicolor
+                    // and other paths. do not count an icon as being found if a backup is used.
+                    // To check whether a backup is used, see if the path contains the theme name.
+                    // But special case hicolor to allow the backup paths to be used.
+                    if theme == "hicolor"
+                        || path.as_ref().is_some_and(|path| {
+                            path.to_str().is_some_and(|str| str.contains(theme))
                         })
+                    {
+                        path
+                    } else {
+                        None
+                    }
                 })
                 .map(|icon| Self::File(icon)),
             Proto::Text(text) => Some(Self::Text(text)),

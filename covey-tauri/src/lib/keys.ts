@@ -169,3 +169,11 @@ export const isEmpty = (
   !hotkey.alt &&
   !hotkey.shift &&
   !hotkey.meta;
+
+export const newEmpty = (): MaybeHotkey => ({
+  key: undefined,
+  ctrl: false,
+  alt: false,
+  shift: false,
+  meta: false,
+});

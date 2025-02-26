@@ -74,6 +74,8 @@ button {
   // use outline transparent instead of none for better accessibility on high contrast mode
   outline: transparent;
 
+  cursor: pointer;
+
   &:focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;

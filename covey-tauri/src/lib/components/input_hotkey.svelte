@@ -3,14 +3,22 @@
   import * as keys from "$lib/keys";
 
   import Button from "./button.svelte";
+  import ButtonCircle from "./button_circle.svelte";
   import HotkeyKeys from "./hotkey_keys.svelte";
 
   let {
     userHotkey = $bindable(),
     default: defaultHotkey,
+    onDelete,
   }: {
     userHotkey?: Hotkey;
     default?: Hotkey;
+    /**
+     * Function to call when this hotkey is deleted.
+     *
+     * If this is not defined, there will be no delete button.
+     */
+    onDelete?: () => void;
   } = $props();
 
   let button = $state<HTMLButtonElement>();
@@ -69,11 +77,20 @@
       <HotkeyKeys theme="secondary" hotkey={displayedHotkey} />
     {/if}
   </Button>
+  {#if onDelete}
+    <ButtonCircle theme="accent" size="1rem" onclick={onDelete}>
+      <iconify-icon class="hotkey-x" icon="ph:x-bold"></iconify-icon>
+    </ButtonCircle>
+  {/if}
 </span>
 
 <style lang="scss">
   .input-hotkey {
-    display: inline-block;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.5rem;
+    align-items: center;
+
     padding: 0.25rem;
     min-width: 1rem;
     width: max-content;
@@ -94,5 +111,9 @@
 
   .placeholder {
     color: var(--color-on-surface-variant);
+  }
+
+  .hotkey-x {
+    font-size: 0.5rem;
   }
 </style>

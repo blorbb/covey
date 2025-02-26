@@ -27,7 +27,10 @@
   {/if}
 
   {#each drafts as _, i}
-    <InputHotkey bind:userHotkey={drafts[i]} />
+    <InputHotkey
+      bind:userHotkey={drafts[i]}
+      onDelete={() => drafts.splice(i)}
+    />
   {/each}
   <!-- TODO: button to add extra hotkeys -->
 </div>

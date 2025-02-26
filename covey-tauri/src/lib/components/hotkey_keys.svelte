@@ -32,7 +32,7 @@
 <style lang="scss">
   .hotkey {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.25rem;
 
     kbd {
       font-family: var(--ff-mono);

@@ -15,7 +15,7 @@ import * as keys from "./keys";
 import { Settings } from "./settings.svelte";
 import type { DeepReadonly } from "./utils";
 
-export type CommandInfo = Command & { customHotkey?: Hotkey };
+export type CommandInfo = Command & { customHotkeys?: Hotkey[] };
 
 export class Menu {
   public items = $state<ListItem[]>([]);
@@ -107,8 +107,11 @@ export class Menu {
     // find a command id that is in the `availableCommands` and matches
     // the hotkey (either custom or default)
     const commandId = commands.find((cmd) => {
-      const hotkey = cmd.customHotkey ?? cmd["default-hotkey"];
-      return hotkey != null && keys.hotkeysEqual(hotkey, pressedHotkey);
+      const hotkeys = cmd.customHotkeys ?? cmd["default-hotkeys"];
+      return (
+        hotkeys != null &&
+        hotkeys.some((hotkey) => keys.hotkeysEqual(hotkey, pressedHotkey))
+      );
     })?.id;
 
     if (commandId == null) return false;

@@ -183,12 +183,16 @@
               rounding="large"
               onclick={() => menu.activateById(command.id)}
             >
-              {@const hotkey =
-                command.customHotkey ?? command["default-hotkey"]}
+              {@const hotkeys =
+                command.customHotkeys ?? command["default-hotkeys"]}
               <div class="footer-command-button">
-                {#if hotkey}
+                {#each hotkeys ?? [] as hotkey, i}
+                  {#if i !== 0}
+                    <!-- separate by slashes -->
+                    /
+                  {/if}
                   <HotkeyKeys theme="tertiary" {hotkey} />
-                {/if}
+                {/each}
                 <span>
                   {command.title}
                 </span>

@@ -44,7 +44,7 @@
 <h2>Commands</h2>
 <div class="commands">
   {#each manifest.commands as command (command.id)}
-    <Command {command} bind:userHotkey={plugin.commands[command.id]} />
+    <Command {command} bind:userHotkeys={plugin.commands[command.id]} />
   {/each}
 </div>
 

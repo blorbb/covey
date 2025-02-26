@@ -1,6 +1,6 @@
 <script lang="ts">
-  import Command from "$lib/components/command.svelte";
   import Config from "$lib/components/config.svelte";
+  import InputHotkey from "$lib/components/input_hotkey.svelte";
 
   import type { LayoutData } from "./$types";
   const { data }: { data: LayoutData } = $props();
@@ -8,21 +8,15 @@
 </script>
 
 <div class="app-settings">
-  <Command
-    command={{
-      id: "reload-command",
-      title: "Reload hotkey",
-      description: "Hotkey to re-initialise the current plugin.",
-      "default-hotkey": {
-        ctrl: true,
-        alt: false,
-        shift: false,
-        meta: false,
-        key: "r",
-      },
-    }}
-    bind:userHotkey={appSettings["reload-hotkey"]}
-  />
+  <!-- TODO: fix this styling and deduplicate (copy of Command component) -->
+  <div class="command">
+    <p class="command-title">Reload hotkey</p>
+    <p class="command-description">
+      Hotkey to re-initialise the current plugin
+    </p>
+
+    <InputHotkey bind:userHotkey={appSettings["reload-hotkey"]} />
+  </div>
 
   <Config
     schema={{

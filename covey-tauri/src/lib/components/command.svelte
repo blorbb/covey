@@ -1,15 +1,23 @@
 <script lang="ts">
   import type { Command, Hotkey } from "$lib/bindings";
+  import type { DeepReadonly } from "$lib/utils";
 
   import InputHotkey from "./input_hotkey.svelte";
 
   let {
     command,
-    userHotkey = $bindable(),
+    userHotkeys = $bindable(),
   }: {
-    command: Command;
-    userHotkey?: Hotkey;
+    command: DeepReadonly<Command>;
+    userHotkeys?: Hotkey[];
   } = $props();
+
+  let drafts = $state(
+    userHotkeys ?? command["default-hotkeys"]?.map((x) => ({ ...x })) ?? [],
+  );
+  $effect(() => {
+    userHotkeys = drafts;
+  });
 </script>
 
 <div class="command">
@@ -18,10 +26,10 @@
     <p class="command-description">{command.description}</p>
   {/if}
 
-  <InputHotkey
-    bind:userHotkey
-    default={command["default-hotkey"] ?? undefined}
-  />
+  {#each drafts as _, i}
+    <InputHotkey bind:userHotkey={drafts[i]} />
+  {/each}
+  <!-- TODO: button to add extra hotkeys -->
 </div>
 
 <style lang="scss">

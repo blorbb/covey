@@ -60,7 +60,7 @@ pub struct Command {
     pub id: Id,
     pub title: String,
     pub description: Option<String>,
-    pub default_hotkey: Option<Hotkey>,
+    pub default_hotkeys: Option<Vec<Hotkey>>,
 }
 
 impl Identify for Command {
@@ -75,19 +75,21 @@ fn default_commands() -> KeyedList<Command> {
             id: Id::new("activate"),
             title: String::from("Activate"),
             description: None,
-            default_hotkey: Some("enter".parse().expect("enter should be a hotkey")),
+            default_hotkeys: Some(vec!["enter".parse().expect("enter should be a hotkey")]),
         },
         Command {
             id: Id::new("complete"),
             title: String::from("Complete"),
             description: None,
-            default_hotkey: Some("tab".parse().expect("tab should be a hotkey")),
+            default_hotkeys: Some(vec!["tab".parse().expect("tab should be a hotkey")]),
         },
         Command {
             id: Id::new("alt-activate"),
             title: String::from("Alt activate"),
             description: None,
-            default_hotkey: Some("alt+enter".parse().expect("alt+enter should be a hotkey")),
+            default_hotkeys: Some(vec![
+                "alt+enter".parse().expect("alt+enter should be a hotkey"),
+            ]),
         },
     ])
     .expect("ids are unique")

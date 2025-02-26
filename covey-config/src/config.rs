@@ -69,7 +69,7 @@ pub struct PluginConfig {
     #[serde(default)] // empty table if missing
     pub config: serde_json::Map<String, serde_json::Value>,
     #[serde(default)]
-    pub commands: HashMap<Id, Hotkey>,
+    pub commands: HashMap<Id, Vec<Hotkey>>,
 }
 
 impl Identify for PluginConfig {

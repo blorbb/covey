@@ -5,6 +5,7 @@
 
   import type { Id, ListStyle } from "$lib/bindings";
   import Button from "$lib/components/button.svelte";
+  import ButtonCircle from "$lib/components/button_circle.svelte";
   import HotkeyKeys from "$lib/components/hotkey_keys.svelte";
   import ScrollShadow from "$lib/components/scroll_shadow.svelte";
 
@@ -123,9 +124,13 @@
           placeholder="Search..."
         />
         <div class="settings-button">
-          <Button theme="tertiary" pill onclick={() => navSettings()}>
+          <ButtonCircle
+            theme="tertiary"
+            size="1lh"
+            onclick={() => navSettings()}
+          >
             <iconify-icon icon="ph:gear-bold"></iconify-icon>
-          </Button>
+          </ButtonCircle>
         </div>
       </div>
       <ScrollShadow>

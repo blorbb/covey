@@ -1,12 +1,21 @@
+<script module>
+  export type ButtonTheme =
+    | "primary"
+    | "secondary"
+    | "tertiary"
+    | "accent"
+    | "none";
+  export type ButtonRounding = "full" | "large" | "small" | "none";
+</script>
+
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { HTMLButtonAttributes } from "svelte/elements";
 
   type Props = HTMLButtonAttributes & {
-    theme: "primary" | "secondary" | "tertiary" | "none";
+    theme: ButtonTheme;
     stretch?: boolean;
-    pill?: boolean;
-    rounding?: "large" | "small" | "none";
+    rounding?: ButtonRounding;
     children?: Snippet;
     button?: HTMLButtonElement;
     minWidth?: string;
@@ -15,7 +24,6 @@
   let {
     theme,
     stretch = false,
-    pill = false,
     rounding = "none",
     children,
     button = $bindable(),
@@ -25,7 +33,7 @@
 
 <button
   bind:this={button}
-  class={["button", theme, { stretch, pill }]}
+  class={["button", theme, { stretch }]}
   data-rounding={rounding}
   {...rest}
 >
@@ -49,9 +57,8 @@
       border-radius: 1rem;
     }
 
-    &.pill {
-      border-radius: 999rem;
-      padding-inline: 0.5rem;
+    &[data-rounding="full"] {
+      border-radius: 999999rem;
     }
 
     &.secondary {
@@ -72,6 +79,16 @@
       &:hover {
         background-color: var(--color-surface-container-high);
         color: var(--color-on-surface-container);
+      }
+    }
+
+    &.accent {
+      background-color: var(--color-tertiary);
+      color: var(--color-on-tertiary);
+      transition: var(--time-transition) filter;
+
+      &:hover {
+        filter: brightness(1.15);
       }
     }
   }

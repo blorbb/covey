@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Button from "./button.svelte";
+  import ButtonPill from "./button_pill.svelte";
 
   let {
     value,
@@ -31,7 +31,7 @@
       (e.currentTarget.scrollLeft = e.currentTarget.scrollWidth)}
   />
   <div class="input-path-picker">
-    <Button theme="secondary" pill onclick={onPick}>{buttonText}</Button>
+    <ButtonPill theme="secondary" onclick={onPick}>{buttonText}</ButtonPill>
   </div>
 </div>
 

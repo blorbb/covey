@@ -13,15 +13,10 @@
     userHotkeys?: Hotkey[];
   } = $props();
 
-  let drafts = $state(
-    userHotkeys ?? command["default-hotkeys"]?.map((x) => ({ ...x })) ?? [],
-  );
+  userHotkeys =
+    userHotkeys ?? command["default-hotkeys"]?.map((x) => ({ ...x })) ?? [];
 
   let isAddingNewHotkey = $state(false);
-
-  $effect(() => {
-    userHotkeys = drafts;
-  });
 </script>
 
 <div class="command">
@@ -31,11 +26,11 @@
   {/if}
 
   <div class="hotkeys">
-    {#each drafts as _, i}
+    {#each userHotkeys as _, i}
       <InputHotkey
-        userHotkey={drafts[i]}
-        onCommitUserHotkey={(x) => (drafts[i] = x)}
-        onDelete={() => drafts.splice(i)}
+        userHotkey={userHotkeys[i]}
+        onCommitUserHotkey={(x) => (userHotkeys[i] = x)}
+        onDelete={() => userHotkeys.splice(i)}
       />
     {/each}
 
@@ -44,7 +39,7 @@
       <!-- currently in progress of adding one -->
       <InputHotkey
         onCommitUserHotkey={(x) => {
-          drafts.push(x);
+          userHotkeys.push(x);
           isAddingNewHotkey = false;
         }}
         onCancel={() => (isAddingNewHotkey = false)}

@@ -90,7 +90,7 @@ type GlobalConfig = Omit<GlobalConfigBinding, "plugins"> & {
 
 type PluginConfig = PluginConfigBinding & {
   config: Record<string, JsonValue>;
-  commands: Record<Id, Hotkey>;
+  commands: Record<Id, Hotkey[]>;
 };
 
 type PluginManifest = PluginManifestBinding & {

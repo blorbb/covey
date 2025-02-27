@@ -6,7 +6,7 @@
   import type { Id, ListStyle } from "$lib/bindings";
   import Button from "$lib/components/button.svelte";
   import ButtonCircle from "$lib/components/button_circle.svelte";
-  import HotkeyKeys from "$lib/components/hotkey_keys.svelte";
+  import MenuFooterCommands from "$lib/components/menu_footer_commands.svelte";
   import ScrollShadow from "$lib/components/scroll_shadow.svelte";
 
   import type { PageData } from "./$types";
@@ -181,30 +181,11 @@
       </ScrollShadow>
 
       <div class="menu-footer">
-        <div class="menu-footer-commands">
-          {#each menu.getAvailableCommands() as command}
-            <Button
-              theme="tertiary"
-              rounding="large"
-              onclick={() => menu.activateById(command.id)}
-            >
-              {@const hotkeys =
-                command.customHotkeys ?? command["default-hotkeys"]}
-              <div class="footer-command-button">
-                {#each hotkeys ?? [] as hotkey, i}
-                  {#if i !== 0}
-                    <!-- separate by slashes -->
-                    /
-                  {/if}
-                  <HotkeyKeys theme="tertiary" {hotkey} />
-                {/each}
-                <span>
-                  {command.title}
-                </span>
-              </div>
-            </Button>
-          {/each}
-        </div>
+        <MenuFooterCommands
+          commands={menu.getAvailableCommands()}
+          onActivate={(id) => menu.activateById(id)}
+        />
+
         <div class="menu-footer-plugin-info">
           {#if menu.activePlugin != null}
             {@const manifest = menu.manifestOf(menu.activePlugin)}
@@ -395,16 +376,8 @@
     justify-content: space-between;
   }
 
-  .menu-footer-commands {
-    display: flex;
-    gap: 0.5rem;
-  }
-
-  .footer-command-button,
   .footer-plugin-button {
     padding: 0.25rem 0.5rem;
-    display: flex;
-    gap: 0.5rem;
   }
 
   .positioner {

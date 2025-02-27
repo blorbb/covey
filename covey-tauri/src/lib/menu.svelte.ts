@@ -135,7 +135,7 @@ export class Menu {
     const currentItem = this.currentItem();
     if (currentItem == null) return [];
     const pluginId = currentItem.id.pluginId;
-    const pluginConfig = this.settings.getPlugin(pluginId);
+    const pluginConfig = this.settings.getPluginConfig(pluginId);
     const pluginManifest = this.settings.manifests[pluginId];
 
     return (

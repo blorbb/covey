@@ -54,8 +54,10 @@
 
     const keyName = keys.symbolToKeyCode(e.key);
     if (keyName !== undefined) {
+      const newHotkey = { ...draft, key: keyName };
+      console.debug("committing key", $state.snapshot(newHotkey));
       // commit the key when a non-modifier is pressed
-      onCommitUserHotkey({ ...draft, key: keyName });
+      onCommitUserHotkey(newHotkey);
       button?.blur();
     }
   };
@@ -76,6 +78,7 @@
     bind:button
     theme="none"
     onkeydown={registerKey}
+    onkeyup={registerKey}
     onclick={() => (capturing = true)}
     onblur={() => (capturing = false)}
   >

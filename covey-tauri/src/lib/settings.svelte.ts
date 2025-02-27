@@ -41,13 +41,25 @@ export class Settings {
   }
 
   public updateBackendConfig(): void {
-    console.debug("updating config to new");
+    console.debug("updating config to", $state.snapshot(this.globalConfig));
     void invoke("set_global_config", {
       config: this.globalConfig,
     });
   }
 
-  public getPlugin(pluginId: string): PluginConfig | undefined {
+  public getPluginConfig(pluginId: Id): PluginConfig | undefined {
+    console.debug(`getting configuration of plugin ${pluginId}`);
     return this.globalConfig.plugins.find((plugin) => plugin.id === pluginId);
+  }
+
+  public setPluginConfig(pluginId: Id, value: PluginConfig): void {
+    console.debug(`setting configuration of ${pluginId} to`, value);
+    const pluginIndex = this.globalConfig.plugins.findIndex(
+      (plugin) => plugin.id === pluginId,
+    );
+    if (pluginIndex === -1) {
+      console.error(`failed to find plugin with id ${pluginId}`);
+    }
+    this.globalConfig.plugins[pluginIndex] = value;
   }
 }

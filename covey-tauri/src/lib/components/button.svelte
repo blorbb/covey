@@ -4,6 +4,7 @@
     | "secondary"
     | "tertiary"
     | "accent"
+    | "error"
     | "none";
   export type ButtonRounding = "full" | "large" | "small" | "none";
 </script>
@@ -33,7 +34,8 @@
 
 <button
   bind:this={button}
-  class={["button", theme, { stretch }]}
+  class={["button", { stretch }]}
+  data-theme={theme}
   data-rounding={rounding}
   {...rest}
 >
@@ -61,7 +63,7 @@
       border-radius: 999999rem;
     }
 
-    &.secondary {
+    &[data-theme="secondary"] {
       background-color: var(--color-secondary-container);
       color: var(--color-on-secondary-container);
 
@@ -71,10 +73,11 @@
       }
     }
 
-    &.tertiary {
+    &[data-theme="tertiary"] {
+      background-color: var(--color-surface-container);
+      color: var(--color-on-surface-container);
       transition-property: background-color, color;
       transition-duration: var(--time-transition);
-      background-color: var(--color-surface-container);
 
       &:hover {
         background-color: var(--color-surface-container-high);
@@ -82,13 +85,27 @@
       }
     }
 
-    &.accent {
+    &[data-theme="accent"] {
       background-color: var(--color-tertiary);
       color: var(--color-on-tertiary);
-      transition: var(--time-transition) filter;
+      transition-property: background-color, color;
+      transition-duration: var(--time-transition);
 
       &:hover {
-        filter: brightness(1.15);
+        background-color: var(--color-tertiary-container);
+        color: var(--color-on-tertiary-container);
+      }
+    }
+
+    &[data-theme="error"] {
+      background-color: var(--color-error);
+      color: var(--color-on-error);
+      transition-property: background-color, color;
+      transition-duration: var(--time-transition);
+
+      &:hover {
+        background-color: var(--color-error-container);
+        color: var(--color-on-error-container);
       }
     }
   }

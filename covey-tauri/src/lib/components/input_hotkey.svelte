@@ -89,7 +89,7 @@
     {/if}
   </Button>
   {#if onDelete}
-    <ButtonCircle theme="accent" size="1rem" onclick={onDelete}>
+    <ButtonCircle theme="error" size="1rem" onclick={onDelete}>
       <iconify-icon class="hotkey-x" icon="ph:x-bold"></iconify-icon>
     </ButtonCircle>
   {/if}

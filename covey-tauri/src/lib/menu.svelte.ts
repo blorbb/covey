@@ -144,7 +144,7 @@ export class Menu {
         // add custom hotkey to the info
         .map((cmd) => ({
           ...cmd,
-          customHotkeys: pluginConfig?.commands[cmd.id].hotkeys ?? undefined,
+          customHotkeys: pluginConfig?.commands[cmd.id]?.hotkeys ?? undefined,
         }))
     );
   }

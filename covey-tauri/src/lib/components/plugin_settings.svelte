@@ -41,7 +41,11 @@
 <div class="commands">
   <!-- command is not reactive, so need to remount if the plugin changes -->
   {#each manifest.commands as command (`${plugin.id} : ${command.id}`)}
-    <Command {command} bind:userHotkeys={plugin.commands[command.id]} />
+    <Command
+      {command}
+      bind:userHotkeys={() => plugin.commands[command.id].hotkeys ?? undefined,
+      (hotkeys) => (plugin.commands[command.id].hotkeys = hotkeys ?? null)}
+    />
   {/each}
 </div>
 
@@ -50,7 +54,7 @@
   <h2>Configuration</h2>
   <div class="configs">
     {#each manifest.schema as schema (`${plugin.id} : ${schema.id}`)}
-      <Config {schema} bind:userValue={plugin.config[schema.id]} />
+      <Config {schema} bind:userValue={plugin.settings[schema.id]} />
     {/each}
   </div>
 {/if}

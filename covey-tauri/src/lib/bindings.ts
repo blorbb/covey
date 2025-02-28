@@ -3,6 +3,7 @@
  */
 
 import type { Command } from "./bindings/Command";
+import type { CommandSettings } from "./bindings/CommandSettings";
 import type { Event } from "./bindings/Event";
 import type { GlobalConfig as GlobalConfigBinding } from "./bindings/GlobalConfig";
 import type { Hotkey } from "./bindings/Hotkey";
@@ -13,8 +14,8 @@ import type { KeyedList } from "./bindings/KeyedList";
 import type { ListItem } from "./bindings/ListItem";
 import type { ListItemId } from "./bindings/ListItemId";
 import type { ListStyle } from "./bindings/ListStyle";
-import type { PluginConfig as PluginConfigBinding } from "./bindings/PluginConfig";
 import type { PluginConfigSchema as PluginConfigSchemaBinding } from "./bindings/PluginConfigSchema";
+import type { PluginEntry as PluginEntryBinding } from "./bindings/PluginEntry";
 import type { PluginManifest as PluginManifestBinding } from "./bindings/PluginManifest";
 import type { SchemaBool } from "./bindings/SchemaBool";
 import type { SchemaFilePath } from "./bindings/SchemaFilePath";
@@ -30,6 +31,7 @@ import type { JsonValue as JsonValueBinding } from "./bindings/serde_json/JsonVa
 
 export type {
   Command,
+  CommandSettings,
   Event,
   GlobalConfig,
   Hotkey,
@@ -41,7 +43,7 @@ export type {
   ListItem,
   ListItemId,
   ListStyle,
-  PluginConfig,
+  PluginEntry as PluginConfig,
   PluginConfigSchema,
   PluginManifest,
   SchemaBool,
@@ -85,12 +87,12 @@ type PluginConfigSchema = PluginConfigSchemaBinding & {
 };
 
 type GlobalConfig = Omit<GlobalConfigBinding, "plugins"> & {
-  plugins: KeyedList<PluginConfig>;
+  plugins: KeyedList<PluginEntry>;
 };
 
-type PluginConfig = PluginConfigBinding & {
-  config: Record<string, JsonValue>;
-  commands: Record<Id, Hotkey[]>;
+type PluginEntry = PluginEntryBinding & {
+  settings: Record<string, JsonValue>;
+  commands: Record<Id, CommandSettings>;
 };
 
 type PluginManifest = PluginManifestBinding & {

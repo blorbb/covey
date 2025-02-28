@@ -72,20 +72,22 @@ impl Action {
 /// actions to complete. If you need to run something more complex,
 /// you can write your desired code in the command callback.
 pub struct Actions {
-    pub(crate) list: Vec<Action>,
+    pub list: Vec<Action>,
+    _priv: (),
 }
 
 impl<T: IntoIterator<Item = Action>> From<T> for Actions {
     fn from(value: T) -> Self {
         Self {
             list: value.into_iter().collect(),
+            _priv: (),
         }
     }
 }
 
 impl From<Action> for Actions {
     fn from(value: Action) -> Self {
-        Self { list: vec![value] }
+        Self::from(std::iter::once(value))
     }
 }
 

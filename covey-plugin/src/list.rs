@@ -5,18 +5,23 @@ use anyhow::Result;
 use crate::{Action, Actions, proto};
 
 pub struct List {
-    pub(crate) items: Vec<ListItem>,
+    pub items: Vec<ListItem>,
     /// The kind of list to show.
     ///
     /// If this is [`None`], the list style will be the default set by
     /// the user. Plugins should only set one if the content makes the most
     /// sense with one of these styles.
-    pub(crate) style: Option<ListStyle>,
+    pub style: Option<ListStyle>,
+    _priv: (),
 }
 
 impl List {
     pub fn new(items: Vec<ListItem>) -> Self {
-        Self { items, style: None }
+        Self {
+            items,
+            style: None,
+            _priv: (),
+        }
     }
 
     #[must_use = "builder method consumes self"]
@@ -110,6 +115,17 @@ impl ListItem {
     pub fn add_command(mut self, name: &'static str, callback: ActivationFunction) -> Self {
         self.commands.add_command(name, callback);
         self
+    }
+
+    /// Tries to call a command, returning [`Some`] with the command's output if it was found.
+    ///
+    /// This should only be used for testing purposes.
+    pub async fn call_command(&self, command_id: &str) -> Option<Result<Actions>> {
+        if let Some(cb) = self.commands.commands.get(command_id) {
+            Some(cb().await)
+        } else {
+            None
+        }
     }
 }
 

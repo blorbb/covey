@@ -140,9 +140,6 @@ pub struct SchemaList {
     pub item_type: Box<SchemaType>,
     #[serde(default)]
     pub min_items: u32,
-    /// Whether all items in the list must be unique.
-    #[serde(default)]
-    pub unique: bool,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -417,7 +414,7 @@ mod tests {
         let input = r#"
             id = "thing-id"
             title = "thing"
-            type = { list = { item-type = "int", unique = true } }
+            type = { list = { item-type = "int" } }
         "#;
         let output: PluginConfigSchema = toml::from_str(input).unwrap();
         assert_eq!(
@@ -429,7 +426,6 @@ mod tests {
                 r#type: SchemaType::List(SchemaList {
                     item_type: Box::new(SchemaType::Int(SchemaInt::default())),
                     min_items: 0,
-                    unique: true,
                 })
             }
         );

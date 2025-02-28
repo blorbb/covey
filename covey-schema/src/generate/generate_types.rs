@@ -210,7 +210,6 @@ impl FieldType {
         SchemaList {
             item_type,
             min_items,
-            unique,
         }: SchemaList,
         paths: &CratePaths,
         parent_key: &Ident,
@@ -227,15 +226,6 @@ impl FieldType {
             &format!("list to have at least {min_items} elements"),
         );
 
-        let unique_check = unique.then(|| -> TokenStream {
-            let unique_error = paths.bail_invalid_value(
-                quote!(Other(&::std::format!("{v:?}"))),
-                "list to have no duplicates",
-            );
-
-            todo!("uniqueness validator");
-        });
-
         Self {
             type_path: TypePath::absolute(quote! { ::std::vec::Vec })
                 .with_generic(inner_type.clone()),
@@ -247,8 +237,6 @@ impl FieldType {
                 if (value.len() as u32) < #min_items {
                     #length_error
                 }
-
-                #unique_check
             },
             default: TypeDefault::DefaultTrait,
             extras,

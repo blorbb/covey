@@ -109,7 +109,7 @@ impl covey::Frontend for EventChannel {
             .unwrap();
     }
 
-    fn reload(&mut self, config: covey_config::config::GlobalConfig) {
+    fn reload(&mut self, config: covey_schema::config::GlobalConfig) {
         tracing::info!("reloading at the front end");
         self.channel.send(Event::Reload { config }).unwrap();
     }

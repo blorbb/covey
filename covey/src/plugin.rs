@@ -2,7 +2,7 @@ use core::fmt;
 use std::{hash::Hash, path::PathBuf, sync::Arc};
 
 use color_eyre::eyre::Result;
-use covey_config::{
+use covey_schema::{
     config::PluginConfig,
     keyed_list::{Id, Identify},
     manifest::PluginManifest,
@@ -146,7 +146,7 @@ impl Hash for Plugin {
 // Implement `Equivalent` instead of `Borrow` as plugins should be used
 // in an indexmap. It also doesn't completely fit the `Borrow` contract.
 impl Identify for Plugin {
-    fn id(&self) -> &covey_config::keyed_list::Id {
+    fn id(&self) -> &covey_schema::keyed_list::Id {
         self.id()
     }
 }
@@ -170,7 +170,7 @@ mod implementation {
     use std::{path::PathBuf, process::Stdio};
 
     use color_eyre::eyre::{Context as _, Result};
-    use covey_config::{config::PluginConfig, manifest::PluginManifest};
+    use covey_schema::{config::PluginConfig, manifest::PluginManifest};
     use tokio::{
         io::{AsyncBufReadExt as _, BufReader},
         process::{Child, Command},

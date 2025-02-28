@@ -6,7 +6,7 @@
 
 use std::path::PathBuf;
 
-use covey_config::{config::GlobalConfig, keyed_list::Id};
+use covey_schema::{config::GlobalConfig, keyed_list::Id};
 use serde::{Deserialize, Serialize};
 
 /// This must have an equivalent type on the frontend
@@ -71,7 +71,7 @@ pub fn export_ts_to(path: impl AsRef<std::path::Path>) {
     use ts_rs::TS;
     let path = path.as_ref();
 
-    covey_config::config::GlobalConfig::export_all_to(path).unwrap();
-    covey_config::manifest::PluginManifest::export_all_to(path).unwrap();
+    covey_schema::config::GlobalConfig::export_all_to(path).unwrap();
+    covey_schema::manifest::PluginManifest::export_all_to(path).unwrap();
     crate::Event::export_all_to(path).unwrap();
 }

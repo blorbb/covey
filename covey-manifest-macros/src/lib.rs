@@ -8,7 +8,7 @@ use syn::{LitStr, Token, parse::Parse, parse_quote, punctuated::Punctuated};
 pub fn include_manifest(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(input as Input);
 
-    covey_config::generate::include_manifest(
+    covey_schema::generate::include_manifest(
         &input.format.evaluate(),
         input.serde_path.into_token_stream(),
         input.ext_impl_ty.into_token_stream(),

@@ -22,8 +22,7 @@ anyhow = "1.0.93"
 sublime_fuzzy = "0.7.0"
 time = { version = "0.3", features = ["serde"] }
 parking_lot = "0.12"
-covey-config = { path = "../covey-config" }
-covey-config-macro = { path = "../covey-config-macro" }
+covey-manifest-macros = { path = "../covey-manifest-macros" }
 serde.workspace = true
 serde_json.workspace = true
 dirs.workspace = true

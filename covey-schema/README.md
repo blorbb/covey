@@ -1,4 +1,4 @@
-# covey-config
+# covey-schema
 
 Type definitions for covey's configuration and plugin manifests.
 

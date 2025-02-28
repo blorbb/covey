@@ -6,7 +6,7 @@ use std::{
 };
 
 use color_eyre::eyre::{Context, Result, bail, eyre};
-use covey_config::{
+use covey_schema::{
     config::GlobalConfig,
     keyed_list::{Id, KeyedList},
 };

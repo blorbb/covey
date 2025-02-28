@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use color_eyre::eyre::Result;
 use covey::Plugin;
-use covey_config::{config::GlobalConfig, keyed_list::Id, manifest::PluginManifest};
+use covey_schema::{config::GlobalConfig, keyed_list::Id, manifest::PluginManifest};
 use covey_tauri_types::{Event, ListItemId};
 use tauri::{Manager, State, WebviewWindowBuilder, ipc::Channel};
 

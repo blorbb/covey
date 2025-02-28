@@ -130,7 +130,7 @@ impl Icon {
 }
 
 // TODO: figure out the bounds to put here and on the generated extension trait
-// methods (covey-config/src/generate/generate_ext.rs#generate_ext_trait).
+// methods (covey-schema/src/generate/generate_ext.rs#generate_ext_trait).
 //
 // a tonic server requires that all the functions are Send + Sync.
 // this means that all futures called must be Send + Sync.

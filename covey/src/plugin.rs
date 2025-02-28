@@ -3,7 +3,7 @@ use std::{hash::Hash, path::PathBuf, sync::Arc};
 
 use color_eyre::eyre::Result;
 use covey_schema::{
-    config::PluginConfig,
+    config::PluginEntry,
     keyed_list::{Id, Identify},
     manifest::PluginManifest,
 };
@@ -26,7 +26,7 @@ pub struct Plugin {
 
 impl Plugin {
     /// Initialises a plugin from it's configuration.
-    pub(crate) fn new(config: PluginConfig) -> Result<Self> {
+    pub(crate) fn new(config: PluginEntry) -> Result<Self> {
         Ok(Self {
             plugin: Arc::new(implementation::LazyPlugin::new(config)?),
         })
@@ -170,7 +170,7 @@ mod implementation {
     use std::{path::PathBuf, process::Stdio};
 
     use color_eyre::eyre::{Context as _, Result};
-    use covey_schema::{config::PluginConfig, manifest::PluginManifest};
+    use covey_schema::{config::PluginEntry, manifest::PluginManifest};
     use tokio::{
         io::{AsyncBufReadExt as _, BufReader},
         process::{Child, Command},
@@ -190,11 +190,11 @@ mod implementation {
     pub(super) struct LazyPlugin {
         cell: OnceCell<PluginInner>,
         pub(super) manifest: PluginManifest,
-        pub(super) config: PluginConfig,
+        pub(super) config: PluginEntry,
     }
 
     impl LazyPlugin {
-        pub(super) fn new(config: PluginConfig) -> Result<Self> {
+        pub(super) fn new(config: PluginEntry) -> Result<Self> {
             let id = &config.id;
             let path = manifest_path(id.as_str());
             let toml = std::fs::read_to_string(path)
@@ -216,7 +216,7 @@ mod implementation {
             self.cell
                 .get_or_try_init(|| async {
                     info!("initialising plugin {:?}", self.config.id);
-                    let config_json = serde_json::to_string(&self.config.config)?;
+                    let config_json = serde_json::to_string(&self.config.settings)?;
                     let bin_path = binary_path(self.config.id.as_str());
                     let plugin = PluginInner::new(bin_path).await?;
 

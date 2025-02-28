@@ -14,9 +14,9 @@ use crate::{
 #[serde(rename_all = "kebab-case")]
 pub struct GlobalConfig {
     #[serde(default)]
-    pub app: AppConfig,
+    pub app: AppSettings,
     #[serde(default)]
-    pub plugins: KeyedList<PluginConfig>,
+    pub plugins: KeyedList<PluginEntry>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -24,7 +24,7 @@ pub struct GlobalConfig {
 #[serde(rename_all = "kebab-case", default)]
 // every field must have a default annotation
 // so that a partially filled config still works
-pub struct AppConfig {
+pub struct AppSettings {
     /// Hotkey to re-initialise the current plugin.
     ///
     /// Default is Ctrl+R.
@@ -37,7 +37,7 @@ pub struct AppConfig {
     pub icon_themes: Arc<[String]>,
 }
 
-impl Default for AppConfig {
+impl Default for AppSettings {
     fn default() -> Self {
         Self {
             reload_hotkey: default_reload_hotkey(),
@@ -63,17 +63,27 @@ fn default_icon_themes() -> Arc<[String]> {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
-pub struct PluginConfig {
+pub struct PluginEntry {
     pub id: Id,
     pub prefix: String,
     #[serde(default)] // empty table if missing
-    pub config: serde_json::Map<String, serde_json::Value>,
+    pub settings: serde_json::Map<String, serde_json::Value>,
     #[serde(default)]
-    pub commands: HashMap<Id, Vec<Hotkey>>,
+    pub commands: HashMap<Id, CommandSettings>,
 }
 
-impl Identify for PluginConfig {
+impl Identify for PluginEntry {
     fn id(&self) -> &Id {
         &self.id
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
+#[serde(rename_all = "kebab-case")]
+pub struct CommandSettings {
+    // This should be Option<Vec> instead of an empty/default vec
+    // to distinguish between a command with no hotkeys, and
+    // a command without user-set hotkeys (use plugin defaults).
+    hotkeys: Option<Vec<Hotkey>>,
 }

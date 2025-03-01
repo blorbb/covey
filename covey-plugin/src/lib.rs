@@ -2,7 +2,10 @@ pub mod manifest;
 pub mod rank;
 
 mod list;
-use std::{path::PathBuf, sync::OnceLock};
+use std::{
+    path::PathBuf,
+    sync::{LazyLock, OnceLock},
+};
 
 pub use list::{Icon, List, ListItem, ListStyle};
 mod action;
@@ -36,16 +39,21 @@ pub static PLUGIN_ID: OnceLock<&'static str> = OnceLock::new();
 ///
 /// [`covey_plugin`](crate) will also add an `activations.json` file. See
 /// the [`rank`] module for more details.
-pub fn plugin_data_dir() -> PathBuf {
-    dirs::data_dir()
-        .expect("data dir should exist")
-        .join("covey")
-        .join("plugins")
-        .join(
-            PLUGIN_ID
-                .get()
-                .expect("plugin id should be initialised in main"),
-        )
+///
+/// This depends on the [`PLUGIN_ID`] static being set before first being called.
+pub fn plugin_data_dir() -> &'static PathBuf {
+    static DIR: LazyLock<PathBuf> = LazyLock::new(|| {
+        dirs::data_dir()
+            .expect("data dir should exist")
+            .join("covey")
+            .join("plugins")
+            .join(
+                PLUGIN_ID
+                    .get()
+                    .expect("plugin id should be initialised in main"),
+            )
+    });
+    &*DIR
 }
 
 /// Clones variables into an async closure (by calling [`ToOwned::to_owned`]).

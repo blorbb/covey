@@ -43,8 +43,8 @@
   {#each manifest.commands as command (`${plugin.id} : ${command.id}`)}
     <Command
       {command}
-      bind:userHotkeys={() => plugin.commands[command.id].hotkeys ?? undefined,
-      (hotkeys) => (plugin.commands[command.id].hotkeys = hotkeys ?? null)}
+      bind:userHotkeys={() => plugin.commands[command.id]?.hotkeys ?? undefined,
+      (hotkeys) => (plugin.commands[command.id] = { hotkeys: hotkeys ?? null })}
     />
   {/each}
 </div>

@@ -50,14 +50,12 @@
     >
       <div class="footer-command-button">
         <div class="footer-command-button-hotkeys">
-          {#each info.hotkeys as hotkey, i (`${info.command.id} : ${i}`)}
-            <!-- separate by slashes -->
-            {#if i !== 0}/{/if}
-            <HotkeyKeys theme="tertiary" {hotkey} />
-          {/each}
+          {#if info.hotkeys.length >= 1}
+            <HotkeyKeys theme="tertiary" hotkey={info.hotkeys[0]} />
+          {/if}
         </div>
 
-        <span>
+        <span class="footer-command-button-title">
           {info.command.title}
         </span>
       </div>
@@ -75,10 +73,15 @@
     padding: 0.25rem 0.5rem;
     display: flex;
     gap: 0.5rem;
+    align-items: center;
   }
 
   .footer-command-button-hotkeys {
     display: flex;
     gap: 0.25rem;
+  }
+
+  .footer-command-button-title {
+    flex-shrink: 0;
   }
 </style>

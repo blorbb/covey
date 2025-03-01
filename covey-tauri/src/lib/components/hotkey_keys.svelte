@@ -33,6 +33,7 @@
   .hotkey {
     display: flex;
     gap: 0.25rem;
+    align-items: center;
 
     kbd {
       font-family: var(--ff-mono);

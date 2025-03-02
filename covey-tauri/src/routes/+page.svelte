@@ -8,6 +8,7 @@
   import ButtonCircle from "$lib/components/button_circle.svelte";
   import MenuFooterCommands from "$lib/components/menu_footer_commands.svelte";
   import ScrollShadow from "$lib/components/scroll_shadow.svelte";
+  import tracing from "$lib/tracing";
 
   import type { PageData } from "./$types";
 
@@ -61,6 +62,7 @@
   // select full input when focussed
   let unlisten: UnlistenFn | undefined;
   void listen("tauri://focus", () => {
+    tracing.info("focus changed");
     mainInput?.setSelectionRange(0, mainInput.value.length);
   }).then((f) => (unlisten = f));
 
@@ -75,6 +77,7 @@
 
     // hide window if clicked outside menu wrapper
     if (!menuWrapper?.contains(ev.target)) {
+      tracing.info("clicked outside");
       void getCurrentWindow().hide();
     }
   };

@@ -103,3 +103,28 @@ pub fn read_any_file(path: PathBuf) -> Result<tauri::ipc::Response, String> {
         std::fs::read(path).map_err(|e| e.to_string())?,
     ))
 }
+
+#[tauri::command]
+pub fn log_error(log: String) {
+    tracing::error!("ui: {log}")
+}
+
+#[tauri::command]
+pub fn log_warn(log: String) {
+    tracing::warn!("ui: {log}")
+}
+
+#[tauri::command]
+pub fn log_info(log: String) {
+    tracing::info!("ui: {log}")
+}
+
+#[tauri::command]
+pub fn log_debug(log: String) {
+    tracing::debug!("ui: {log}")
+}
+
+#[tauri::command]
+pub fn log_trace(log: String) {
+    tracing::trace!("ui: {log}")
+}

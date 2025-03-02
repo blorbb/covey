@@ -3,24 +3,27 @@
 use tauri::Manager;
 
 pub fn hide_menu(app: &tauri::AppHandle) {
-    eprintln!("hiding window");
+    tracing::debug!("hiding window");
     if let Some(window) = app.get_webview_window("main") {
+        tracing::info!("hiding main window");
         window.hide().unwrap();
     } else {
-        eprintln!("WARN: main window was not found");
+        tracing::warn!("main window was not found");
     }
 }
 
 pub fn show_menu(app: &tauri::AppHandle) {
-    eprintln!("showing window");
+    tracing::debug!("showing window");
     if let Some(window) = app.get_webview_window("main") {
+        tracing::info!("showing main window");
         window.show().unwrap();
         window.set_focus().unwrap();
         // maximise in case the target monitor changes.
         window.set_resizable(true).unwrap();
         window.maximize().unwrap();
         window.set_resizable(false).unwrap();
+        tracing::info!("finished showing main window");
     } else {
-        eprintln!("WARN: main window was not found");
+        tracing::warn!("main window was not found");
     }
 }

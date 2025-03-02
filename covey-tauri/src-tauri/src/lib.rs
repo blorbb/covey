@@ -66,10 +66,12 @@ pub fn run() {
                 let main_window = main_window.clone();
                 move |ev| match ev {
                     tauri::WindowEvent::CloseRequested { api, .. } => {
+                        tracing::debug!("close requested");
                         api.prevent_close();
                         main_window.hide().unwrap();
                     }
                     tauri::WindowEvent::Focused(focused) => {
+                        tracing::debug!("changed focus to {focused}");
                         if !*focused {
                             main_window.hide().unwrap();
                         }
@@ -90,6 +92,11 @@ pub fn run() {
             ipc::get_manifest,
             ipc::reload_plugin,
             ipc::read_any_file,
+            ipc::log_error,
+            ipc::log_warn,
+            ipc::log_info,
+            ipc::log_debug,
+            ipc::log_trace,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

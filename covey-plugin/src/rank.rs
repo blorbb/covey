@@ -48,7 +48,6 @@ fn activations() -> AllActivations {
 
 pub(crate) fn register_usage(title: &str) {
     let mut current = activations();
-    println!("current {current:?}");
 
     // increment usage
     let entry = current

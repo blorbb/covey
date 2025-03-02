@@ -15,9 +15,7 @@ macro_rules! include_manifest {
             file = $path,
             // this can't be $crate as it's used by serde, requires a proper path
             serde_path = covey_plugin::manifest::__private_generation::serde,
-            ext_impl_ty = $crate::ListItem,
-            command_return_ty = $crate::Result<R>,
-            command_return_trait = ::core::convert::Into<$crate::Actions>,
+            covey_plugin_path = $crate,
         );
 
         impl $crate::manifest::ManifestDeserialization for self::Config {
@@ -73,9 +71,7 @@ mod tests {
 
         __private_generation::include_manifest!(
             serde_path = crate::manifest::__private_generation::serde,
-            ext_impl_ty = crate::ListItem,
-            command_return_ty = crate::Result<R>,
-            command_return_trait = ::core::convert::Into<crate::Actions>,
+            covey_plugin_path = crate,
             inline = r#"
                 name = "Open"
                 description = "Open URLs with a query"
@@ -117,7 +113,10 @@ mod tests {
         };
 
         use config::CommandExt;
-        crate::ListItem::new("ajwroiajw").on_activate(|| async { Ok(vec![]) });
+        crate::ListItem::new("ajwroiajw").on_activate(async |menu| {
+            menu.close();
+            Ok(())
+        });
     }
 
     #[test]

@@ -16,6 +16,9 @@ mod plugin;
 pub use plugin::Plugin;
 mod server;
 pub use server::run_server;
+mod menu;
+pub use menu::Menu;
+pub mod spawn;
 mod store;
 
 #[allow(clippy::pedantic)]
@@ -119,13 +122,14 @@ pub fn plugin_data_dir() -> &'static PathBuf {
 macro_rules! clone_async {
     // this isn't correctly matched with the below so need a special case
     // for empty closure args
+
     (
         $( $ident:ident $(= $expr:expr)? , )*
         || $($tt:tt)*
     ) => {
         {
             $(let $ident = ($crate::__clone_helper_choose_first!($($expr,)? $ident)).to_owned();)*
-            move || {
+            async move || {
                 // TODO: this extra clone isn't necessary.
                 // with an async closure, the future can *borrow* from variables
                 // captured (and owned) by the closure. however, this isn't clear
@@ -135,7 +139,7 @@ macro_rules! clone_async {
                 // closure is called, which is simpler to reason about and
                 // this has little impact to performance anyways.
                 $(let $ident = $ident.to_owned();)*
-                async move { $($tt)* }
+                { $($tt)* }
             }
         }
     };
@@ -146,12 +150,13 @@ macro_rules! clone_async {
     ) => {
         {
             $(let $ident = ($crate::__clone_helper_choose_first!($($expr,)? $ident)).to_owned();)*
-            move | $($args),* | {
+            async move | $($args),* | {
                 $(let $ident = $ident.to_owned();)*
-                async move { $($tt)* }
+                { $($tt)* }
             }
         }
     };
+
 }
 
 /// Private implementation detail of [`clone_async!`].

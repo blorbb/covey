@@ -2,7 +2,6 @@ mod event;
 mod host;
 mod plugin;
 mod proto;
-mod spawn;
 
 use std::{path::PathBuf, sync::LazyLock};
 
@@ -43,5 +42,5 @@ pub trait Frontend: Send + 'static {
     fn reload(&mut self, config: GlobalConfig);
 
     // TODO: refactor this lib to have a custom error type
-    fn display_error(&mut self, title: &str, error: color_eyre::eyre::Report);
+    fn display_error(&mut self, title: &str, error: &str);
 }

@@ -114,12 +114,12 @@ impl covey::Frontend for EventChannel {
         self.channel.send(Event::Reload { config }).unwrap();
     }
 
-    fn display_error(&mut self, title: &str, error: color_eyre::eyre::Report) {
+    fn display_error(&mut self, title: &str, error: &str) {
         self.app
             .notification()
             .builder()
             .title(title)
-            .body(format!("{error:#}"))
+            .body(error)
             .show()
             .unwrap();
     }

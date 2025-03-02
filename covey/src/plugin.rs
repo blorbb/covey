@@ -8,7 +8,10 @@ use covey_schema::{
     manifest::PluginManifest,
 };
 
-use crate::{DATA_DIR, Input, event::Action, proto};
+use crate::{
+    DATA_DIR,
+    proto::{self, ActivationResponse},
+};
 
 /// A ref-counted reference to a plugin instance.
 ///
@@ -72,38 +75,13 @@ impl Plugin {
         &self,
         selection_id: u64,
         command_name: String,
-    ) -> Result<Vec<Action>> {
-        Ok(self.map_proto_actions(
-            self.plugin
-                .get_and_init()
-                .await?
-                .call_activate(selection_id, command_name)
-                .await?,
-        ))
-    }
-
-    fn map_proto_actions(&self, actions: Vec<proto::Action>) -> Vec<Action> {
-        use proto::action::Action as PAction;
-
-        actions
-            .into_iter()
-            .filter_map(|action| {
-                let Some(action) = action.action else {
-                    tracing::error!("plugin {self:?} did not provide an action: ignoring");
-                    return None;
-                };
-
-                Some(match action {
-                    PAction::Close(()) => Action::Close,
-                    PAction::RunCommand(proto::Command { cmd, args }) => {
-                        Action::RunCommand(cmd, args)
-                    }
-                    PAction::RunShell(str) => Action::RunShell(str),
-                    PAction::Copy(str) => Action::Copy(str),
-                    PAction::SetInput(input) => Action::SetInput(Input::from_proto(self, input)),
-                })
-            })
-            .collect()
+    ) -> Result<tonic::Streaming<ActivationResponse>> {
+        Ok(self
+            .plugin
+            .get_and_init()
+            .await?
+            .call_activate(selection_id, command_name)
+            .await?)
     }
 }
 
@@ -176,7 +154,7 @@ mod implementation {
         process::{Child, Command},
         sync::OnceCell,
     };
-    use tonic::{Request, transport::Channel};
+    use tonic::{Request, Streaming, transport::Channel};
     use tracing::info;
 
     use super::{
@@ -314,7 +292,7 @@ mod implementation {
             &self,
             selection_id: u64,
             command_name: String,
-        ) -> Result<Vec<proto::Action>> {
+        ) -> Result<Streaming<proto::ActivationResponse>> {
             Ok(self
                 .plugin
                 .clone()
@@ -323,8 +301,7 @@ mod implementation {
                     command_name,
                 }))
                 .await?
-                .into_inner()
-                .actions)
+                .into_inner())
         }
     }
 }

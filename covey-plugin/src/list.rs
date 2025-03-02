@@ -1,8 +1,6 @@
 use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
 
-use anyhow::Result;
-
-use crate::{Action, Actions, proto};
+use crate::{Menu, proto};
 
 pub struct List {
     pub items: Vec<ListItem>,
@@ -116,17 +114,6 @@ impl ListItem {
         self.commands.add_command(name, callback);
         self
     }
-
-    /// Tries to call a command, returning [`Some`] with the command's output if it was found.
-    ///
-    /// This should only be used for testing purposes.
-    pub async fn call_command(&self, command_id: &str) -> Option<Result<Actions>> {
-        if let Some(cb) = self.commands.commands.get(command_id) {
-            Some(cb().await)
-        } else {
-            None
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -170,7 +157,7 @@ impl Icon {
 // are easier to work with (https://maciej.codes/2022-06-09-local-async.html).
 
 type DynFuture<T> = Pin<Box<dyn Future<Output = T>>>;
-type ActivationFunction = Arc<dyn Fn() -> DynFuture<Result<Actions>> + Send + Sync>;
+type ActivationFunction = Arc<dyn Fn(Menu) -> DynFuture<()> + Send + Sync>;
 
 #[derive(Clone)]
 pub(crate) struct ListItemCallbacks {
@@ -191,13 +178,11 @@ impl ListItemCallbacks {
         self.commands.insert(name, callback);
     }
 
-    /// Calls a command by name, returning an empty vec if the command is not found.
-    pub(crate) async fn call_command(&self, name: &str) -> Result<Vec<Action>> {
+    /// Calls a command by name, doing nothing if the command is not found.
+    pub(crate) async fn call_command(&self, name: &str, menu: Menu) {
         if let Some(cmd) = self.commands.get(name) {
             crate::rank::register_usage(&self.item_title);
-            cmd().await.map(|actions| actions.list)
-        } else {
-            Ok(vec![])
+            cmd(menu).await;
         }
     }
 

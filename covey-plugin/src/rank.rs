@@ -67,7 +67,6 @@ pub(crate) fn register_usage(title: &str) {
         eprintln!("failed stringifying {current:?}");
         return;
     };
-    eprintln!("writing {json_string} to {:?}", activations_path());
     _ = std::fs::write(activations_path(), json_string);
 }
 

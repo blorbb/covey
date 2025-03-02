@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use color_eyre::eyre::{Context, Result, bail, eyre};
+use color_eyre::eyre::Result;
 use covey_schema::{
     config::GlobalConfig,
     keyed_list::{Id, KeyedList},
@@ -15,7 +15,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     CONFIG_PATH, Frontend, List, Plugin,
-    event::{Action, ListItemId, PluginEvent},
+    event::{ListItemId, PluginEvent},
 };
 
 struct HostInner {
@@ -103,16 +103,6 @@ impl Host {
         Ok(())
     }
 
-    fn make_event_future<Fut>(&self, event: Fut) -> impl Future<Output = ()> + use<Fut>
-    where
-        Fut: Future<Output = Result<PluginEvent>> + Send + 'static,
-    {
-        let this = self.clone();
-        async move {
-            this.handle_event(event.await).await;
-        }
-    }
-
     #[tracing::instrument(skip(self))]
     pub fn activate(
         &self,
@@ -121,12 +111,38 @@ impl Host {
     ) -> impl Future<Output = ()> + use<> {
         debug!("activating {item:?}");
 
-        self.make_event_future(async move {
-            item.plugin
-                .activate(item.local_id, command_name)
-                .await
-                .map(PluginEvent::Run)
-        })
+        let this = self.clone();
+        async move {
+            let mut stream = match item.plugin.activate(item.local_id, command_name).await {
+                Ok(stream) => stream,
+                Err(e) => {
+                    this.handle_event(PluginEvent::DisplayError(format!("{e:#}")))
+                        .await;
+                    return;
+                }
+            };
+
+            loop {
+                match stream.message().await {
+                    Ok(Some(value)) => {
+                        let Some(action) = value.action.action else {
+                            tracing::warn!("plugin {:?} did not provide an action", item.plugin);
+                            continue;
+                        };
+
+                        tracing::debug!("received action {action:?}");
+
+                        this.handle_event(PluginEvent::from_proto_action(&item.plugin, action))
+                            .await;
+                    }
+                    Ok(None) => break,
+                    Err(e) => {
+                        this.handle_event(PluginEvent::DisplayError(e.to_string()))
+                            .await;
+                    }
+                };
+            }
+        }
     }
 
     /// Calls a plugin with this input.
@@ -144,25 +160,35 @@ impl Host {
             )
         };
 
-        self.make_event_future(async move {
+        let this = self.clone();
+        async move {
             for plugin in plugins {
                 let Some(stripped) = input.strip_prefix(plugin.prefix()) else {
                     continue;
                 };
                 debug!("querying plugin {plugin:?}");
-                let proto_list = plugin.query(stripped).await?;
 
-                return Ok(PluginEvent::SetList {
-                    list: List::from_proto(&plugin, &icon_themes, proto_list),
-                    index: this_action_index,
-                });
+                match plugin.query(stripped).await {
+                    Ok(proto_list) => {
+                        this.handle_event(PluginEvent::SetList {
+                            list: List::from_proto(&plugin, &icon_themes, proto_list),
+                            index: this_action_index,
+                        })
+                        .await;
+                    }
+                    Err(e) => {
+                        this.handle_event(PluginEvent::DisplayError(format!("{e:#}")))
+                            .await;
+                    }
+                }
+                return;
             }
 
-            bail!("no plugin activated")
-        })
+            tracing::warn!("no plugin activated with query {input}");
+        };
     }
 
-    async fn handle_event(&self, event: Result<PluginEvent>) {
+    async fn handle_event(&self, event: PluginEvent) {
         let chained_query = self.inner.lock().handle_event(event);
 
         if let Some(query) = chained_query {
@@ -195,10 +221,10 @@ impl Host {
             .get(plugin_id.as_str())
             .cloned()
         else {
-            self.inner.lock().fe.display_error(
-                "Failed to reload plugin",
-                eyre!("could not find plugin's config"),
-            );
+            self.inner
+                .lock()
+                .fe
+                .display_error("Failed to reload plugin", "could not find plugin's config");
             return;
         };
 
@@ -212,7 +238,7 @@ impl Host {
                         self.inner
                             .lock()
                             .fe
-                            .display_error("Failed to reload plugin", e);
+                            .display_error("Failed to reload plugin", &format!("{e:#}"));
                         None
                     }
                 }
@@ -246,62 +272,29 @@ impl Host {
 impl HostInner {
     /// Optionally returns another string that should be queried.
     #[tracing::instrument(skip(self))]
-    fn handle_event(&mut self, event: Result<PluginEvent>) -> Option<String> {
+    fn handle_event(&mut self, event: PluginEvent) -> Option<String> {
         debug!("handling event");
 
         match event {
-            Ok(PluginEvent::SetList { list, index }) => {
+            PluginEvent::SetList { list, index } => {
                 if index <= self.activated_actions {
                     return None;
                 }
                 self.activated_actions = index;
                 self.fe.set_list(list);
             }
-            Ok(PluginEvent::Run(actions)) => {
-                return actions
-                    .into_iter()
-                    .fold(None, |opt, action| self.handle_action(action).or(opt));
-            }
-            Err(e) => {
-                self.fe.display_error("Error in plugin", e);
-            }
-        }
-
-        None
-    }
-
-    /// Optionally returns another string that should be queried.
-    #[tracing::instrument(skip(self))]
-    fn handle_action(&mut self, action: Action) -> Option<String> {
-        info!("handling action {action:?}");
-
-        match action {
-            Action::Close => self.fe.close(),
-            Action::RunCommand(cmd, args) => {
-                if let Err(e) = crate::spawn::free_null(&cmd, &args).context(format!(
-                    "failed to run command `{cmd} {args}`",
-                    args = args.join(" ")
-                )) {
-                    error!("Error running command: {e:#}");
-                    self.fe.display_error("Error running command", e);
-                }
-            }
-            Action::RunShell(str) => {
-                if let Err(e) = crate::spawn::free_null("sh", ["-c", &str])
-                    .context(format!("failed to run command `{str}`"))
-                {
-                    error!("Error running command: {e:#}");
-                    self.fe.display_error("Error running command", e);
-                }
-            }
-            Action::Copy(str) => {
-                self.fe.copy(str);
-            }
-            Action::SetInput(input) => {
+            PluginEvent::Close => self.fe.close(),
+            PluginEvent::Copy(str) => self.fe.copy(str),
+            PluginEvent::SetInput(input) => {
                 self.fe.set_input(input.clone());
                 return Some(input.contents);
             }
+            PluginEvent::DisplayError(err) => {
+                self.fe
+                    .display_error("Error in plugin (plugin name TODO)", &err);
+            }
         }
+
         None
     }
 }

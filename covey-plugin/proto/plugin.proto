@@ -10,7 +10,7 @@ service Plugin {
   // before any of the others are run.
   rpc Initialise(InitialiseRequest) returns (google.protobuf.Empty);
   rpc Query(QueryRequest) returns (QueryResponse);
-  rpc Activate(ActivationRequest) returns (ActivationResponse);
+  rpc Activate(ActivationRequest) returns (stream ActivationResponse);
 }
 
 message InitialiseRequest { required string json = 1; }
@@ -50,16 +50,15 @@ message ListItem {
   repeated string available_commands = 6;
 }
 
-message ActivationResponse { repeated Action actions = 1; }
+message ActivationResponse { required Action action = 1; }
 
 message Action {
   // Required.
   oneof action {
     google.protobuf.Empty close = 1;
-    Command run_command = 2;
-    string run_shell = 3;
-    string copy = 4;
-    Input set_input = 5;
+    string copy = 2;
+    Input set_input = 3;
+    string display_error = 9;
   };
 }
 

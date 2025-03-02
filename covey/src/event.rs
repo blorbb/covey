@@ -10,30 +10,45 @@ use crate::{Plugin, proto};
 /// Event returned by a plugin.
 pub(crate) enum PluginEvent {
     /// Set the displayed list.
-    SetList { list: List, index: u64 },
-    /// Run a sequence of actions.
-    Run(Vec<Action>),
+    SetList {
+        list: List,
+        /// The action number this is associated with.
+        ///
+        /// If set list is called with an index older than the latest list,
+        /// this event will be ignored.
+        index: u64,
+    },
+    Close,
+    Copy(String),
+    SetInput(Input),
+    DisplayError(String),
 }
 
 impl fmt::Debug for PluginEvent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::SetList { list, .. } => f
-                .debug_tuple("PluginEvent::SetList")
+            Self::SetList { list, index: _ } => f
+                .debug_tuple("SetList")
                 .field(&format!("{} items", list.len()))
                 .finish(),
-            Self::Run(actions) => f.debug_tuple("PluginEvent::Run").field(actions).finish(),
+            Self::Close => write!(f, "Close"),
+            Self::Copy(arg0) => f.debug_tuple("Copy").field(arg0).finish(),
+            Self::SetInput(arg0) => f.debug_tuple("SetInput").field(arg0).finish(),
+            Self::DisplayError(arg0) => f.debug_tuple("DisplayError").field(arg0).finish(),
         }
     }
 }
 
-#[derive(Debug)]
-pub(crate) enum Action {
-    Close,
-    RunCommand(String, Vec<String>),
-    RunShell(String),
-    Copy(String),
-    SetInput(Input),
+impl PluginEvent {
+    pub(crate) fn from_proto_action(plugin: &Plugin, action: proto::action::Action) -> Self {
+        use proto::action::Action as PrAction;
+        match action {
+            PrAction::Close(()) => Self::Close,
+            PrAction::Copy(str) => Self::Copy(str),
+            PrAction::SetInput(input) => Self::SetInput(Input::from_proto(plugin, input)),
+            PrAction::DisplayError(err) => Self::DisplayError(err),
+        }
+    }
 }
 
 /// The main text input contents and selection.

@@ -14,15 +14,11 @@ type Path = TokenStream;
 pub fn include_manifest(
     s: &str,
     serde_path: Path,
-    ext_impl_ty: Path,
-    command_return_ty: Path,
-    command_return_trait: Path,
+    covey_plugin_path: Path,
 ) -> Result<TokenStream, toml::de::Error> {
     let paths = CratePaths {
         serde: serde_path,
-        ext_impl_ty,
-        command_return_ty,
-        command_return_trait,
+        covey_plugin: covey_plugin_path,
     };
     let manifest = PluginManifest::try_from_toml(s)?;
 
@@ -37,14 +33,7 @@ pub fn include_manifest(
 
 struct CratePaths {
     serde: Path,
-    /// Path to `covey_plugin::ListItem`, to implement the extension trait.
-    ext_impl_ty: Path,
-    /// The return type of a command, [`Result<R>`].
-    ///
-    /// The generic `R` can be used, which will be [`CratePaths::command_return_trait`]
-    command_return_ty: Path,
-    /// Generic within [`CratePaths::command_return_ty`].
-    command_return_trait: Path,
+    covey_plugin: Path,
 }
 
 impl CratePaths {

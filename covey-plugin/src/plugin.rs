@@ -1,6 +1,9 @@
 use std::future::Future;
 
-use crate::{Action, List, Result, manifest::ManifestDeserialization, proto, server::ServerState};
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
+
+use crate::{List, Menu, Result, manifest::ManifestDeserialization, proto, server::ServerState};
 
 pub trait Plugin: Sized + Send + Sync + 'static {
     /// The user's configuration for this plugin.
@@ -56,10 +59,12 @@ where
         ))
     }
 
+    type ActivateStream = ReceiverStream<Result<proto::ActivationResponse, tonic::Status>>;
+
     async fn activate(
         &self,
         request: tonic::Request<proto::ActivationRequest>,
-    ) -> TonicResult<proto::ActivationResponse> {
+    ) -> TonicResult<Self::ActivateStream> {
         let request = request.into_inner();
         let id = request.selection_id;
         let callbacks =
@@ -70,25 +75,20 @@ where
                     "failed to fetch callback of list item with id {id}"
                 )))?;
 
+        let (tx, rx) = mpsc::channel(4);
+        let menu = Menu { sender: tx };
+
         // tonic plugin requires methods to be Send + Sync, but this
         // is annoying. spawn_local makes this future no longer require
         // Send + Sync.
-        let response = tokio::task::spawn_local(async move {
-            callbacks
-                .call_command(&request.command_name)
-                .await
-                .map(|a| proto::ActivationResponse {
-                    actions: a.into_iter().map(Action::into_proto).collect(),
-                })
+        tokio::task::spawn_local(async move {
+            callbacks.call_command(&request.command_name, menu).await;
         })
         .await
         // JoinHandle resolves to an err if the task panicked.
         .map_err(|e| tonic::Status::internal(e.to_string()))?;
 
-        match response {
-            Ok(response) => Ok(tonic::Response::new(response)),
-            Err(err) => Err(into_tonic_status(err)),
-        }
+        Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 }
 

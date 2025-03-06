@@ -14,7 +14,7 @@ use parking_lot::Mutex;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    CONFIG_PATH, Frontend, List, Plugin,
+    CONFIG_DIR, CONFIG_PATH, Frontend, List, Plugin,
     event::{ListItemId, PluginEvent},
 };
 
@@ -40,6 +40,7 @@ impl Host {
     pub fn new(fe: impl Frontend) -> Result<Self> {
         info!("reading config from file: {:?}", &*CONFIG_PATH);
 
+        fs::create_dir_all(&*CONFIG_DIR)?;
         let mut file = fs::OpenOptions::new()
             .create(true)
             .write(true)

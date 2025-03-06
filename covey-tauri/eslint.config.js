@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import tseslint from "typescript-eslint";
 import svelteConfig from "./svelte.config.js";
 import simpleImportSort from "eslint-plugin-simple-import-sort";
+import unusedImports from "eslint-plugin-unused-imports";
 
 const gitignorePath = fileURLToPath(new URL("./.gitignore", import.meta.url));
 
@@ -45,13 +46,14 @@ export default tseslint.config(
     },
   },
   {
-    plugins: { "simple-import-sort": simpleImportSort },
+    plugins: {
+      "simple-import-sort": simpleImportSort,
+      "unused-imports": unusedImports
+    },
     rules: {
       "@typescript-eslint/no-unused-vars": [
         "warn",
-        {
-          argsIgnorePattern: "^_",
-        },
+        { argsIgnorePattern: "^_" },
       ],
       "@typescript-eslint/switch-exhaustiveness-check": [
         "error",
@@ -66,6 +68,7 @@ export default tseslint.config(
       ],
       "simple-import-sort/imports": "warn",
       "simple-import-sort/exports": "warn",
+      "unused-imports/no-unused-imports": "warn",
       // these are falsely erroring when using generic components
       "@typescript-eslint/no-unsafe-return": "off",
       "@typescript-eslint/no-unsafe-member-access": "off",

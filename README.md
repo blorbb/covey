@@ -2,7 +2,7 @@
 
 A general-purpose desktop command palette / app launcher.
 
-(todo: demo video)
+[covey-demo.webm](https://github.com/user-attachments/assets/20787700-626e-4342-9777-4436cc85dbe4)
 
 Inspired by tools like [rofi](https://github.com/davatorium/rofi), [Ulauncher](https://github.com/Ulauncher/Ulauncher), [Albert](https://github.com/albertlauncher/albert) and the likes.
 

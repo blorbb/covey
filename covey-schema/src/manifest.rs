@@ -34,6 +34,7 @@ pub struct PluginManifest {
     /// List of authors of the plugin.
     #[serde(default)]
     pub authors: Vec<String>,
+    pub default_prefix: Option<String>,
     #[serde(default)]
     pub schema: KeyedList<PluginConfigSchema>,
     /// All commands that the user can run on some list item.
@@ -380,6 +381,7 @@ mod tests {
                 description: Some("my description".to_string()),
                 repository: None,
                 authors: vec![],
+                default_prefix: None,
                 schema: KeyedList::new([PluginConfigSchema {
                     id: Id::new("first-option"),
                     title: "first option".to_string(),
@@ -438,6 +440,7 @@ mod tests {
             description = "Open URLs with a query"
             repository = "https://github.com/blorbb/covey-plugins"
             authors = ["blorbb"]
+            default-prefix = "@"
 
             [[schema]]
             id = "urls"
@@ -452,6 +455,7 @@ mod tests {
                 description: Some("Open URLs with a query".to_string()),
                 repository: Some("https://github.com/blorbb/covey-plugins".to_string()),
                 authors: vec!["blorbb".to_string()],
+                default_prefix: Some("@".to_string()),
                 schema: KeyedList::new([PluginConfigSchema {
                     id: Id::new("urls"),
                     title: "List of URLs to show".to_string(),

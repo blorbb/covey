@@ -1,7 +1,7 @@
 //! Types for the plugin manifest.
 
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     fmt::{self, Debug},
     marker::PhantomData,
 };
@@ -158,7 +158,7 @@ pub struct SchemaMap {
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub struct SchemaStruct {
-    pub fields: HashMap<String, SchemaType>,
+    pub fields: BTreeMap<String, SchemaType>,
 }
 
 /// A selection of one of multiple strings.
@@ -351,7 +351,7 @@ mod macros {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
 
     use super::{
         PluginConfigSchema, PluginManifest, SchemaInt, SchemaList, SchemaMap, SchemaStruct,
@@ -462,7 +462,7 @@ mod tests {
                     description: None,
                     r#type: SchemaType::Map(SchemaMap {
                         value_type: Box::new(SchemaType::Struct(SchemaStruct {
-                            fields: HashMap::from([
+                            fields: BTreeMap::from([
                                 ("name".to_string(), SchemaType::Text(Default::default())),
                                 ("url".to_string(), SchemaType::Text(Default::default()))
                             ])

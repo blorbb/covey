@@ -1,6 +1,6 @@
 //! Types for the user config.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
@@ -79,7 +79,7 @@ pub struct PluginEntry {
     #[serde(default)] // empty table if missing
     pub settings: serde_json::Map<String, serde_json::Value>,
     #[serde(default)]
-    pub commands: HashMap<Id, CommandSettings>,
+    pub commands: BTreeMap<Id, CommandSettings>,
 }
 
 impl Identify for PluginEntry {

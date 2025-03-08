@@ -10,7 +10,13 @@ members = [
 resolver = "2"
 
 [workspace.package]
+# version should be used by all crates except covey-plugin
+# and covey-manifest-macros
+version = "0.0.1"
 edition = "2024"
+license = "MIT"
+authors = ["blorbb"]
+repository = "https://github.com/blorbb/covey"
 
 [workspace.dependencies]
 az = "1.2.1"

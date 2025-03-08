@@ -1,11 +1,17 @@
 [package]
 name = "covey-plugin"
-version = "0.1.0"
+# update this separately to everything else
+# but keep in sync with covey-manifest-macros
+version = "0.0.1"
 edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
 # 1.85 required for async closures / AsyncFn.
 # this might be outdated, im not really gonna update this.
 # i only guarantee that this runs on latest stable.
 rust-version = "1.85"
+description = "APIs for creating Covey plugins"
 
 [lints]
 workspace = true

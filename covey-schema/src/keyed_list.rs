@@ -69,6 +69,24 @@ impl<T: Identify> KeyedList<T> {
     pub fn get(&self, id: &str) -> Option<&T> {
         self.items.iter().find(|item| item.id().as_str() == id)
     }
+
+    pub fn contains(&self, id: &str) -> bool {
+        self.get(id).is_some()
+    }
+
+    /// Extends this keyed list with extra items, ignoring items
+    /// with ids that already exist in this list or in the iterator itself.
+    pub fn extend_lossy(&mut self, iter: impl IntoIterator<Item = T>) {
+        // this is O(n^2) but most uses of keyed list have very few items
+        // so it doesn't really matter.
+        // maybe optimise this in the future and let keyed list contain
+        // an indexmap for more efficient getting?
+        for item in iter {
+            if !self.contains(item.id().as_str()) {
+                self.items.push(item);
+            }
+        }
+    }
 }
 
 impl<T> KeyedList<T> {

@@ -15,7 +15,10 @@
       Hotkey to re-initialise the current plugin
     </p>
 
-    <InputHotkey bind:userHotkey={appSettings["reload-hotkey"]} />
+    <InputHotkey
+      userHotkey={appSettings["reload-hotkey"]}
+      onCommitUserHotkey={(hotkey) => (appSettings["reload-hotkey"] = hotkey)}
+    />
   </div>
 
   <Config
@@ -27,7 +30,6 @@
       type: {
         list: {
           "min-items": 0,
-          unique: false,
           "item-type": {
             struct: {
               fields: {

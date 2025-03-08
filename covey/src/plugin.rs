@@ -36,11 +36,22 @@ impl Plugin {
     }
 
     pub fn id(&self) -> &Id {
-        &self.plugin.config.id
+        &self.plugin.entry.id
     }
 
-    pub fn prefix(&self) -> &str {
-        &self.plugin.config.prefix
+    /// Gets the prefix used to activate this plugin, either the user-defined or
+    /// default prefix.
+    pub fn prefix(&self) -> Option<&str> {
+        self.plugin
+            .entry
+            .prefix
+            .as_ref()
+            .or(self.plugin.manifest.default_prefix.as_ref())
+            .map(String::as_str)
+    }
+
+    pub fn config_entry(&self) -> &PluginEntry {
+        &self.plugin.entry
     }
 
     /// Returns the path to the provided plugin's directory.
@@ -168,7 +179,7 @@ mod implementation {
     pub(super) struct LazyPlugin {
         cell: OnceCell<PluginInner>,
         pub(super) manifest: PluginManifest,
-        pub(super) config: PluginEntry,
+        pub(super) entry: PluginEntry,
     }
 
     impl LazyPlugin {
@@ -183,7 +194,7 @@ mod implementation {
             Ok(Self {
                 cell: OnceCell::new(),
                 manifest,
-                config,
+                entry: config,
             })
         }
 
@@ -193,9 +204,9 @@ mod implementation {
         pub(super) async fn get_and_init(&self) -> Result<&PluginInner> {
             self.cell
                 .get_or_try_init(|| async {
-                    info!("initialising plugin {:?}", self.config.id);
-                    let config_json = serde_json::to_string(&self.config.settings)?;
-                    let bin_path = binary_path(self.config.id.as_str());
+                    info!("initialising plugin {:?}", self.entry.id);
+                    let config_json = serde_json::to_string(&self.entry.settings)?;
+                    let bin_path = binary_path(self.entry.id.as_str());
                     let plugin = PluginInner::new(bin_path).await?;
 
                     plugin
@@ -205,7 +216,7 @@ mod implementation {
                     color_eyre::eyre::Ok(plugin)
                 })
                 .await
-                .context(format!("failed to initialise plugin {:?}", self.config.id))
+                .context(format!("failed to initialise plugin {:?}", self.entry.id))
         }
     }
 

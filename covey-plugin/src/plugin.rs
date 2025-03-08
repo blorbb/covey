@@ -3,7 +3,7 @@ use std::future::Future;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::{List, Menu, Result, manifest::ManifestDeserialization, proto, server::ServerState};
+use crate::{List, Menu, Result, manifest::ManifestDeserialization, server::ServerState};
 
 pub trait Plugin: Sized + Send + Sync + 'static {
     /// The user's configuration for this plugin.
@@ -19,13 +19,13 @@ pub trait Plugin: Sized + Send + Sync + 'static {
 type TonicResult<T> = Result<tonic::Response<T>, tonic::Status>;
 
 #[tonic::async_trait]
-impl<T> proto::plugin_server::Plugin for ServerState<T>
+impl<T> covey_proto::plugin_server::Plugin for ServerState<T>
 where
     T: Plugin,
 {
     async fn initialise(
         &self,
-        request: tonic::Request<proto::InitialiseRequest>,
+        request: tonic::Request<covey_proto::InitialiseRequest>,
     ) -> TonicResult<()> {
         let request = request.into_inner();
 
@@ -42,8 +42,8 @@ where
 
     async fn query(
         &self,
-        request: tonic::Request<proto::QueryRequest>,
-    ) -> TonicResult<proto::QueryResponse> {
+        request: tonic::Request<covey_proto::QueryRequest>,
+    ) -> TonicResult<covey_proto::QueryResponse> {
         let list = self
             .plugin
             .read()
@@ -59,11 +59,11 @@ where
         ))
     }
 
-    type ActivateStream = ReceiverStream<Result<proto::ActivationResponse, tonic::Status>>;
+    type ActivateStream = ReceiverStream<Result<covey_proto::ActivationResponse, tonic::Status>>;
 
     async fn activate(
         &self,
-        request: tonic::Request<proto::ActivationRequest>,
+        request: tonic::Request<covey_proto::ActivationRequest>,
     ) -> TonicResult<Self::ActivateStream> {
         let request = request.into_inner();
         let id = request.selection_id;

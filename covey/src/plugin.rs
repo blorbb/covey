@@ -8,10 +8,7 @@ use covey_schema::{
     manifest::PluginManifest,
 };
 
-use crate::{
-    DATA_DIR,
-    proto::{self, ActivationResponse},
-};
+use crate::DATA_DIR;
 
 /// A ref-counted reference to a plugin instance.
 ///
@@ -74,7 +71,10 @@ impl Plugin {
         &self.plugin.manifest
     }
 
-    pub(crate) async fn query(&self, query: impl Into<String>) -> Result<proto::QueryResponse> {
+    pub(crate) async fn query(
+        &self,
+        query: impl Into<String>,
+    ) -> Result<covey_proto::QueryResponse> {
         self.plugin
             .get_and_init()
             .await?
@@ -86,7 +86,7 @@ impl Plugin {
         &self,
         selection_id: u64,
         command_name: String,
-    ) -> Result<tonic::Streaming<ActivationResponse>> {
+    ) -> Result<tonic::Streaming<covey_proto::ActivationResponse>> {
         Ok(self
             .plugin
             .get_and_init()
@@ -159,6 +159,7 @@ mod implementation {
     use std::{path::PathBuf, process::Stdio};
 
     use color_eyre::eyre::{Context as _, Result};
+    use covey_proto::plugin_client::PluginClient;
     use covey_schema::{config::PluginEntry, manifest::PluginManifest};
     use tokio::{
         io::{AsyncBufReadExt as _, BufReader},
@@ -168,10 +169,7 @@ mod implementation {
     use tonic::{Request, Streaming, transport::Channel};
     use tracing::info;
 
-    use super::{
-        binary_path, manifest_path,
-        proto::{self, plugin_client::PluginClient},
-    };
+    use super::{binary_path, manifest_path};
 
     /// A plugin that is not initialised until [`Self::get_and_init`] is called.
     ///
@@ -285,16 +283,18 @@ mod implementation {
         pub(super) async fn call_initialise(&self, config_json: String) -> Result<()> {
             self.plugin
                 .clone()
-                .initialise(Request::new(proto::InitialiseRequest { json: config_json }))
+                .initialise(Request::new(covey_proto::InitialiseRequest {
+                    json: config_json,
+                }))
                 .await?;
             Ok(())
         }
 
-        pub(super) async fn call_query(&self, query: String) -> Result<proto::QueryResponse> {
+        pub(super) async fn call_query(&self, query: String) -> Result<covey_proto::QueryResponse> {
             Ok(self
                 .plugin
                 .clone()
-                .query(Request::new(proto::QueryRequest { query }))
+                .query(Request::new(covey_proto::QueryRequest { query }))
                 .await?
                 .into_inner())
         }
@@ -303,11 +303,11 @@ mod implementation {
             &self,
             selection_id: u64,
             command_name: String,
-        ) -> Result<Streaming<proto::ActivationResponse>> {
+        ) -> Result<Streaming<covey_proto::ActivationResponse>> {
             Ok(self
                 .plugin
                 .clone()
-                .activate(Request::new(proto::ActivationRequest {
+                .activate(Request::new(covey_proto::ActivationRequest {
                     selection_id,
                     command_name,
                 }))

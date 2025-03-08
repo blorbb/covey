@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use az::SaturatingAs as _;
 
-use crate::{Plugin, proto};
+use crate::Plugin;
 
 /// Event returned by a plugin.
 pub(crate) enum PluginEvent {
@@ -40,8 +40,8 @@ impl fmt::Debug for PluginEvent {
 }
 
 impl PluginEvent {
-    pub(crate) fn from_proto_action(plugin: &Plugin, action: proto::action::Action) -> Self {
-        use proto::action::Action as PrAction;
+    pub(crate) fn from_proto_action(plugin: &Plugin, action: covey_proto::action::Action) -> Self {
+        use covey_proto::action::Action as PrAction;
         match action {
             PrAction::Close(()) => Self::Close,
             PrAction::Copy(str) => Self::Copy(str),
@@ -69,7 +69,7 @@ impl Input {
         self.selection = (a.saturating_add(prefix_len), b.saturating_add(prefix_len));
     }
 
-    pub(crate) fn from_proto(plugin: &Plugin, il: proto::Input) -> Self {
+    pub(crate) fn from_proto(plugin: &Plugin, il: covey_proto::Input) -> Self {
         let mut input = Self {
             contents: il.query,
             selection: (il.range_lb.saturating_as(), il.range_ub.saturating_as()),
@@ -103,7 +103,7 @@ impl List {
     pub(crate) fn from_proto(
         plugin: &Plugin,
         icon_themes: &[String],
-        proto: proto::QueryResponse,
+        proto: covey_proto::QueryResponse,
     ) -> Self {
         let style = proto.list_style.map(ListStyle::from_proto);
         let list: Vec<_> = proto
@@ -136,8 +136,8 @@ pub enum ListStyle {
 }
 
 impl ListStyle {
-    pub(crate) fn from_proto(proto: proto::query_response::ListStyle) -> Self {
-        use proto::query_response::ListStyle as Ls;
+    pub(crate) fn from_proto(proto: covey_proto::query_response::ListStyle) -> Self {
+        use covey_proto::query_response::ListStyle as Ls;
         match proto {
             Ls::Rows(()) => Self::Rows,
             Ls::Grid(()) => Self::Grid,
@@ -150,7 +150,7 @@ impl ListStyle {
 #[derive(Clone)]
 pub struct ListItem {
     plugin: Plugin,
-    item: proto::ListItem,
+    item: covey_proto::ListItem,
     icon: Option<ResolvedIcon>,
 }
 
@@ -216,8 +216,11 @@ pub enum ResolvedIcon {
 }
 
 impl ResolvedIcon {
-    pub(crate) fn resolve(proto: proto::list_item::Icon, icon_themes: &[String]) -> Option<Self> {
-        use proto::list_item::Icon as Proto;
+    pub(crate) fn resolve(
+        proto: covey_proto::list_item::Icon,
+        icon_themes: &[String],
+    ) -> Option<Self> {
+        use covey_proto::list_item::Icon as Proto;
         match proto {
             Proto::Name(name) => icon_themes
                 .iter()

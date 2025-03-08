@@ -1,5 +1,3 @@
-use crate::proto;
-
 #[derive(Debug, Clone)]
 pub struct Input {
     pub query: String,
@@ -27,8 +25,8 @@ impl Input {
     }
 
     #[must_use = "builder method consumes self"]
-    pub(crate) fn into_proto(self) -> proto::Input {
-        proto::Input {
+    pub(crate) fn into_proto(self) -> covey_proto::Input {
+        covey_proto::Input {
             query: self.query,
             range_lb: u32::from(self.range_lb),
             range_ub: u32::from(self.range_ub),

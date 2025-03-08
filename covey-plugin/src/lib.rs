@@ -21,11 +21,6 @@ pub use menu::Menu;
 pub mod spawn;
 mod store;
 
-#[allow(clippy::pedantic)]
-mod proto {
-    tonic::include_proto!("plugin");
-}
-
 pub use anyhow::{self, Result};
 
 /// ID of this plugin.

@@ -7,7 +7,7 @@ use std::{
 
 use az::CheckedAs;
 
-use crate::{Icon, List, ListItem, ListStyle, list::ListItemCallbacks, proto};
+use crate::{Icon, List, ListItem, ListStyle, list::ListItemCallbacks};
 
 /// Store to map list item IDs to their callbacks.
 pub(crate) struct ListItemStore {
@@ -35,10 +35,10 @@ impl ListItemStore {
 
     /// Stores the result of a query, returning the response that should be
     /// sent to covey.
-    pub(crate) fn store_query_result(&mut self, list: List) -> proto::QueryResponse {
+    pub(crate) fn store_query_result(&mut self, list: List) -> covey_proto::QueryResponse {
         // Don't store an empty result
         if list.items.is_empty() {
-            return proto::QueryResponse {
+            return covey_proto::QueryResponse {
                 items: vec![],
                 list_style: list.style.map(ListStyle::into_proto),
             };
@@ -51,7 +51,7 @@ impl ListItemStore {
             first_id: items.first().expect("list should be non empty").id,
         });
 
-        return proto::QueryResponse {
+        return covey_proto::QueryResponse {
             items,
             list_style: list.style.map(ListStyle::into_proto),
         };
@@ -59,14 +59,14 @@ impl ListItemStore {
         fn split_item_vec(
             ids: &AutoIncrementer,
             vec: Vec<ListItem>,
-        ) -> (Vec<proto::ListItem>, Vec<ListItemCallbacks>) {
+        ) -> (Vec<covey_proto::ListItem>, Vec<ListItemCallbacks>) {
             let new_ids = ids.fetch_many(vec.len() as u64);
 
             let mut items = vec![];
             let mut callbacks = vec![];
 
             for (id, item) in iter::zip(new_ids, vec) {
-                items.push(proto::ListItem {
+                items.push(covey_proto::ListItem {
                     id,
                     title: item.title,
                     description: item.description,

@@ -1,7 +1,6 @@
 mod event;
 mod host;
 mod plugin;
-mod proto;
 
 use std::{path::PathBuf, sync::LazyLock};
 

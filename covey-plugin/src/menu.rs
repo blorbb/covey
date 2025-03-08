@@ -2,14 +2,14 @@ use std::fmt::Display;
 
 use tokio::{sync::mpsc::Sender, task::JoinHandle};
 
-use crate::{Action, Input, proto};
+use crate::{Action, Input};
 
 /// Provides methods to interact with the app menu.
 ///
 /// This type is cheap to clone.
 #[derive(Clone)]
 pub struct Menu {
-    pub(crate) sender: Sender<Result<proto::ActivationResponse, tonic::Status>>,
+    pub(crate) sender: Sender<Result<covey_proto::ActivationResponse, tonic::Status>>,
 }
 
 impl Menu {
@@ -17,7 +17,7 @@ impl Menu {
         let sender = self.sender.clone();
         tokio::spawn(async move {
             _ = sender
-                .send(Ok(proto::ActivationResponse {
+                .send(Ok(covey_proto::ActivationResponse {
                     action: action.into_proto(),
                 }))
                 .await

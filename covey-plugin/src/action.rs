@@ -1,4 +1,4 @@
-use crate::{Input, proto};
+use crate::Input;
 
 /// An action for Covey to perform.
 ///
@@ -17,8 +17,8 @@ pub enum Action {
 }
 
 impl Action {
-    pub(crate) fn into_proto(self) -> proto::Action {
-        use proto::action::Action as PrAction;
+    pub(crate) fn into_proto(self) -> covey_proto::Action {
+        use covey_proto::action::Action as PrAction;
 
         let inner_action = match self {
             Self::Close => PrAction::Close(()),
@@ -27,7 +27,7 @@ impl Action {
             Self::DisplayError(err) => PrAction::DisplayError(err),
         };
 
-        proto::Action {
+        covey_proto::Action {
             action: Some(inner_action),
         }
     }

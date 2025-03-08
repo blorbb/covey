@@ -1,10 +1,11 @@
 use std::process;
 
+use covey_proto::plugin_server::PluginServer;
 use parking_lot::Mutex;
 use tokio::{net::TcpListener, sync::RwLock, task::LocalSet};
 use tonic::transport::Server;
 
-use crate::{Plugin, proto::plugin_server::PluginServer, store::ListItemStore};
+use crate::{Plugin, store::ListItemStore};
 
 /// Wrapper around a [`Plugin`] that implements the tonic server.
 pub(crate) struct ServerState<P> {

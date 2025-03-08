@@ -1,6 +1,6 @@
 use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
 
-use crate::{Menu, proto};
+use crate::Menu;
 
 pub struct List {
     pub items: Vec<ListItem>,
@@ -49,8 +49,8 @@ pub enum ListStyle {
 }
 
 impl ListStyle {
-    pub(crate) fn into_proto(self) -> proto::query_response::ListStyle {
-        use proto::query_response::ListStyle as Proto;
+    pub(crate) fn into_proto(self) -> covey_proto::query_response::ListStyle {
+        use covey_proto::query_response::ListStyle as Proto;
         match self {
             ListStyle::Rows => Proto::Rows(()),
             ListStyle::Grid => Proto::Grid(()),
@@ -59,7 +59,7 @@ impl ListStyle {
     }
 }
 
-// This should only be converted into a proto::ListItem via the ListItemStore.
+// This should only be converted into a covey_proto::ListItem via the ListItemStore.
 #[derive(Clone)]
 pub struct ListItem {
     pub title: String,
@@ -123,8 +123,8 @@ pub enum Icon {
 }
 
 impl Icon {
-    pub(crate) fn into_proto(self) -> proto::list_item::Icon {
-        use proto::list_item::Icon as Proto;
+    pub(crate) fn into_proto(self) -> covey_proto::list_item::Icon {
+        use covey_proto::list_item::Icon as Proto;
         match self {
             Self::Name(name) => Proto::Name(name),
             Self::Text(text) => Proto::Text(text),

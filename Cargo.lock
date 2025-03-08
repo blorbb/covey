@@ -811,6 +811,7 @@ version = "0.0.1"
 dependencies = [
  "az",
  "color-eyre",
+ "covey-proto",
  "covey-schema",
  "dirs 5.0.1",
  "freedesktop-icons",
@@ -822,7 +823,6 @@ dependencies = [
  "tokio",
  "toml 0.8.20",
  "tonic",
- "tonic-build",
  "tracing",
 ]
 
@@ -844,6 +844,7 @@ dependencies = [
  "anyhow",
  "az",
  "covey-manifest-macros",
+ "covey-proto",
  "dirs 5.0.1",
  "parking_lot",
  "prost",
@@ -853,6 +854,15 @@ dependencies = [
  "time",
  "tokio",
  "tokio-stream",
+ "tonic",
+ "tonic-build",
+]
+
+[[package]]
+name = "covey-proto"
+version = "0.0.1"
+dependencies = [
+ "prost",
  "tonic",
  "tonic-build",
 ]

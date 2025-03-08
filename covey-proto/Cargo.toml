@@ -1,0 +1,18 @@
+[package]
+name = "covey-proto"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Generated tonic protobuf types"
+
+[dependencies]
+tonic.workspace = true
+prost.workspace = true
+
+[build-dependencies]
+tonic-build = "0.12.3"
+
+[lints]
+workspace = true

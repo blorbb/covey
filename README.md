@@ -27,8 +27,6 @@ Inspired by tools like [rofi](https://github.com/davatorium/rofi), [Ulauncher](h
 
 Covey's settings are stored in the `covey` folder of your OS's [config directory](https://docs.rs/dirs/latest/dirs/fn.config_dir.html). This contains the main `config.toml` file that configures the entire application.
 
-(TODO: make all configuration accessible through the GUI)
-
 Plugins keep data stored in the `covey/plugins` folder of your OS's [data directory](https://docs.rs/dirs/latest/dirs/fn.data_dir.html). Each plugin is in a subfolder with a binary and `manifest.toml`. Plugins will usually store extra data in this folder.
 
 Example folder structure with default Linux paths:
@@ -57,8 +55,6 @@ Find a collection of plugins at [`blorbb/covey-plugins`](https://github.com/blor
 To create your own plugin, check out the [`covey-plugin`](./covey-plugin/) documentation.
 
 To install a plugin, place the plugin's binary and `manifest.toml` within the plugin data folder (`<data dir>/covey/plugins/<plugin id>`). See the above folder structure for an example.
-
-(TODO: auto detection of plugins)
 
 ## Desktop Environment Support
 

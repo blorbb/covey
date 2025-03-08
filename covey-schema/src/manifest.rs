@@ -1,7 +1,7 @@
 //! Types for the plugin manifest.
 
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     fmt::{self, Debug},
     marker::PhantomData,
 };
@@ -34,6 +34,7 @@ pub struct PluginManifest {
     /// List of authors of the plugin.
     #[serde(default)]
     pub authors: Vec<String>,
+    pub default_prefix: Option<String>,
     #[serde(default)]
     pub schema: KeyedList<PluginConfigSchema>,
     /// All commands that the user can run on some list item.
@@ -157,7 +158,7 @@ pub struct SchemaMap {
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub struct SchemaStruct {
-    pub fields: HashMap<String, SchemaType>,
+    pub fields: BTreeMap<String, SchemaType>,
 }
 
 /// A selection of one of multiple strings.
@@ -350,7 +351,7 @@ mod macros {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
 
     use super::{
         PluginConfigSchema, PluginManifest, SchemaInt, SchemaList, SchemaMap, SchemaStruct,
@@ -380,6 +381,7 @@ mod tests {
                 description: Some("my description".to_string()),
                 repository: None,
                 authors: vec![],
+                default_prefix: None,
                 schema: KeyedList::new([PluginConfigSchema {
                     id: Id::new("first-option"),
                     title: "first option".to_string(),
@@ -438,6 +440,7 @@ mod tests {
             description = "Open URLs with a query"
             repository = "https://github.com/blorbb/covey-plugins"
             authors = ["blorbb"]
+            default-prefix = "@"
 
             [[schema]]
             id = "urls"
@@ -452,13 +455,14 @@ mod tests {
                 description: Some("Open URLs with a query".to_string()),
                 repository: Some("https://github.com/blorbb/covey-plugins".to_string()),
                 authors: vec!["blorbb".to_string()],
+                default_prefix: Some("@".to_string()),
                 schema: KeyedList::new([PluginConfigSchema {
                     id: Id::new("urls"),
                     title: "List of URLs to show".to_string(),
                     description: None,
                     r#type: SchemaType::Map(SchemaMap {
                         value_type: Box::new(SchemaType::Struct(SchemaStruct {
-                            fields: HashMap::from([
+                            fields: BTreeMap::from([
                                 ("name".to_string(), SchemaType::Text(Default::default())),
                                 ("url".to_string(), SchemaType::Text(Default::default()))
                             ])

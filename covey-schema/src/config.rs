@@ -1,6 +1,6 @@
 //! Types for the user config.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
@@ -65,16 +65,39 @@ fn default_icon_themes() -> Arc<[String]> {
 #[serde(rename_all = "kebab-case")]
 pub struct PluginEntry {
     pub id: Id,
-    pub prefix: String,
+    /// Disables this plugin.
+    ///
+    /// This is `false` by default. The plugin will also be disabled if no
+    /// prefix is defined (no user prefix or default prefix).
+    #[serde(default)]
+    pub disabled: bool,
+    /// Prefix to select this plugin.
+    ///
+    /// This or a default prefix must be defined. If both aren't defined, this
+    /// plugin will be disabled.
+    pub prefix: Option<String>,
     #[serde(default)] // empty table if missing
     pub settings: serde_json::Map<String, serde_json::Value>,
     #[serde(default)]
-    pub commands: HashMap<Id, CommandSettings>,
+    pub commands: BTreeMap<Id, CommandSettings>,
 }
 
 impl Identify for PluginEntry {
     fn id(&self) -> &Id {
         &self.id
+    }
+}
+
+impl PluginEntry {
+    pub fn new(plugin_id: Id) -> Self {
+        // make sure these match with the serde default annotations!
+        Self {
+            id: plugin_id,
+            disabled: Default::default(),
+            prefix: Default::default(),
+            settings: Default::default(),
+            commands: Default::default(),
+        }
     }
 }
 

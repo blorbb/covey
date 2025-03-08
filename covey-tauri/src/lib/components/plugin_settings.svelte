@@ -37,6 +37,42 @@
 
 <Divider margin="1rem" />
 
+<Config
+  schema={{
+    title: "Enable plugin",
+    description:
+      "A prefix must also be defined, otherwise the plugin will stay disabled.",
+    id: "enabled",
+    type: {
+      bool: {
+        default: false,
+      },
+    },
+  }}
+  bind:userValue={() => !plugin.disabled,
+  // typescript can't figure out that this is a boolean for some reason
+  (enabled) => (plugin.disabled = !(enabled as boolean))}
+/>
+
+<Config
+  schema={{
+    title: "Prefix",
+    description:
+      "Prefix to activate this plugin. Note that this is whitespace sensitive.",
+    id: "prefix",
+    type: {
+      text: {
+        "min-length": 0,
+        "max-length": Number.MAX_SAFE_INTEGER,
+        default: manifest["default-prefix"],
+      },
+    },
+  }}
+  bind:userValue={plugin.prefix}
+/>
+
+<Divider margin="1rem" />
+
 <h2>Commands</h2>
 <div class="commands">
   <!-- command is not reactive, so need to remount if the plugin changes -->

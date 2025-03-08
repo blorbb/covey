@@ -7,14 +7,14 @@ use std::{
 
 use color_eyre::eyre::Result;
 use covey_schema::{
-    config::GlobalConfig,
+    config::{GlobalConfig, PluginEntry},
     keyed_list::{Id, KeyedList},
 };
 use parking_lot::Mutex;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    CONFIG_DIR, CONFIG_PATH, Frontend, List, Plugin,
+    CONFIG_DIR, CONFIG_PATH, Frontend, List, PLUGINS_DIR, Plugin,
     event::{ListItemId, PluginEvent},
 };
 
@@ -51,9 +51,8 @@ impl Host {
         let mut s = String::new();
         file.read_to_string(&mut s)?;
 
-        debug!("read config:\n{s}");
-
-        let global_config: GlobalConfig = toml::from_str(&s)?;
+        let mut global_config: GlobalConfig = toml::from_str(&s)?;
+        Self::find_plugins_from_fs(&mut global_config);
         let plugins = Self::load_plugins(&global_config);
 
         info!("found plugins: {plugins:?}");
@@ -69,16 +68,35 @@ impl Host {
         })
     }
 
+    /// Finds extra plugins from the plugin directory and inserts it into the config.
+    fn find_plugins_from_fs(config: &mut GlobalConfig) {
+        let Ok(dirs) = fs::read_dir(&*PLUGINS_DIR) else {
+            warn!("failed to read plugins dir");
+            return;
+        };
+
+        // each directory in the plugins directory should be the plugin's id
+        let plugin_ids = dirs
+            .filter_map(Result::ok)
+            .flat_map(|plugin_dir| plugin_dir.file_name().into_string())
+            .inspect(|plugin_id| debug!("discovered plugin {plugin_id:?} from fs"));
+        config.plugins.extend_lossy(plugin_ids.map(|plugin_id| {
+            let mut entry = PluginEntry::new(Id::new(&plugin_id));
+            entry.disabled = true; // require explicitly enabling a new plugin
+            entry
+        }));
+    }
+
     /// Reads the manifests of every plugin listed in the config.
     fn load_plugins(config: &GlobalConfig) -> KeyedList<Plugin> {
-        KeyedList::new_lossy(config.plugins.iter().filter_map(|config| {
-            match Plugin::new(config.clone()) {
+        KeyedList::new_lossy(config.plugins.iter().filter_map(|plugin_entry| {
+            match Plugin::new(plugin_entry.clone()) {
                 Ok(plugin) => {
                     debug!("found plugin {plugin:?}");
                     Some(plugin)
                 }
                 Err(e) => {
-                    error!("error finding plugin: {e}");
+                    error!("error loading plugin: {e}");
                     None
                 }
             }
@@ -163,8 +181,14 @@ impl Host {
 
         let this = self.clone();
         async move {
-            for plugin in plugins {
-                let Some(stripped) = input.strip_prefix(plugin.prefix()) else {
+            for plugin in plugins
+                .into_iter()
+                .filter(|plugin| !plugin.config_entry().disabled)
+            {
+                let Some(stripped) = plugin
+                    .prefix()
+                    .and_then(|prefix| input.strip_prefix(prefix))
+                else {
                     continue;
                 };
                 debug!("querying plugin {plugin:?}");
@@ -256,7 +280,7 @@ impl Host {
         self.inner.lock().config.clone()
     }
 
-    /// Ordered set of all plugins.
+    /// Ordered set of all enabled plugins.
     #[tracing::instrument(skip(self))]
     pub fn plugins(&self) -> KeyedList<Plugin> {
         self.inner.lock().plugins.clone()

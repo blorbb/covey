@@ -48,7 +48,7 @@
     </div>
   </nav>
   <div class="settings-content">
-    {@render children()}
+    {@render children?.()}
   </div>
 </main>
 

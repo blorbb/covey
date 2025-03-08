@@ -20,6 +20,6 @@ tonic.workspace = true
 az.workspace = true
 dirs.workspace = true
 parking_lot.workspace = true
-covey-schema = { path = "../covey-schema", version = "0.0.1" }
-covey-proto = { path = "../covey-proto", version = "0.0.1" }
+covey-schema = { path = "../covey-schema", version = "0.0.2" }
+covey-proto = { path = "../covey-proto", version = "0.0.2" }
 freedesktop-icons = "0.3"

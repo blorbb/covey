@@ -807,7 +807,7 @@ dependencies = [
 
 [[package]]
 name = "covey"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "az",
  "color-eyre",
@@ -825,7 +825,7 @@ dependencies = [
 
 [[package]]
 name = "covey-manifest-macros"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "covey-schema",
  "proc-macro-error2",
@@ -836,7 +836,7 @@ dependencies = [
 
 [[package]]
 name = "covey-plugin"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "anyhow",
  "az",
@@ -856,7 +856,7 @@ dependencies = [
 
 [[package]]
 name = "covey-proto"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "prost",
  "tonic",
@@ -865,7 +865,7 @@ dependencies = [
 
 [[package]]
 name = "covey-schema"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -878,7 +878,7 @@ dependencies = [
 
 [[package]]
 name = "covey-tauri"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "color-eyre",
  "covey",

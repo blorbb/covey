@@ -17,7 +17,6 @@ description = "APIs for creating Covey plugins"
 workspace = true
 
 [dependencies]
-prost.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 tokio-stream = { version = "0.1.16", default-features = false, features = [
     "net",
@@ -27,7 +26,7 @@ az.workspace = true
 anyhow = "1.0.93"
 sublime_fuzzy = "0.7.0"
 time = { version = "0.3", features = ["serde"] }
-parking_lot = "0.12"
+parking_lot.workspace = true
 covey-manifest-macros = { path = "../covey-manifest-macros", version = "0.0.1" }
 covey-proto = { path = "../covey-proto", version = "0.0.1" }
 serde.workspace = true

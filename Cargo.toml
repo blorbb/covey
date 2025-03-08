@@ -5,7 +5,8 @@ members = [
     "covey-schema",
     "covey-manifest-macros",
     "covey-tauri/src-tauri",
-    "covey-tauri/covey-tauri-types", "covey-proto",
+    "covey-tauri/covey-tauri-types",
+    "covey-proto",
 ]
 resolver = "2"
 
@@ -23,7 +24,6 @@ az = "1.2.1"
 dirs = "5.0.1"
 color-eyre = "0.6.3"
 tokio = "1.41.0"
-futures = "0.3.31"
 tracing = "0.1.41"
 serde = { version = "1", features = ["derive"] }
 prost = "0.13.3"

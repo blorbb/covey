@@ -815,10 +815,7 @@ dependencies = [
  "covey-schema",
  "dirs 5.0.1",
  "freedesktop-icons",
- "futures",
  "parking_lot",
- "prost",
- "serde",
  "serde_json",
  "tokio",
  "toml 0.8.20",
@@ -847,7 +844,6 @@ dependencies = [
  "covey-proto",
  "dirs 5.0.1",
  "parking_lot",
- "prost",
  "serde",
  "serde_json",
  "sublime_fuzzy",
@@ -888,8 +884,6 @@ dependencies = [
  "covey",
  "covey-schema",
  "covey-tauri-types",
- "parking_lot",
- "serde",
  "serde_json",
  "tauri",
  "tauri-build",
@@ -1439,28 +1433,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "futures"
-version = "0.3.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65bc07b1a8bc7c85c5f2e110c476c7389b4554ba72af57d8445ea63a576b0876"
-dependencies = [
- "futures-channel",
- "futures-core",
- "futures-executor",
- "futures-io",
- "futures-sink",
- "futures-task",
- "futures-util",
-]
-
-[[package]]
 name = "futures-channel"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2dff15bf788c671c1934e366d07e30c1814a8ef514e1af724a602e8a2fbe1b10"
 dependencies = [
  "futures-core",
- "futures-sink",
 ]
 
 [[package]]
@@ -1528,7 +1506,6 @@ version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9fa08315bb612088cc391249efdc3bc77536f16c91f6cf495e6fbe85b20a4a81"
 dependencies = [
- "futures-channel",
  "futures-core",
  "futures-io",
  "futures-macro",

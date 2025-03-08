@@ -16,3 +16,7 @@ tonic-build = "0.12.3"
 
 [lints]
 workspace = true
+
+[package.metadata.cargo-machete]
+# prost: used by tonic::include_proto!
+ignored = ["prost"]

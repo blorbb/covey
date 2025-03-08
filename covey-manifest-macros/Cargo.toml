@@ -14,7 +14,7 @@ proc-macro-error2 = "2"
 syn.workspace = true
 quote.workspace = true
 proc-macro2.workspace = true
-covey-schema = { path = "../covey-schema" }
+covey-schema = { path = "../covey-schema", version = "0.0.1" }
 
 [lib]
 proc-macro = true

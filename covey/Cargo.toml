@@ -23,7 +23,7 @@ prost.workspace = true
 az.workspace = true
 dirs.workspace = true
 parking_lot.workspace = true
-covey-schema = { path = "../covey-schema" }
+covey-schema = { path = "../covey-schema", version = "0.0.1" }
 freedesktop-icons = "0.3"
 
 [build-dependencies]

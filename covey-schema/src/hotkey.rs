@@ -3,8 +3,32 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
+/// A key and some modifiers.
+///
+/// This implements [`serde::Serialize`] as a struct of values.
+/// [`serde::Deserialize`] is implemented as either deserializing this
+/// same struct of values, or as an *accelerator* (a string).
+///
+/// # Accelerators
+///
+/// An accelerator is a set of modifiers and a key, separated by `+`.
+/// It is parsed case insensitively.
+///
+/// The key will usually be the character produced when typed on
+/// the keyboard, but there are some special names for keys that
+/// don't produce a visible character.
+///
+/// The modifiers are always "ctrl", "shift", "alt" or "meta", case
+/// insensitive.
+///
+/// [`Hotkey`] and [`KeyCode`] implement [`Display`](fmt::Display) and
+/// [`FromStr`] as an accelerator. Check the [`FromStr`] implementation of
+/// [`KeyCode`] to see the names of keys used in the accelerator.
+///
+/// Examples: `Enter`, `Tab`, `a`, `Z`, `,`, `[`, `Ctrl+X`, `ctrl+shift+q`,
+/// `alt+meta+f12`, `meta+alt+shift+ctrl+0`.
 #[expect(clippy::struct_excessive_bools, reason = "simpler to serialize")]
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub struct Hotkey {
@@ -17,6 +41,51 @@ pub struct Hotkey {
     pub shift: bool,
     #[serde(default)]
     pub meta: bool,
+}
+
+impl<'de> Deserialize<'de> for Hotkey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        // deserialize either the struct like above, or a string accelerator
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum HotkeyDeserialize {
+            Struct(HotkeyStruct),
+            Accelerator(String),
+        }
+
+        #[derive(Deserialize)]
+        #[serde(rename_all = "kebab-case")]
+        struct HotkeyStruct {
+            pub key: KeyCode,
+            #[serde(default)]
+            pub ctrl: bool,
+            #[serde(default)]
+            pub alt: bool,
+            #[serde(default)]
+            pub shift: bool,
+            #[serde(default)]
+            pub meta: bool,
+        }
+
+        let deserialized = HotkeyDeserialize::deserialize(deserializer)?;
+        let this = match deserialized {
+            HotkeyDeserialize::Struct(hotkey_struct) => Self {
+                key: hotkey_struct.key,
+                ctrl: hotkey_struct.ctrl,
+                alt: hotkey_struct.alt,
+                shift: hotkey_struct.shift,
+                meta: hotkey_struct.meta,
+            },
+            HotkeyDeserialize::Accelerator(acc) => {
+                Hotkey::from_str(&acc).map_err(serde::de::Error::custom)?
+            }
+        };
+
+        Ok(this)
+    }
 }
 
 /// A single key on a standard US QWERTY keyboard without shift being held.

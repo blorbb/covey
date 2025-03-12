@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+SCRIPT_PATH=$(dirname "$(realpath -s "$0")")
+cd "$SCRIPT_PATH"
+cd ../covey-tauri
+
+# linuxdeploy fails without NO_STRIP=true
+NO_STRIP=true pnpm tauri build

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+# this relies on `covey-plugins` to be a folder next to `covey`.
+
+SCRIPT_PATH=$(dirname "$(realpath -s "$0")")
+cd "$SCRIPT_PATH"
+../../covey-plugins/install-all.sh "$@"

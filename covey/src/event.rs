@@ -7,8 +7,11 @@ use az::SaturatingAs as _;
 
 use crate::Plugin;
 
-/// Event returned by a plugin.
-pub(crate) enum PluginEvent {
+/// Action response returned by a plugin.
+///
+/// May contain some extra pieces of information that should not
+/// be exposed to users.
+pub(crate) enum InternalAction {
     /// Set the displayed list.
     SetList {
         list: List,
@@ -24,7 +27,7 @@ pub(crate) enum PluginEvent {
     DisplayError(String),
 }
 
-impl fmt::Debug for PluginEvent {
+impl fmt::Debug for InternalAction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::SetList { list, index: _ } => f
@@ -39,7 +42,7 @@ impl fmt::Debug for PluginEvent {
     }
 }
 
-impl PluginEvent {
+impl InternalAction {
     pub(crate) fn from_proto_action(plugin: &Plugin, action: covey_proto::action::Action) -> Self {
         use covey_proto::action::Action as PrAction;
         match action {
@@ -49,6 +52,15 @@ impl PluginEvent {
             PrAction::DisplayError(err) => Self::DisplayError(err),
         }
     }
+}
+
+/// An action that should be performed by the frontend.
+pub enum Action {
+    Close,
+    SetList(List),
+    Copy(String),
+    SetInput(Input),
+    DisplayError(String, String),
 }
 
 /// The main text input contents and selection.

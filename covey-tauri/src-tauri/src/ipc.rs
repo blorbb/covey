@@ -8,30 +8,22 @@ use covey_schema::{config::GlobalConfig, keyed_list::Id, manifest::PluginManifes
 use covey_tauri_types::{Event, ListItemId};
 use tauri::{Manager, State, WebviewWindowBuilder, ipc::Channel};
 
-use crate::state::{AppState, EventChannel};
+use crate::state::AppState;
 
 #[tauri::command]
-pub fn setup(
-    app: tauri::AppHandle,
-    state: State<'_, AppState>,
-    events: Channel<Event>,
-) -> Result<(), String> {
-    setup_impl(app, state, events).map_err(|e| format!("{e:#}"))
-}
-
-fn setup_impl(
-    app: tauri::AppHandle,
-    state: State<'_, AppState>,
-    channel: Channel<Event>,
-) -> Result<()> {
-    let frontend = EventChannel { channel, app };
-    state.init(frontend)?;
+pub fn setup(app: tauri::AppHandle, channel: Channel<Event>) -> Result<(), String> {
+    let moved_app = app.clone();
+    let old_state = app.unmanage::<AppState>();
+    if old_state.is_some() {
+        tracing::warn!("removed previous app state")
+    }
+    app.manage(AppState::new(moved_app, channel).map_err(|e| format!("{e:#}"))?);
     Ok(())
 }
 
 #[tauri::command]
 pub fn query(state: State<'_, AppState>, text: String) {
-    tokio::spawn(state.host().query(text));
+    tokio::spawn(state.sender.lock().send_query(text));
 }
 
 #[tauri::command]
@@ -41,7 +33,7 @@ pub fn activate(state: State<'_, AppState>, list_item_id: ListItemId, command_na
     let item = state.find_list_item(&id);
 
     if let Some(item) = item {
-        tokio::spawn(state.host().activate(item, command_name));
+        tokio::spawn(state.sender.lock().activate(item, command_name));
     } else {
         tracing::warn!("list item with id {id:?} not found")
     }
@@ -49,7 +41,7 @@ pub fn activate(state: State<'_, AppState>, list_item_id: ListItemId, command_na
 
 #[tauri::command]
 pub fn reload_plugin(state: State<'_, AppState>, plugin_id: Id) {
-    state.host().reload_plugin(&plugin_id);
+    state.sender.lock().reload_plugin(&plugin_id);
 }
 
 #[tauri::command]
@@ -76,20 +68,21 @@ pub fn show_settings_window(app: tauri::AppHandle) {
 /// Must be called after the app is initialised.
 #[tauri::command]
 pub fn get_global_config(state: State<'_, AppState>) -> GlobalConfig {
-    state.host().config()
+    state.sender.lock().config().clone()
 }
 
 /// Must be called after the app is initialised.
 #[tauri::command]
 pub fn set_global_config(state: State<'_, AppState>, config: GlobalConfig) {
     tracing::debug!("received global config {config:#?}");
-    state.host().reload(config)
+    state.sender.lock().reload(config)
 }
 
 #[tauri::command]
 pub fn get_manifest(state: State<'_, AppState>, plugin_name: String) -> Option<PluginManifest> {
     state
-        .host()
+        .sender
+        .lock()
         .plugins()
         .get(&plugin_name)
         .map(Plugin::manifest)

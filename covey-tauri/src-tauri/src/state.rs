@@ -1,9 +1,8 @@
-use std::sync::OnceLock;
-
 use color_eyre::eyre::Result;
-use covey::{Frontend, Host};
+use covey::{Action, host};
 pub use covey_tauri_types::{Event, ListItem, ListStyle};
 use covey_tauri_types::{Icon, ListItemId};
+use parking_lot::Mutex;
 use tauri::ipc::Channel;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_notification::NotificationExt;
@@ -12,42 +11,73 @@ use crate::window;
 
 /// Must be initialised exactly once with [`AppState::init`].
 pub struct AppState {
-    inner: OnceLock<Host>,
+    pub(crate) sender: Mutex<host::RequestSender>,
+    handle: tokio::task::JoinHandle<()>,
 }
 
 impl AppState {
-    pub fn new() -> Self {
-        Self {
-            inner: OnceLock::new(),
-        }
-    }
+    pub fn new(app: tauri::AppHandle, channel: Channel<Event>) -> Result<Self> {
+        let (tx, mut rx) = host::channel()?;
 
-    pub fn init(&self, fe: impl Frontend) -> Result<()> {
-        if let Some(existing) = self.inner.get() {
-            // this should never run in the real application, but it does
-            // in hot module reload.
-            tracing::warn!("setting model again");
-            existing.set_frontend(fe);
-        } else {
-            self.inner
-                .set(covey::Host::new(fe)?)
-                .unwrap_or_else(|_| tracing::warn!("already set up"));
-        }
+        // forward actions to the channel
+        let handle = tokio::spawn(async move {
+            loop {
+                let action = rx.recv_action().await;
+                let event = match action {
+                    Action::Close => {
+                        window::hide_menu(&app);
+                        continue;
+                    }
+                    Action::SetList(list) => Event::SetList {
+                        items: convert_list_items(&list.items),
+                        style: list.style.map(list_style_from_covey),
+                        plugin_id: list.plugin.id().clone(),
+                    },
+                    Action::SetInput(input) => Event::SetInput {
+                        contents: input.contents,
+                        selection: input.selection,
+                    },
+                    Action::Copy(str) => {
+                        app.clipboard().write_text(str).unwrap();
+                        continue;
+                    }
+                    Action::DisplayError(title, body) => {
+                        app.notification()
+                            .builder()
+                            .title(title)
+                            .body(body)
+                            .show()
+                            .unwrap();
+                        continue;
+                    }
+                };
 
-        Ok(())
-    }
+                channel.send(event).expect("event channel must remain open");
+            }
+        });
 
-    /// # Panics
-    /// Panics if this has not been initialised yet.
-    pub fn host(&self) -> &Host {
-        self.inner.get().expect("app state has not been set up")
+        Ok(Self {
+            sender: Mutex::new(tx),
+            handle,
+        })
     }
 
     pub fn find_list_item(&self, id: &ListItemId) -> Option<covey::ListItemId> {
         Some(covey::ListItemId {
-            plugin: self.host().plugins().get(id.plugin_id.as_str())?.clone(),
+            plugin: self
+                .sender
+                .lock()
+                .plugins()
+                .get(id.plugin_id.as_str())?
+                .clone(),
             local_id: id.local_id.parse().ok()?,
         })
+    }
+}
+
+impl Drop for AppState {
+    fn drop(&mut self) {
+        self.handle.abort();
     }
 }
 
@@ -73,56 +103,6 @@ fn convert_list_items(lis: &[covey::ListItem]) -> Vec<ListItem> {
             }
         })
         .collect()
-}
-
-#[derive(Clone)]
-pub struct EventChannel {
-    pub channel: Channel<Event>,
-    pub app: tauri::AppHandle,
-}
-
-impl covey::Frontend for EventChannel {
-    fn close(&mut self) {
-        window::hide_menu(&self.app);
-    }
-
-    fn copy(&mut self, str: String) {
-        self.app.clipboard().write_text(str).unwrap();
-    }
-
-    fn set_input(&mut self, input: covey::Input) {
-        self.channel
-            .send(Event::SetInput {
-                contents: input.contents,
-                selection: input.selection,
-            })
-            .unwrap();
-    }
-
-    fn set_list(&mut self, list: covey::List) {
-        self.channel
-            .send(Event::SetList {
-                items: convert_list_items(&list.items),
-                style: list.style.map(list_style_from_covey),
-                plugin_id: list.plugin.id().clone(),
-            })
-            .unwrap();
-    }
-
-    fn reload(&mut self, config: covey_schema::config::GlobalConfig) {
-        tracing::info!("reloading at the front end");
-        self.channel.send(Event::Reload { config }).unwrap();
-    }
-
-    fn display_error(&mut self, title: &str, error: &str) {
-        self.app
-            .notification()
-            .builder()
-            .title(title)
-            .body(error)
-            .show()
-            .unwrap();
-    }
 }
 
 fn list_style_from_covey(value: covey::ListStyle) -> ListStyle {

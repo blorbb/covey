@@ -21,8 +21,6 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
-            app.manage(AppState::new());
-
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .show_menu_on_left_click(false)

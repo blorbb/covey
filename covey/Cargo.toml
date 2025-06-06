@@ -15,7 +15,7 @@ color-eyre.workspace = true
 toml.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
-tokio = { workspace = true, features = ["fs", "process"] }
+tokio = { workspace = true, features = ["fs", "process", "sync"] }
 tonic.workspace = true
 az.workspace = true
 dirs.workspace = true

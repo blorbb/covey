@@ -884,6 +884,7 @@ dependencies = [
  "covey",
  "covey-schema",
  "covey-tauri-types",
+ "parking_lot",
  "serde_json",
  "tauri",
  "tauri-build",

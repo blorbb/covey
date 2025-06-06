@@ -36,8 +36,8 @@ export class Menu {
     console.debug("calling new");
     const self = new Menu();
 
-    const events = new Channel<Event>();
-    events.onmessage = (msg) => {
+    const channel = new Channel<Event>();
+    channel.onmessage = (msg) => {
       switch (msg.kind) {
         case "setInput":
           self.inputText = msg.contents;
@@ -59,7 +59,7 @@ export class Menu {
       }
     };
 
-    await invoke("setup", { events });
+    await invoke("setup", { channel });
     self.settings = await Settings.new();
     return self;
   }

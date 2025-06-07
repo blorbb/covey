@@ -1,6 +1,5 @@
 <script lang="ts">
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-  import { getCurrentWindow } from "@tauri-apps/api/window";
   import { onDestroy } from "svelte";
 
   import type { Id, ListStyle } from "$lib/bindings";
@@ -9,6 +8,7 @@
   import MenuFooterCommands from "$lib/components/menu_footer_commands.svelte";
   import ScrollShadow from "$lib/components/scroll_shadow.svelte";
   import tracing from "$lib/tracing";
+  import * as window from "$lib/window";
 
   import type { PageData } from "./$types";
 
@@ -28,7 +28,7 @@
         ev.preventDefault();
         break;
       case "Escape":
-        void getCurrentWindow().hide();
+        void window.hideMenuWindow();
         ev.preventDefault();
         break;
       default: {
@@ -61,7 +61,7 @@
 
   // select full input when focussed
   let unlisten: UnlistenFn | undefined;
-  void listen("tauri://focus", () => {
+  void listen("focus-menu", () => {
     tracing.info("focus changed");
     mainInput?.setSelectionRange(0, mainInput.value.length);
   }).then((f) => (unlisten = f));
@@ -78,7 +78,7 @@
     // hide window if clicked outside menu wrapper
     if (!menuWrapper?.contains(ev.target)) {
       tracing.info("clicked outside");
-      void getCurrentWindow().hide();
+      void window.hideMenuWindow();
     }
   };
 
@@ -106,7 +106,7 @@
   });
 
   const navSettings = async (_plugin?: Id) => {
-    await menu.showSettingsWindow();
+    await window.showSettingsWindow();
     // TODO: navigate settings window to the plugin's settings
     // if a plugin is specified
   };

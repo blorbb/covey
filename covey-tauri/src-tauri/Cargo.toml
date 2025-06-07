@@ -35,6 +35,13 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 covey-tauri-types = { path = "../covey-tauri-types" }
 tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
+# gtk layer shell
+gtk = { version = "0.18", optional = true }
+gtk-layer-shell = { version = "0.8", features = ["v0_6"], optional = true }
+
+[features]
+default = ["layer-shell"]
+layer-shell = ["dep:gtk", "dep:gtk-layer-shell"]
 
 [lints]
 workspace = true

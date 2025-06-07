@@ -8,7 +8,7 @@ use covey_schema::{config::GlobalConfig, keyed_list::Id, manifest::PluginManifes
 use covey_tauri_types::{Event, ListItemId};
 use tauri::{Manager, State, WebviewWindowBuilder, ipc::Channel};
 
-use crate::state::AppState;
+use crate::{state::AppState, window::MenuWindow};
 
 #[tauri::command]
 pub fn setup(app: tauri::AppHandle, channel: Channel<Event>) -> Result<(), String> {
@@ -63,6 +63,16 @@ pub fn show_settings_window(app: tauri::AppHandle) {
 
     window.show().unwrap();
     window.set_focus().unwrap();
+}
+
+#[tauri::command]
+pub fn show_menu_window(window: State<'_, MenuWindow>) {
+    window.show();
+}
+
+#[tauri::command]
+pub fn hide_menu_window(window: State<'_, MenuWindow>) {
+    window.hide();
 }
 
 /// Must be called after the app is initialised.

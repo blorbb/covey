@@ -121,10 +121,6 @@ export class Menu {
     return true;
   }
 
-  public async showSettingsWindow() {
-    await invoke("show_settings_window");
-  }
-
   public currentItem(): ListItem | undefined {
     return this.items[this.selection];
   }

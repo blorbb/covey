@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-
-SCRIPT_PATH=$(dirname "$(realpath -s "$0")")
-cd "$SCRIPT_PATH"
-cd ../covey-tauri
-
-pnpm tauri dev

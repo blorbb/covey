@@ -27,6 +27,7 @@ where
         &self,
         request: tonic::Request<covey_proto::InitialiseRequest>,
     ) -> TonicResult<()> {
+        self.poker.poke();
         let request = request.into_inner();
 
         let mut guard = self.plugin.write().await;
@@ -44,6 +45,7 @@ where
         &self,
         request: tonic::Request<covey_proto::QueryRequest>,
     ) -> TonicResult<covey_proto::QueryResponse> {
+        self.poker.poke();
         let list = self
             .plugin
             .read()
@@ -65,6 +67,7 @@ where
         &self,
         request: tonic::Request<covey_proto::ActivationRequest>,
     ) -> TonicResult<Self::ActivateStream> {
+        self.poker.poke();
         let request = request.into_inner();
         let id = request.selection_id;
         let callbacks =

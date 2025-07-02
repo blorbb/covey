@@ -1,26 +1,29 @@
-use std::process;
+use std::{process, time::Duration};
 
 use covey_proto::plugin_server::PluginServer;
 use parking_lot::Mutex;
 use tokio::{net::TcpListener, sync::RwLock, task::LocalSet};
 use tonic::transport::Server;
 
-use crate::{Plugin, store::ListItemStore};
+use crate::{Plugin, poke, store::ListItemStore};
 
 /// Wrapper around a [`Plugin`] that implements the tonic server.
 pub(crate) struct ServerState<P> {
     pub(crate) plugin: RwLock<Option<P>>,
     pub(crate) list_item_store: Mutex<ListItemStore>,
+    // should send a poke on every received request to prevent auto-shutdown.
+    pub(crate) poker: poke::Sender,
 }
 
 impl<T: Plugin> ServerState<T> {
     /// Creates a new uninitialised plugin.
     //
     /// The `initialise` RPC method must be called to fill in the plugin.
-    pub(crate) fn new_empty() -> Self {
+    pub(crate) fn new_empty(poker: poke::Sender) -> Self {
         Self {
             plugin: RwLock::new(None),
             list_item_store: Mutex::new(ListItemStore::new()),
+            poker,
         }
     }
 }
@@ -102,8 +105,12 @@ pub fn run_server<T: Plugin>(plugin_id: &'static str) -> ! {
                 // print port for covey to read
                 println!("{port}");
 
+                // auto kill this process after 24h of inactivity
+                let (poker, rx) = poke::channel();
+                tokio::spawn(kill_on_timeout(rx, Duration::from_secs(24 * 60 * 60)));
+
                 Server::builder()
-                    .add_service(PluginServer::new(ServerState::<T>::new_empty()))
+                    .add_service(PluginServer::new(ServerState::<T>::new_empty(poker)))
                     .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
                     .await?;
 
@@ -127,4 +134,24 @@ fn print_error(e: &anyhow::Error) {
         .collect::<Vec<_>>()
         .join("\n");
     eprintln!("{err_string}");
+}
+
+async fn kill_on_timeout(mut rx: poke::Receiver, timeout: Duration) -> ! {
+    loop {
+        // wait for pokes, timing out after the duration
+        match tokio::time::timeout(timeout, rx.poked()).await {
+            // poke before timeout, reset
+            Ok(Ok(())) => continue,
+            // poker dropped!
+            Ok(Err(_)) => {
+                eprintln!("ERROR: timeout poker has somehow dropped. shutting down.");
+                std::process::exit(1);
+            }
+            // timed out
+            Err(_) => {
+                eprintln!("{timeout:?} passed without new query. shutting down.");
+                std::process::exit(0);
+            }
+        }
+    }
 }

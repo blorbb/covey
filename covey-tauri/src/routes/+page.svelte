@@ -20,11 +20,12 @@
   const windowKeyDown = (ev: KeyboardEvent) => {
     switch (ev.key) {
       case "ArrowDown":
-        menu.selection = Math.min(menu.items.length - 1, menu.selection + 1);
+        menu.selection = (menu.selection + 1) % menu.items.length;
         ev.preventDefault();
         break;
       case "ArrowUp":
-        menu.selection = Math.max(0, menu.selection - 1);
+        menu.selection =
+          (menu.selection - 1 + menu.items.length) % menu.items.length;
         ev.preventDefault();
         break;
       case "Escape":
@@ -42,6 +43,15 @@
   $effect(() => {
     // tracks menu.inputText
     menu.query();
+  });
+
+  let listEl = $state<HTMLElement>();
+
+  // scroll to element when menu selection changes
+  $effect(() => {
+    listEl?.children
+      .item(menu.selection)
+      ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   });
 
   // retain focus on the input element
@@ -141,6 +151,7 @@
           class="list"
           style:--list-columns={listColumns}
           data-list-style={listKind}
+          bind:this={listEl}
         >
           {#each menu.items as { id, description, title, icon }, i (id)}
             <label class="list-item">

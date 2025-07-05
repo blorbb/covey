@@ -129,6 +129,9 @@
   <div class="menu-wrapper" bind:this={menuWrapper}>
     <main class="menu">
       <div class="search-bar">
+        <div class="search-icon">
+          <iconify-icon inline icon="ph:magnifying-glass-bold"></iconify-icon>
+        </div>
         <input
           class="search-input"
           type="text"
@@ -146,6 +149,9 @@
           </ButtonCircle>
         </div>
       </div>
+
+      <div class="separator"></div>
+
       <ScrollShadow>
         <div
           class="list"
@@ -223,34 +229,33 @@
 
 <style lang="scss">
   .menu-wrapper {
-    border-radius: var(--brad-standard);
-    border: 0.25rem solid var(--color-outline);
-    overflow: hidden;
-    position: relative;
+    --_brad-menu: var(--brad-standard);
+    --_menu-border-width: 0.5rem;
+
+    // bottom-left-ish primary
+    background: radial-gradient(
+      circle farthest-corner at 20% 80%,
+      var(--color-primary) 0%,
+      var(--color-secondary) 100%
+    );
     color: var(--color-on-surface);
-
-    // blurred background image
-    // window that blurs against the desktop background isn't
-    // well supported, so background image looks nicer.
-    &::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      z-index: -1;
-
-      // credit: https://unsplash.com/photos/worms-eye-view-of-mountain-during-daytime-ii5JY_46xH0
-      background-image: url("/background.jpg");
-      background-size: cover;
-      filter: blur(0.5vw);
-    }
+    position: relative;
+    border-radius: var(--_brad-menu);
+    padding: var(--_menu-border-width);
   }
 
   .menu {
     background: var(--color-surface);
-    opacity: 0.93;
+    border-radius: calc(var(--_brad-menu) - var(--_menu-border-width));
+
+    box-shadow:
+      0px 0px 8px rgb(0 0 0 / 0.5),
+      0px 0px 4px rgb(0 0 0 / 0.5);
 
     width: 800px;
     max-height: 600px;
+    overflow: hidden;
+
     @include grid-container();
     grid-template-rows: auto 1fr auto;
   }
@@ -261,6 +266,10 @@
     gap: 1rem;
     display: flex;
     flex-direction: row;
+  }
+
+  .search-icon {
+    color: var(--color-on-surface-variant);
   }
 
   .search-input {
@@ -275,6 +284,14 @@
 
   .settings-button {
     display: grid;
+  }
+
+  .separator {
+    width: calc(100% - 1.5rem);
+    height: 2px;
+    margin-inline: auto;
+    border-radius: 999rem;
+    background-color: var(--color-surface-variant);
   }
 
   .list {
@@ -293,9 +310,13 @@
     // area may not be defined. use margins instead.
     --_row-gap: 0.5rem;
     --_icon-gap: 1rem;
+    --_outer-padding: 1rem;
 
-    padding: 1rem;
+    padding: var(--_outer-padding);
     border-radius: var(--brad-standard);
+
+    scroll-behavior: smooth;
+    scroll-margin-block: var(--_outer-padding);
 
     @include grid-container();
     grid-template-areas: "icon title" "icon description";
@@ -375,7 +396,12 @@
     }
 
     &:has(.list-item-radio:checked) {
-      background: var(--color-surface-container-highest);
+      background: var(--color-primary-container);
+      color: var(--color-on-primary-container);
+
+      .description {
+        color: var(--color-on-primary-container);
+      }
     }
   }
 

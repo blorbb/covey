@@ -1,0 +1,28 @@
+[package]
+name = "covey-egui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+egui = { version = "0.32", features = ["bytemuck"] }
+tao = "0.34"
+tray-icon = "0.21"
+glow = "0.16"
+tracing.workspace = true
+ahash = "0.8.12"
+raw-window-handle = "0.6.2"
+web-time = "1.1.0"
+arboard = { version = "3.6.0", features = ["image-data"] }
+bytemuck = "1.23.1"
+profiling = { version = "1.0.17", default-features = false }
+webbrowser = "1.0.5"
+
+[lints]
+workspace = true
+
+[features]
+wayland = []
+x11 = []

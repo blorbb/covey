@@ -7,6 +7,7 @@ members = [
     "covey-tauri/src-tauri",
     "covey-tauri/covey-tauri-types",
     "covey-proto",
+    "covey-egui",
 ]
 resolver = "2"
 

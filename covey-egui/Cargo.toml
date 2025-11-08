@@ -7,18 +7,16 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
-egui = { version = "0.32", features = ["bytemuck"] }
-tao = "0.34"
+egui = { version = "0.33" }
+eframe = "0.33.0"
 tray-icon = "0.21"
-glow = "0.16"
 tracing.workspace = true
-ahash = "0.8.12"
-raw-window-handle = "0.6.2"
-web-time = "1.1.0"
 arboard = { version = "3.6.0", features = ["image-data"] }
-bytemuck = "1.23.1"
-profiling = { version = "1.0.17", default-features = false }
-webbrowser = "1.0.5"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+color-eyre.workspace = true
+winit = "0.30.12"
+interprocess = { version = "2.2.3", features = ["tokio"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 
 [lints]
 workspace = true

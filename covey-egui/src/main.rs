@@ -23,7 +23,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap()
         .add_directive("covey=debug".parse().unwrap());
     tracing_subscriber::fmt().with_env_filter(filter).init();
-    tracing::warn!("start");
 
     let options = eframe::NativeOptions {
         run_and_return: true,
@@ -41,18 +40,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let name = "covey.sock".to_ns_name::<GenericNamespaced>()?;
     let listener = match ListenerOptions::new().name(name.clone()).create_tokio() {
         Err(e) if e.kind() == io::ErrorKind::AddrInUse => {
-            tracing::warn!("address in use");
+            tracing::info!("address in use");
             // connect to the existing socket and ask it to open
             let (mut rx, mut tx) = Stream::connect(name).await?.split();
-            tracing::warn!("1");
+
             tx.write_all(b"open").await?;
             drop(tx);
-            tracing::warn!("2");
-            // wait for a response
+
+            // wait for a response just to confirm
             rx.read_to_end(&mut Vec::new()).await?;
             drop(rx);
-            tracing::warn!("3");
-            tracing::info!("server responded");
+
             return Ok(());
         }
         x => x?,
@@ -65,25 +63,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "First Window",
             options.clone(),
             Box::new(|_cc| Ok(Box::new(MyApp { has_next: true }))),
-            // &event_loop,
         )?;
-        // event_loop.run_app_on_demand(&mut app)?;
-        tracing::info!("Killed window");
-        let (mut rx, mut tx) = listener.accept().await?.split();
-        tracing::warn!("1");
+
+        let (mut rx, tx) = listener.accept().await?.split();
+
         let mut request = String::new();
         rx.read_to_string(&mut request).await?;
         drop(rx);
-        tracing::warn!("2");
+
         match &*request {
             "open" => {}
             "exit" => break,
             _ => tracing::error!("unknown request {request:?}"),
         }
-        tracing::warn!("3");
-        tx.write_all(b"").await?;
+
+        // complete request, nothing to send
         drop(tx);
-        tracing::warn!("4");
     }
 
     tracing::info!("exiting");

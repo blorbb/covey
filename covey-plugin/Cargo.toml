@@ -23,7 +23,7 @@ tokio-stream = { version = "0.1.16", default-features = false, features = [
 ] }
 tonic.workspace = true
 az.workspace = true
-anyhow = "1.0.93"
+anyhow.workspace = true
 sublime_fuzzy = "0.7.0"
 time = { version = "0.3", features = ["serde"] }
 parking_lot.workspace = true

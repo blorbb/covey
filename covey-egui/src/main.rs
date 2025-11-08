@@ -1,21 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use std::io;
-
-use color_eyre::eyre::Result;
+use covey_egui::cli;
 use eframe::egui;
-use interprocess::local_socket::{
-    GenericNamespaced, ListenerOptions, ToNsName,
-    tokio::Stream,
-    traits::tokio::{Listener, Stream as _},
-};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 
 // https://github.com/emilk/egui/blob/main/examples/serial_windows/src/main.rs
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     // https://stackoverflow.com/a/77485843
     let filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::WARN.into())
@@ -37,48 +29,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // can't use a custom UserEvent with the event loop when using eframe::create_native
     // need to use some other kind of channel anyways to tell this app to open from another process
 
-    let name = "covey.sock".to_ns_name::<GenericNamespaced>()?;
-    let listener = match ListenerOptions::new().name(name.clone()).create_tokio() {
-        Err(e) if e.kind() == io::ErrorKind::AddrInUse => {
-            tracing::info!("address in use");
-            // connect to the existing socket and ask it to open
-            let (mut rx, mut tx) = Stream::connect(name).await?.split();
-
-            tx.write_all(b"open").await?;
-            drop(tx);
-
-            // wait for a response just to confirm
-            rx.read_to_end(&mut Vec::new()).await?;
-            drop(rx);
-
-            return Ok(());
-        }
-        x => x?,
+    let rx = match cli::listener()? {
+        Some(rx) => rx,
+        // Another instance is already open, quit.
+        None => return Ok(()),
     };
 
+    tracing::info!("Starting window");
+    eframe::run_native(
+        "covey",
+        options.clone(),
+        Box::new(|_cc| Ok(Box::new(MyApp { rx: rx.clone() }))),
+    )?;
+
     loop {
-        tracing::info!("Starting window");
+        tracing::info!("closed window");
 
-        eframe::run_native(
-            "First Window",
-            options.clone(),
-            Box::new(|_cc| Ok(Box::new(MyApp { has_next: true }))),
-        )?;
-
-        let (mut rx, tx) = listener.accept().await?.split();
-
-        let mut request = String::new();
-        rx.read_to_string(&mut request).await?;
-        drop(rx);
-
-        match &*request {
-            "open" => {}
-            "exit" => break,
-            _ => tracing::error!("unknown request {request:?}"),
+        // If the app received an exit signal while open, stop
+        match rx.last_handled_msg() {
+            Some(cli::Message::Exit) => break,
+            // Ignore an open that was already handled
+            // (ignored bc its already open or just the last open message)
+            Some(cli::Message::Open) => {}
+            None => {}
         }
 
-        // complete request, nothing to send
-        drop(tx);
+        match rx.recv() {
+            cli::Message::Open => {}
+            cli::Message::Exit => break,
+        }
+
+        tracing::info!("Starting window");
+        eframe::run_native(
+            "covey",
+            options.clone(),
+            Box::new(|_cc| Ok(Box::new(MyApp { rx: rx.clone() }))),
+        )?;
     }
 
     tracing::info!("exiting");
@@ -86,17 +72,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 struct MyApp {
-    pub(crate) has_next: bool,
+    rx: cli::Receiver,
 }
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            let label_text = if self.has_next {
-                "When this window is closed the next will be opened after a short delay"
-            } else {
-                "This is the last window. Program will end when closed"
-            };
+            match self.rx.try_recv() {
+                Some(cli::Message::Exit) => {
+                    tracing::info!("received exit message");
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close)
+                }
+                // Trying to open while already open -> do nothing
+                Some(cli::Message::Open) => {}
+                None => {}
+            }
+
+            let label_text =
+                "When this window is closed the next will be opened after a short delay";
             ui.label(label_text);
 
             // https://github.com/emilk/egui/issues/3655#issuecomment-3239209608

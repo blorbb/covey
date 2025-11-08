@@ -13,10 +13,10 @@ tray-icon = "0.21"
 tracing.workspace = true
 arboard = { version = "3.6.0", features = ["image-data"] }
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
-color-eyre.workspace = true
+anyhow.workspace = true
 winit = "0.30.12"
-interprocess = { version = "2.2.3", features = ["tokio"] }
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+interprocess = "2.2.3"
+parking_lot.workspace = true
 
 [lints]
 workspace = true

@@ -1164,12 +1164,12 @@ dependencies = [
 name = "covey-egui"
 version = "0.0.2"
 dependencies = [
+ "anyhow",
  "arboard",
- "color-eyre",
  "eframe",
  "egui",
  "interprocess",
- "tokio",
+ "parking_lot",
  "tracing",
  "tracing-subscriber",
  "tray-icon 0.21.0",
@@ -3045,10 +3045,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d941b405bd2322993887859a8ee6ac9134945a24ec5ec763a8a962fc64dfec2d"
 dependencies = [
  "doctest-file",
- "futures-core",
  "libc",
  "recvmsg",
- "tokio",
  "widestring",
  "windows-sys 0.52.0",
 ]

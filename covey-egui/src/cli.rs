@@ -7,12 +7,9 @@ use std::{
     thread,
 };
 
-use interprocess::{
-    bound_util::{RefRead as _, RefWrite as _},
-    local_socket::{
-        GenericNamespaced, ListenerOptions, Stream, ToNsName as _,
-        traits::{ListenerExt as _, Stream as _},
-    },
+use interprocess::local_socket::{
+    GenericNamespaced, ListenerOptions, Stream, ToNsName as _,
+    traits::{ListenerExt as _, Stream as _},
 };
 use parking_lot::Mutex;
 

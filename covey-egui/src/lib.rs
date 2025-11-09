@@ -114,6 +114,12 @@ impl eframe::App for &mut App {
                 tokio::spawn(self.tx.send_query(self.input.clone()));
             }
 
+            if !text_edit.response.has_focus() {
+                text_edit.response.request_focus();
+                // the text edit focus ring will flash for one frame without this
+                ui.ctx().request_discard("lost text edit focus");
+            }
+
             // results list
             if let Some(list) = &mut self.list {
                 ScrollArea::vertical().show(ui, |ui| {

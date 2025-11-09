@@ -15,11 +15,12 @@ pub struct App {
     input: String,
     list: Option<covey::List>,
     list_selection: usize,
-    style: Style,
     /// Whether the last opening of the app has been focused.
     ///
     /// Used to avoid closing the app early if focus isn't gained for a bit.
     has_focused: bool,
+    style: Style,
+    pub settings: GuiSettings,
 }
 
 pub struct Style {
@@ -56,8 +57,16 @@ impl Style {
     }
 }
 
+pub struct GuiSettings {
+    pub close_on_blur: bool,
+}
+
 impl App {
-    pub fn new(cli_rx: &cli::Receiver, style: Style) -> anyhow::Result<Self> {
+    pub fn new(
+        cli_rx: &cli::Receiver,
+        style: Style,
+        settings: GuiSettings,
+    ) -> anyhow::Result<Self> {
         let (mut tx, rx) = covey::host::channel()?;
         // immediately send an empty query
         tokio::spawn(tx.send_query(String::new()));
@@ -68,8 +77,9 @@ impl App {
             input: String::new(),
             list: None,
             list_selection: 0,
-            style,
             has_focused: false,
+            style,
+            settings,
         })
     }
 
@@ -127,13 +137,15 @@ impl eframe::App for &mut App {
                     .corner_radius(self.style.window_rounding),
             )
             .show(ctx, |ui| {
-                let window_focused = ui.input(|i| i.focused);
-                if window_focused {
-                    self.has_focused = true;
-                } else if !window_focused && self.has_focused {
-                    tracing::info!("window unfocused");
-                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-                    return;
+                if self.settings.close_on_blur {
+                    let window_focused = ui.input(|i| i.focused);
+                    if window_focused {
+                        self.has_focused = true;
+                    } else if !window_focused && self.has_focused {
+                        tracing::info!("window unfocused");
+                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                        return;
+                    }
                 }
 
                 // CLI window actions //
@@ -141,10 +153,13 @@ impl eframe::App for &mut App {
                     Some(cli::Message::Exit) => {
                         tracing::info!("received exit message");
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-                        // return;
+                        return;
                     }
                     // Trying to open while already open -> do nothing
                     Some(cli::Message::Open) => {}
+                    Some(cli::Message::OpenAndStay) => {
+                        self.settings.close_on_blur = false;
+                    }
                     None => {}
                 }
 
@@ -242,7 +257,8 @@ impl eframe::App for &mut App {
                     tokio::spawn(self.tx.send_query(self.input.clone()));
                 }
 
-                if !text_edit.response.has_focus() {
+                // can't request focus if the app is unfocused
+                if !text_edit.response.has_focus() && ui.input(|i| i.focused) {
                     text_edit.response.request_focus();
                     // the text edit focus ring will flash for one frame without this
                     ui.ctx().request_discard("lost text edit focus");

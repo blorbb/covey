@@ -14,10 +14,13 @@ use interprocess::local_socket::{
 };
 use parking_lot::Mutex;
 
+use crate::GuiSettings;
+
 // may have strings inside later, so not Copy
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Message {
     Open,
+    OpenAndStay,
     Exit,
 }
 
@@ -62,7 +65,7 @@ impl Receiver {
 /// open and this process should stop, and `Ok(Some(rx))` if this is the primary instance.
 ///
 /// Also parses CLI arguments, exiting with a help message if it fails.
-pub fn listener() -> io::Result<Option<Receiver>> {
+pub fn listener() -> io::Result<Option<(GuiSettings, Receiver)>> {
     let args = Args::parse();
     let cmd = args.cmd.unwrap_or_default();
 
@@ -74,9 +77,13 @@ pub fn listener() -> io::Result<Option<Receiver>> {
             let mut conn = Stream::connect(name)?;
 
             let msg = match cmd {
-                Commands::Open => {
+                Commands::Open { stay_open: false } => {
                     tracing::info!("opening existing instance");
-                    b"open\n"
+                    b"open\n".as_slice()
+                }
+                Commands::Open { stay_open: true } => {
+                    tracing::info!("opening existing instance and keeping open");
+                    b"open stay\n"
                 }
                 Commands::Exit => {
                     tracing::info!("closing existing instance");
@@ -110,10 +117,15 @@ pub fn listener() -> io::Result<Option<Receiver>> {
         }
     });
 
-    return Ok(Some(Receiver {
-        rx: Arc::new(rx),
-        last_msg: Arc::new(Mutex::new(None)),
-    }));
+    return Ok(Some((
+        GuiSettings {
+            close_on_blur: matches!(cmd, Commands::Open { stay_open: false }),
+        },
+        Receiver {
+            rx: Arc::new(rx),
+            last_msg: Arc::new(Mutex::new(None)),
+        },
+    )));
 
     fn handle_msg(msg: Stream, tx: &mpsc::Sender<Message>) -> anyhow::Result<()> {
         let mut request = String::new();
@@ -126,6 +138,9 @@ pub fn listener() -> io::Result<Option<Receiver>> {
         match &*request.trim() {
             "open" => {
                 tx.send(Message::Open)?;
+            }
+            "open stay" => {
+                tx.send(Message::OpenAndStay)?;
             }
             "exit" => {
                 tx.send(Message::Exit)?;
@@ -145,9 +160,17 @@ struct Args {
     cmd: Option<Commands>,
 }
 
-#[derive(Subcommand, Default)]
+#[derive(Subcommand)]
 enum Commands {
-    #[default]
-    Open,
+    Open {
+        #[arg(short, long)]
+        stay_open: bool,
+    },
     Exit,
+}
+
+impl Default for Commands {
+    fn default() -> Self {
+        Self::Open { stay_open: false }
+    }
 }

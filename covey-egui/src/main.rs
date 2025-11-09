@@ -24,14 +24,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // can't use a custom UserEvent with the event loop when using eframe::create_native
     // need to use some other kind of channel anyways to tell this app to open from another process
 
-    let rx = match cli::listener()? {
-        Some(rx) => rx,
+    let (settings, rx) = match cli::listener()? {
+        Some((settings, rx)) => (settings, rx),
         // Another instance is already open, quit.
         None => return Ok(()),
     };
 
     tracing::info!("Starting window");
-    let mut app = App::new(&rx, covey_egui::Style::default())?;
+    let mut app = App::new(&rx, covey_egui::Style::default(), settings)?;
     app.open()?;
 
     loop {
@@ -42,12 +42,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(cli::Message::Exit) => break,
             // Ignore an open that was already handled
             // (ignored bc its already open or just the last open message)
-            Some(cli::Message::Open) => {}
+            Some(cli::Message::Open | cli::Message::OpenAndStay) => {}
             None => {}
         }
 
         match rx.recv() {
             cli::Message::Open => {}
+            cli::Message::OpenAndStay => {
+                app.settings.close_on_blur = false;
+            }
             cli::Message::Exit => break,
         }
 

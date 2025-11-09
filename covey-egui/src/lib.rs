@@ -16,6 +16,10 @@ pub struct App {
     list: Option<covey::List>,
     list_selection: usize,
     style: Style,
+    /// Whether the last opening of the app has been focused.
+    ///
+    /// Used to avoid closing the app early if focus isn't gained for a bit.
+    has_focused: bool,
 }
 
 pub struct Style {
@@ -65,6 +69,7 @@ impl App {
             list: None,
             list_selection: 0,
             style,
+            has_focused: false,
         })
     }
 
@@ -82,14 +87,16 @@ impl App {
             ..Default::default()
         };
 
-        eframe::run_native(
+        let result = eframe::run_native(
             "covey",
             options.clone(),
             Box::new(|cc| {
                 self.style_ctx(cc);
-                Ok(Box::new(self))
+                Ok(Box::new(&mut *self))
             }),
-        )
+        );
+        self.has_focused = false;
+        result
     }
 
     fn style_ctx(&self, cc: &CreationContext) {
@@ -120,6 +127,15 @@ impl eframe::App for &mut App {
                     .corner_radius(self.style.window_rounding),
             )
             .show(ctx, |ui| {
+                let window_focused = ui.input(|i| i.focused);
+                if window_focused {
+                    self.has_focused = true;
+                } else if !window_focused && self.has_focused {
+                    tracing::info!("window unfocused");
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                    return;
+                }
+
                 // CLI window actions //
                 match self.cli.try_recv() {
                     Some(cli::Message::Exit) => {
@@ -140,7 +156,7 @@ impl eframe::App for &mut App {
                     Some(covey::Action::Close) => {
                         tracing::info!("received close request");
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-                        // return;
+                        return;
                     }
                     Some(covey::Action::Copy(str)) => {
                         ui.ctx().send_cmd(egui::OutputCommand::CopyText(str));

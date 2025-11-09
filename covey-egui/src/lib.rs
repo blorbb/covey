@@ -124,6 +124,12 @@ impl eframe::App for &mut App {
                         contents,
                         selection,
                     })) => {
+                        // Another query to update the plugin on what it changed.
+                        // This change isn't detected by text_edit.response.changed()
+                        if contents != self.input {
+                            tokio::spawn(self.tx.send_query(contents.clone()));
+                        }
+
                         self.input = contents;
                         new_selection = Some((selection.0 as usize, selection.1 as usize));
                     }
@@ -178,10 +184,14 @@ impl eframe::App for &mut App {
                     .show(ui);
 
                 if let Some((min, max)) = new_selection {
-                    text_edit.cursor_range = Some(egui::text::CCursorRange::two(
-                        CCursor::new(min),
-                        CCursor::new(max),
-                    ))
+                    text_edit
+                        .state
+                        .cursor
+                        .set_char_range(Some(egui::text::CCursorRange::two(
+                            CCursor::new(min),
+                            CCursor::new(max),
+                        )));
+                    text_edit.state.store(ui.ctx(), text_edit.response.id);
                 }
 
                 if text_edit.response.changed() {

@@ -108,5 +108,5 @@ pub struct CommandSettings {
     // This should be Option<Vec> instead of an empty/default vec
     // to distinguish between a command with no hotkeys, and
     // a command without user-set hotkeys (use plugin defaults).
-    hotkeys: Option<Vec<Hotkey>>,
+    pub hotkeys: Option<Vec<Hotkey>>,
 }

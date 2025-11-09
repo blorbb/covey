@@ -4,6 +4,7 @@ mod plugin;
 
 use std::{path::PathBuf, sync::LazyLock};
 
+pub use covey_schema;
 use covey_schema::config::GlobalConfig;
 pub use event::{Action, Input, List, ListItem, ListItemId, ListStyle, ResolvedIcon};
 pub use plugin::Plugin;

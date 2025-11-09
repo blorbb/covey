@@ -17,13 +17,14 @@ use std::{
 use anyhow::Result;
 use covey_schema::{
     config::{GlobalConfig, PluginEntry},
+    hotkey::Hotkey,
     keyed_list::{Id, KeyedList},
 };
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    CONFIG_DIR, CONFIG_PATH, List, PLUGINS_DIR, Plugin,
+    CONFIG_DIR, CONFIG_PATH, List, ListItem, PLUGINS_DIR, Plugin,
     event::{Action, InternalAction, ListItemId},
 };
 
@@ -133,6 +134,20 @@ impl RequestSender {
                 };
             }
         }
+    }
+
+    /// Activates a list item using the specified hotkey.
+    ///
+    /// Figures out the command to run based on the hotkey and plugin configuration.
+    /// Returns [`Some`] if the hotkey activated some command, otherwise [`None`].
+    #[tracing::instrument(skip(self))]
+    pub fn activate_by_hotkey(
+        &self,
+        item: ListItem,
+        hotkey: Hotkey,
+    ) -> Option<impl Future<Output = ()> + use<>> {
+        let cmd_name = item.activated_command_from_hotkey(&hotkey)?;
+        Some(self.activate(item.id(), cmd_name.as_str().to_string()))
     }
 }
 

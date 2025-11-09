@@ -26,3 +26,7 @@ workspace = true
 [features]
 wayland = []
 x11 = []
+
+[[bin]]
+name = "covey"
+path = "src/main.rs"

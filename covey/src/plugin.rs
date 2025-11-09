@@ -4,6 +4,7 @@ use std::{hash::Hash, path::PathBuf, sync::Arc};
 use anyhow::Result;
 use covey_schema::{
     config::PluginEntry,
+    hotkey::Hotkey,
     keyed_list::{Id, Identify},
     manifest::PluginManifest,
 };
@@ -83,6 +84,26 @@ impl Plugin {
         self.plugin
             .get_then(async |plugin| plugin.call_activate(selection_id, command_name).await)
             .await?
+    }
+
+    /// Get the hotkeys that a command can accept, either from user config
+    /// or the default from the manifest.
+    pub fn hotkeys_of_cmd(&self, cmd_id: &Id) -> Option<&[Hotkey]> {
+        Some(
+            &**self
+                .config_entry()
+                .commands
+                .get(cmd_id)?
+                .hotkeys
+                .as_ref()
+                .or_else(|| {
+                    self.manifest()
+                        .commands
+                        .get(cmd_id.as_str())?
+                        .default_hotkeys
+                        .as_ref()
+                })?,
+        )
     }
 }
 

@@ -4,6 +4,7 @@ use core::fmt;
 use std::path::PathBuf;
 
 use az::SaturatingAs as _;
+use covey_schema::{hotkey::Hotkey, keyed_list::Id};
 
 use crate::Plugin;
 
@@ -192,6 +193,18 @@ impl ListItem {
 
     pub fn available_commands(&self) -> &[String] {
         &self.item.available_commands
+    }
+
+    /// Gets the command that can be activated from the provided hotkey.
+    pub fn activated_command_from_hotkey(&self, hotkey: &Hotkey) -> Option<Id> {
+        self.available_commands()
+            .iter()
+            .map(|id| Id::new(&id))
+            .find(|cmd_id| {
+                self.plugin()
+                    .hotkeys_of_cmd(&cmd_id)
+                    .is_some_and(|hotkeys| hotkeys.contains(&hotkey))
+            })
     }
 }
 

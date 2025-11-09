@@ -3,7 +3,8 @@ use covey::{
     host,
 };
 use egui::{
-    Key, Modifiers, ScrollArea, TextEdit, Ui, Vec2, Vec2b, style::ScrollAnimation, text::CCursor,
+    Key, KeyboardShortcut, Modifiers, ScrollArea, TextEdit, Ui, Vec2, Vec2b,
+    style::ScrollAnimation, text::CCursor,
 };
 
 pub mod cli;
@@ -95,7 +96,8 @@ impl eframe::App for &mut App {
                 match self.cli.try_recv() {
                     Some(cli::Message::Exit) => {
                         tracing::info!("received exit message");
-                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close)
+                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                        // return;
                     }
                     // Trying to open while already open -> do nothing
                     Some(cli::Message::Open) => {}
@@ -108,7 +110,9 @@ impl eframe::App for &mut App {
                 match self.rx.try_recv_action() {
                     None => {}
                     Some(covey::Action::Close) => {
+                        tracing::info!("received close request");
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                        // return;
                     }
                     Some(covey::Action::Copy(str)) => {
                         ui.ctx().send_cmd(egui::OutputCommand::CopyText(str));
@@ -133,27 +137,29 @@ impl eframe::App for &mut App {
                 // global keyboard shortcuts //
                 if key_pressed_consume(ui, Key::Escape) {
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-                } else if key_pressed_consume(ui, Key::ArrowDown) {
-                    if let Some(list) = &self.list {
+                }
+                if let Some(list) = &self.list {
+                    if key_pressed_consume(ui, Key::ArrowDown) {
                         self.list_selection =
                             bounded_wrapping_add(self.list_selection, 1, list.len());
                         list_selection_changed = true;
-                    }
-                } else if key_pressed_consume(ui, Key::ArrowUp) {
-                    if let Some(list) = &self.list {
+                    } else if key_pressed_consume(ui, Key::ArrowUp) {
                         self.list_selection =
                             bounded_wrapping_sub(self.list_selection, 1, list.len());
                         list_selection_changed = true;
+                    } else if hotkey_pressed_consume(ui, self.tx.config().app.reload_hotkey.clone())
+                    {
+                        self.tx.reload_plugin(list.plugin.id());
                     }
                 }
 
                 // handle activations
                 if let Some(list) = &self.list
+                    && let Some(item) = list.items.get(self.list_selection)
                     && let Some(hotkey) = get_hotkey(ui)
-                    && let Some(future) = self
-                        .tx
-                        .activate_by_hotkey(list.items[self.list_selection].clone(), hotkey)
+                    && let Some(future) = self.tx.activate_by_hotkey(item.clone(), hotkey.clone())
                 {
+                    hotkey_pressed_consume(ui, hotkey);
                     tokio::spawn(future);
                 }
 
@@ -235,6 +241,22 @@ fn key_pressed_consume(ui: &mut Ui, key: Key) -> bool {
     ui.input_mut(|state| state.consume_key(Modifiers::NONE, key))
 }
 
+fn hotkey_pressed_consume(ui: &mut Ui, key: Hotkey) -> bool {
+    let is_mac = ui.ctx().os().is_mac();
+    ui.input_mut(|state| {
+        state.consume_shortcut(&KeyboardShortcut::new(
+            Modifiers {
+                alt: key.alt,
+                ctrl: key.ctrl,
+                shift: key.shift,
+                mac_cmd: is_mac && key.ctrl,
+                command: key.ctrl,
+            },
+            covey_key_code_to_egui_key(key.key),
+        ))
+    })
+}
+
 fn bounded_wrapping_add(x: usize, amount: usize, max_excl: usize) -> usize {
     (x + amount) % max_excl
 }
@@ -245,11 +267,26 @@ fn bounded_wrapping_sub(x: usize, amount: usize, max_excl: usize) -> usize {
 
 fn get_hotkey(ui: &mut Ui) -> Option<Hotkey> {
     ui.input(|i| {
-        if i.keys_down.len() > 1 {
+        let keys_pressed: Vec<_> = i
+            .events
+            .iter()
+            .filter_map(|ev| match ev {
+                egui::Event::Key {
+                    key,
+                    physical_key: _,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: _,
+                } => Some(key),
+                _ => None,
+            })
+            .collect();
+
+        if keys_pressed.len() > 1 {
             return None;
         }
 
-        let key_code = egui_key_to_covey_key_code(*i.keys_down.iter().next()?)?;
+        let key_code = egui_key_to_covey_key_code(**keys_pressed.first()?)?;
 
         let m = i.modifiers;
         Some(Hotkey {
@@ -290,8 +327,8 @@ fn egui_key_to_covey_key_code(key: Key) -> Option<KeyCode> {
         Key::Pipe => None,
         Key::Questionmark => None,
         Key::Exclamationmark => None,
-        Key::OpenBracket => None,
-        Key::CloseBracket => None,
+        Key::OpenBracket => Some(KeyCode::LeftBracket),
+        Key::CloseBracket => Some(KeyCode::RightBracket),
         Key::OpenCurlyBracket => None,
         Key::CloseCurlyBracket => None,
         Key::Backtick => Some(KeyCode::Backtick),
@@ -373,5 +410,83 @@ fn egui_key_to_covey_key_code(key: Key) -> Option<KeyCode> {
         Key::F34 => None,
         Key::F35 => None,
         Key::BrowserBack => None,
+    }
+}
+
+fn covey_key_code_to_egui_key(kc: KeyCode) -> Key {
+    match kc {
+        KeyCode::Digit0 => Key::Num0,
+        KeyCode::Digit1 => Key::Num1,
+        KeyCode::Digit2 => Key::Num2,
+        KeyCode::Digit3 => Key::Num3,
+        KeyCode::Digit4 => Key::Num4,
+        KeyCode::Digit5 => Key::Num5,
+        KeyCode::Digit6 => Key::Num6,
+        KeyCode::Digit7 => Key::Num7,
+        KeyCode::Digit8 => Key::Num8,
+        KeyCode::Digit9 => Key::Num9,
+        KeyCode::A => Key::A,
+        KeyCode::B => Key::B,
+        KeyCode::C => Key::C,
+        KeyCode::D => Key::D,
+        KeyCode::E => Key::E,
+        KeyCode::F => Key::F,
+        KeyCode::G => Key::G,
+        KeyCode::H => Key::H,
+        KeyCode::I => Key::I,
+        KeyCode::J => Key::J,
+        KeyCode::K => Key::K,
+        KeyCode::L => Key::L,
+        KeyCode::M => Key::M,
+        KeyCode::N => Key::N,
+        KeyCode::O => Key::O,
+        KeyCode::P => Key::P,
+        KeyCode::Q => Key::Q,
+        KeyCode::R => Key::R,
+        KeyCode::S => Key::S,
+        KeyCode::T => Key::T,
+        KeyCode::U => Key::U,
+        KeyCode::V => Key::V,
+        KeyCode::W => Key::W,
+        KeyCode::X => Key::X,
+        KeyCode::Y => Key::Y,
+        KeyCode::Z => Key::Z,
+        KeyCode::F1 => Key::F1,
+        KeyCode::F2 => Key::F2,
+        KeyCode::F3 => Key::F3,
+        KeyCode::F4 => Key::F4,
+        KeyCode::F5 => Key::F5,
+        KeyCode::F6 => Key::F6,
+        KeyCode::F7 => Key::F7,
+        KeyCode::F8 => Key::F8,
+        KeyCode::F9 => Key::F9,
+        KeyCode::F10 => Key::F10,
+        KeyCode::F11 => Key::F11,
+        KeyCode::F12 => Key::F12,
+        KeyCode::F13 => Key::F13,
+        KeyCode::F14 => Key::F14,
+        KeyCode::F15 => Key::F15,
+        KeyCode::F16 => Key::F16,
+        KeyCode::F17 => Key::F17,
+        KeyCode::F18 => Key::F18,
+        KeyCode::F19 => Key::F19,
+        KeyCode::F20 => Key::F20,
+        KeyCode::F21 => Key::F21,
+        KeyCode::F22 => Key::F22,
+        KeyCode::F23 => Key::F23,
+        KeyCode::F24 => Key::F24,
+        KeyCode::Backtick => Key::Backtick,
+        KeyCode::Hyphen => Key::Minus,
+        KeyCode::Equal => Key::Equals,
+        KeyCode::Tab => Key::Tab,
+        KeyCode::LeftBracket => Key::OpenBracket,
+        KeyCode::RightBracket => Key::CloseBracket,
+        KeyCode::Backslash => Key::Backslash,
+        KeyCode::Semicolon => Key::Semicolon,
+        KeyCode::Apostrophe => Key::Quote,
+        KeyCode::Enter => Key::Enter,
+        KeyCode::Comma => Key::Comma,
+        KeyCode::Period => Key::Period,
+        KeyCode::Slash => Key::Slash,
     }
 }

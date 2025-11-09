@@ -7,6 +7,7 @@ use std::{
     thread,
 };
 
+use clap::{Parser, Subcommand};
 use interprocess::local_socket::{
     GenericNamespaced, ListenerOptions, Stream, ToNsName as _,
     traits::{ListenerExt as _, Stream as _},
@@ -59,18 +60,34 @@ impl Receiver {
 
 /// Makes a listener for CLI messages, returning `Ok(None)` if covey is already
 /// open and this process should stop, and `Ok(Some(rx))` if this is the primary instance.
+///
+/// Also parses CLI arguments, exiting with a help message if it fails.
 pub fn listener() -> io::Result<Option<Receiver>> {
+    let args = Args::parse();
+    let cmd = args.cmd.unwrap_or_default();
+
     let name = "covey.sock".to_ns_name::<GenericNamespaced>()?;
 
     let listener = match ListenerOptions::new().name(name.clone()).create_sync() {
         Err(e) if e.kind() == io::ErrorKind::AddrInUse => {
             tracing::info!("address in use");
-            // Connect to the existing socket and ask it to open
             let mut conn = Stream::connect(name)?;
-            conn.write_all(b"open\n")?;
+
+            let msg = match cmd {
+                Commands::Open => {
+                    tracing::info!("opening existing instance");
+                    b"open\n"
+                }
+                Commands::Exit => {
+                    tracing::info!("closing existing instance");
+                    b"exit\n"
+                }
+            };
+            conn.write_all(msg)?;
 
             // Wait for a response just to confirm
             conn.read_to_end(&mut Vec::new())?;
+            tracing::info!("confirmation received");
 
             return Ok(None);
         }
@@ -120,4 +137,17 @@ pub fn listener() -> io::Result<Option<Receiver>> {
 
         Ok(())
     }
+}
+
+#[derive(Parser)]
+struct Args {
+    #[command(subcommand)]
+    cmd: Option<Commands>,
+}
+
+#[derive(Subcommand, Default)]
+enum Commands {
+    #[default]
+    Open,
+    Exit,
 }

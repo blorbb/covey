@@ -19,6 +19,7 @@ interprocess = "2.2.3"
 parking_lot.workspace = true
 covey = { path = "../covey" }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+clap = { version = "4.5.51", features = ["derive"] }
 
 [lints]
 workspace = true

@@ -1,7 +1,7 @@
 use core::fmt;
 use std::{hash::Hash, path::PathBuf, sync::Arc};
 
-use color_eyre::eyre::Result;
+use anyhow::Result;
 use covey_schema::{
     config::PluginEntry,
     keyed_list::{Id, Identify},
@@ -145,7 +145,7 @@ fn manifest_path(plugin_name: &str) -> PathBuf {
 mod implementation {
     use std::{mem, path::PathBuf, process::Stdio};
 
-    use color_eyre::eyre::{Context as _, Result};
+    use anyhow::{Context as _, Result};
     use covey_proto::plugin_client::PluginClient;
     use covey_schema::{config::PluginEntry, manifest::PluginManifest};
     use tokio::{

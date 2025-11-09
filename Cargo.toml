@@ -4,8 +4,8 @@ members = [
     "covey",
     "covey-schema",
     "covey-manifest-macros",
-    "covey-tauri/src-tauri",
-    "covey-tauri/covey-tauri-types",
+    # "covey-tauri/src-tauri",
+    # "covey-tauri/covey-tauri-types",
     "covey-proto",
     "covey-egui",
 ]
@@ -23,7 +23,6 @@ repository = "https://github.com/blorbb/covey"
 [workspace.dependencies]
 az = "1.2.1"
 dirs = "5.0.1"
-color-eyre = "0.6.3"
 tokio = "1.41.0"
 tracing = "0.1.41"
 serde = { version = "1", features = ["derive"] }

@@ -11,7 +11,7 @@ description = "IO interface for the Covey application"
 workspace = true
 
 [dependencies]
-color-eyre.workspace = true
+anyhow.workspace = true
 toml.workspace = true
 serde_json.workspace = true
 tracing.workspace = true

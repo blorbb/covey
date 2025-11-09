@@ -14,7 +14,7 @@ use std::{
     sync::Arc,
 };
 
-use color_eyre::eyre::Result;
+use anyhow::Result;
 use covey_schema::{
     config::{GlobalConfig, PluginEntry},
     keyed_list::{Id, KeyedList},
@@ -146,22 +146,40 @@ impl ResponseReceiver {
                 .await
                 .expect("senders should still exist");
 
-            match internal_action {
-                InternalAction::SetList { list, index } => {
-                    if index <= self.latest_received_dispatch {
-                        continue;
-                    }
-                    self.latest_received_dispatch = index;
-                    return Action::SetList(list);
-                }
-                InternalAction::Close => return Action::Close,
-                InternalAction::Copy(str) => return Action::Copy(str),
-                InternalAction::SetInput(input) => return Action::SetInput(input),
-                InternalAction::DisplayError(err) => {
-                    return Action::DisplayError("Plugin failed".to_owned(), err);
-                }
-            };
+            if let Some(action) = self.convert_internal_action(internal_action) {
+                return action;
+            }
         }
+    }
+
+    pub fn try_recv_action(&mut self) -> Option<Action> {
+        loop {
+            let internal_action = self.response_receiver.try_recv().ok()?;
+
+            if let Some(action) = self.convert_internal_action(internal_action) {
+                return Some(action);
+            }
+        }
+    }
+
+    /// Converts an [`InternalAction`] to an [`Action`], returning [`None`] if
+    /// the action should be ignored.
+    fn convert_internal_action(&mut self, action: InternalAction) -> Option<Action> {
+        Some(match action {
+            InternalAction::SetList { list, index } => {
+                if index <= self.latest_received_dispatch {
+                    return None;
+                }
+                self.latest_received_dispatch = index;
+                Action::SetList(list)
+            }
+            InternalAction::Close => Action::Close,
+            InternalAction::Copy(str) => Action::Copy(str),
+            InternalAction::SetInput(input) => Action::SetInput(input),
+            InternalAction::DisplayError(err) => {
+                Action::DisplayError("Plugin failed".to_owned(), err)
+            }
+        })
     }
 }
 

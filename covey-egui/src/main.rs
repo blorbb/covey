@@ -6,7 +6,9 @@ use tracing_subscriber::EnvFilter;
 
 // https://github.com/emilk/egui/blob/main/examples/serial_windows/src/main.rs
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+// Need to use the multi-threaded runtime for some reason
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // https://stackoverflow.com/a/77485843
     let filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::WARN.into())
@@ -29,7 +31,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     tracing::info!("Starting window");
-    App::open(&rx)?;
+    let mut app = App::new(&rx)?;
+    app.open()?;
 
     loop {
         tracing::info!("closed window");
@@ -49,7 +52,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         tracing::info!("Starting window");
-        App::open(&rx)?;
+        app.open()?;
     }
 
     tracing::info!("exiting");

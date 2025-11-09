@@ -1,13 +1,12 @@
-use covey::{
-    covey_schema::hotkey::{Hotkey, KeyCode},
-    host,
-};
+use covey::{covey_schema::hotkey::Hotkey, host};
+use eframe::CreationContext;
 use egui::{
-    Key, KeyboardShortcut, Modifiers, ScrollArea, TextEdit, Ui, Vec2, Vec2b,
+    Color32, Key, KeyboardShortcut, Modifiers, ScrollArea, Stroke, TextEdit, Ui, Vec2, Vec2b,
     style::ScrollAnimation, text::CCursor,
 };
 
 pub mod cli;
+mod conv;
 
 pub struct App {
     cli: cli::Receiver,
@@ -25,6 +24,8 @@ pub struct Style {
     window_margin: f32,
     input_height: f32,
     input_list_gap: f32,
+    window_rounding: f32,
+    bg_color: Color32,
 }
 
 impl Default for Style {
@@ -35,6 +36,8 @@ impl Default for Style {
             window_margin: 12.0,
             input_height: 32.0,
             input_list_gap: 12.0,
+            window_rounding: 8.0,
+            bg_color: Color32::from_rgb(25, 17, 19),
         }
     }
 }
@@ -79,7 +82,28 @@ impl App {
             ..Default::default()
         };
 
-        eframe::run_native("covey", options.clone(), Box::new(|_cc| Ok(Box::new(self))))
+        eframe::run_native(
+            "covey",
+            options.clone(),
+            Box::new(|cc| {
+                self.style_ctx(cc);
+                Ok(Box::new(self))
+            }),
+        )
+    }
+
+    fn style_ctx(&self, cc: &CreationContext) {
+        // cc.egui_ctx.style_mut_of(egui::Theme::Dark, |style| {});
+
+        cc.egui_ctx.all_styles_mut(|style| {
+            style.visuals.panel_fill = self.style.bg_color;
+            style.visuals.text_edit_bg_color = Some(self.style.bg_color);
+            style.visuals.selection.stroke = Stroke::NONE;
+            style
+                .text_styles
+                .iter_mut()
+                .for_each(|(_, fontid)| fontid.size *= 1.5);
+        });
     }
 }
 
@@ -90,7 +114,11 @@ impl eframe::App for &mut App {
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default()
-            .frame(egui::Frame::dark_canvas(&ctx.style()).inner_margin(self.style.window_margin))
+            .frame(
+                egui::Frame::central_panel(&ctx.style())
+                    .inner_margin(self.style.window_margin)
+                    .corner_radius(self.style.window_rounding),
+            )
             .show(ctx, |ui| {
                 // CLI window actions //
                 match self.cli.try_recv() {
@@ -238,11 +266,15 @@ impl eframe::App for &mut App {
                     ui.end_row();
                 }
 
-                ui.ctx()
-                    .send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(
-                        self.style.window_width,
-                        ui.cursor().top() + self.style.window_margin,
-                    )));
+                let existing_height = ui.ctx().content_rect().height();
+                let new_height = ui.cursor().top() + self.style.window_margin;
+                if existing_height != new_height {
+                    ui.ctx()
+                        .send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(
+                            self.style.window_width,
+                            ui.cursor().top() + self.style.window_margin,
+                        )));
+                }
             });
     }
 }
@@ -262,7 +294,7 @@ fn hotkey_pressed_consume(ui: &mut Ui, key: Hotkey) -> bool {
                 mac_cmd: is_mac && key.ctrl,
                 command: key.ctrl,
             },
-            covey_key_code_to_egui_key(key.key),
+            conv::covey_key_code_to_egui_key(key.key),
         ))
     })
 }
@@ -296,7 +328,7 @@ fn get_hotkey(ui: &mut Ui) -> Option<Hotkey> {
             return None;
         }
 
-        let key_code = egui_key_to_covey_key_code(**keys_pressed.first()?)?;
+        let key_code = conv::egui_key_to_covey_key_code(**keys_pressed.first()?)?;
 
         let m = i.modifiers;
         Some(Hotkey {
@@ -307,196 +339,4 @@ fn get_hotkey(ui: &mut Ui) -> Option<Hotkey> {
             meta: false,
         })
     })
-}
-
-fn egui_key_to_covey_key_code(key: Key) -> Option<KeyCode> {
-    match key {
-        Key::ArrowDown => None,
-        Key::ArrowLeft => None,
-        Key::ArrowRight => None,
-        Key::ArrowUp => None,
-        Key::Escape => None,
-        Key::Tab => Some(KeyCode::Tab),
-        Key::Backspace => None,
-        Key::Enter => Some(KeyCode::Enter),
-        Key::Space => None,
-        Key::Insert => None,
-        Key::Delete => None,
-        Key::Home => None,
-        Key::End => None,
-        Key::PageUp => None,
-        Key::PageDown => None,
-        Key::Copy => None,
-        Key::Cut => None,
-        Key::Paste => None,
-        Key::Colon => None,
-        Key::Comma => Some(KeyCode::Comma),
-        Key::Backslash => Some(KeyCode::Backslash),
-        Key::Slash => Some(KeyCode::Slash),
-        // TODO: eventually support different keyboards that might have these?
-        Key::Pipe => None,
-        Key::Questionmark => None,
-        Key::Exclamationmark => None,
-        Key::OpenBracket => Some(KeyCode::LeftBracket),
-        Key::CloseBracket => Some(KeyCode::RightBracket),
-        Key::OpenCurlyBracket => None,
-        Key::CloseCurlyBracket => None,
-        Key::Backtick => Some(KeyCode::Backtick),
-        Key::Minus => Some(KeyCode::Hyphen),
-        Key::Period => Some(KeyCode::Period),
-        Key::Plus => None,
-        Key::Equals => Some(KeyCode::Equal),
-        Key::Semicolon => Some(KeyCode::Semicolon),
-        Key::Quote => Some(KeyCode::Apostrophe),
-        Key::Num0 => Some(KeyCode::Digit0),
-        Key::Num1 => Some(KeyCode::Digit1),
-        Key::Num2 => Some(KeyCode::Digit2),
-        Key::Num3 => Some(KeyCode::Digit3),
-        Key::Num4 => Some(KeyCode::Digit4),
-        Key::Num5 => Some(KeyCode::Digit5),
-        Key::Num6 => Some(KeyCode::Digit6),
-        Key::Num7 => Some(KeyCode::Digit7),
-        Key::Num8 => Some(KeyCode::Digit8),
-        Key::Num9 => Some(KeyCode::Digit9),
-        Key::A => Some(KeyCode::A),
-        Key::B => Some(KeyCode::B),
-        Key::C => Some(KeyCode::C),
-        Key::D => Some(KeyCode::D),
-        Key::E => Some(KeyCode::E),
-        Key::F => Some(KeyCode::F),
-        Key::G => Some(KeyCode::G),
-        Key::H => Some(KeyCode::H),
-        Key::I => Some(KeyCode::I),
-        Key::J => Some(KeyCode::J),
-        Key::K => Some(KeyCode::K),
-        Key::L => Some(KeyCode::L),
-        Key::M => Some(KeyCode::M),
-        Key::N => Some(KeyCode::N),
-        Key::O => Some(KeyCode::O),
-        Key::P => Some(KeyCode::P),
-        Key::Q => Some(KeyCode::Q),
-        Key::R => Some(KeyCode::R),
-        Key::S => Some(KeyCode::S),
-        Key::T => Some(KeyCode::T),
-        Key::U => Some(KeyCode::U),
-        Key::V => Some(KeyCode::V),
-        Key::W => Some(KeyCode::W),
-        Key::X => Some(KeyCode::X),
-        Key::Y => Some(KeyCode::Y),
-        Key::Z => Some(KeyCode::Z),
-        Key::F1 => Some(KeyCode::F1),
-        Key::F2 => Some(KeyCode::F2),
-        Key::F3 => Some(KeyCode::F3),
-        Key::F4 => Some(KeyCode::F4),
-        Key::F5 => Some(KeyCode::F5),
-        Key::F6 => Some(KeyCode::F6),
-        Key::F7 => Some(KeyCode::F7),
-        Key::F8 => Some(KeyCode::F8),
-        Key::F9 => Some(KeyCode::F9),
-        Key::F10 => Some(KeyCode::F10),
-        Key::F11 => Some(KeyCode::F11),
-        Key::F12 => Some(KeyCode::F12),
-        Key::F13 => Some(KeyCode::F13),
-        Key::F14 => Some(KeyCode::F14),
-        Key::F15 => Some(KeyCode::F15),
-        Key::F16 => Some(KeyCode::F16),
-        Key::F17 => Some(KeyCode::F17),
-        Key::F18 => Some(KeyCode::F18),
-        Key::F19 => Some(KeyCode::F19),
-        Key::F20 => Some(KeyCode::F20),
-        Key::F21 => Some(KeyCode::F21),
-        Key::F22 => Some(KeyCode::F22),
-        Key::F23 => Some(KeyCode::F23),
-        Key::F24 => Some(KeyCode::F24),
-        Key::F25 => None,
-        Key::F26 => None,
-        Key::F27 => None,
-        Key::F28 => None,
-        Key::F29 => None,
-        Key::F30 => None,
-        Key::F31 => None,
-        Key::F32 => None,
-        Key::F33 => None,
-        Key::F34 => None,
-        Key::F35 => None,
-        Key::BrowserBack => None,
-    }
-}
-
-fn covey_key_code_to_egui_key(kc: KeyCode) -> Key {
-    match kc {
-        KeyCode::Digit0 => Key::Num0,
-        KeyCode::Digit1 => Key::Num1,
-        KeyCode::Digit2 => Key::Num2,
-        KeyCode::Digit3 => Key::Num3,
-        KeyCode::Digit4 => Key::Num4,
-        KeyCode::Digit5 => Key::Num5,
-        KeyCode::Digit6 => Key::Num6,
-        KeyCode::Digit7 => Key::Num7,
-        KeyCode::Digit8 => Key::Num8,
-        KeyCode::Digit9 => Key::Num9,
-        KeyCode::A => Key::A,
-        KeyCode::B => Key::B,
-        KeyCode::C => Key::C,
-        KeyCode::D => Key::D,
-        KeyCode::E => Key::E,
-        KeyCode::F => Key::F,
-        KeyCode::G => Key::G,
-        KeyCode::H => Key::H,
-        KeyCode::I => Key::I,
-        KeyCode::J => Key::J,
-        KeyCode::K => Key::K,
-        KeyCode::L => Key::L,
-        KeyCode::M => Key::M,
-        KeyCode::N => Key::N,
-        KeyCode::O => Key::O,
-        KeyCode::P => Key::P,
-        KeyCode::Q => Key::Q,
-        KeyCode::R => Key::R,
-        KeyCode::S => Key::S,
-        KeyCode::T => Key::T,
-        KeyCode::U => Key::U,
-        KeyCode::V => Key::V,
-        KeyCode::W => Key::W,
-        KeyCode::X => Key::X,
-        KeyCode::Y => Key::Y,
-        KeyCode::Z => Key::Z,
-        KeyCode::F1 => Key::F1,
-        KeyCode::F2 => Key::F2,
-        KeyCode::F3 => Key::F3,
-        KeyCode::F4 => Key::F4,
-        KeyCode::F5 => Key::F5,
-        KeyCode::F6 => Key::F6,
-        KeyCode::F7 => Key::F7,
-        KeyCode::F8 => Key::F8,
-        KeyCode::F9 => Key::F9,
-        KeyCode::F10 => Key::F10,
-        KeyCode::F11 => Key::F11,
-        KeyCode::F12 => Key::F12,
-        KeyCode::F13 => Key::F13,
-        KeyCode::F14 => Key::F14,
-        KeyCode::F15 => Key::F15,
-        KeyCode::F16 => Key::F16,
-        KeyCode::F17 => Key::F17,
-        KeyCode::F18 => Key::F18,
-        KeyCode::F19 => Key::F19,
-        KeyCode::F20 => Key::F20,
-        KeyCode::F21 => Key::F21,
-        KeyCode::F22 => Key::F22,
-        KeyCode::F23 => Key::F23,
-        KeyCode::F24 => Key::F24,
-        KeyCode::Backtick => Key::Backtick,
-        KeyCode::Hyphen => Key::Minus,
-        KeyCode::Equal => Key::Equals,
-        KeyCode::Tab => Key::Tab,
-        KeyCode::LeftBracket => Key::OpenBracket,
-        KeyCode::RightBracket => Key::CloseBracket,
-        KeyCode::Backslash => Key::Backslash,
-        KeyCode::Semicolon => Key::Semicolon,
-        KeyCode::Apostrophe => Key::Quote,
-        KeyCode::Enter => Key::Enter,
-        KeyCode::Comma => Key::Comma,
-        KeyCode::Period => Key::Period,
-        KeyCode::Slash => Key::Slash,
-    }
 }

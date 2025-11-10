@@ -132,7 +132,12 @@ impl eframe::App for &mut App {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default()
+        // Don't use CentralPanel as it fills up whatever remaining space there is.
+        // Changing the window size has a small delay so theres a big blank empty space
+        // for a single frame.
+        // Top panel only takes up as much space as the UI needs, so it always has
+        // the right size.
+        egui::TopBottomPanel::top("main-panel")
             .frame(
                 egui::Frame::central_panel(&ctx.style())
                     .inner_margin(self.style.window_margin)

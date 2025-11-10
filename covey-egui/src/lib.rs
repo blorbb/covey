@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
 use covey::host;
 use eframe::CreationContext;
 use egui::{
-    Color32, Key, ScrollArea, Stroke, TextEdit, Vec2, Vec2b, style::ScrollAnimation, text::CCursor,
+    Color32, Key, ScrollArea, Stroke, TextEdit, Ui, Vec2, Vec2b, style::ScrollAnimation,
+    text::CCursor,
 };
 
 pub mod cli;
@@ -115,7 +118,6 @@ impl App {
         cc.egui_ctx.all_styles_mut(|style| {
             style.visuals.panel_fill = self.style.bg_color;
             style.visuals.text_edit_bg_color = Some(self.style.bg_color);
-            style.visuals.selection.stroke = Stroke::NONE;
             style
                 .text_styles
                 .iter_mut()
@@ -237,12 +239,18 @@ impl eframe::App for &mut App {
                 let row_height =
                     ui.fonts_mut(|f| f.row_height(&egui::TextStyle::Body.resolve(ui.style())));
 
-                let mut text_edit = TextEdit::singleline(&mut self.input)
-                    .hint_text("Search...")
-                    .margin((self.style.input_height - row_height) / 2.0)
-                    .desired_width(f32::INFINITY)
-                    .return_key(None)
-                    .show(ui);
+                let mut text_edit = scope_style(
+                    ui,
+                    |style| style.visuals.selection.stroke = Stroke::NONE,
+                    |ui| {
+                        TextEdit::singleline(&mut self.input)
+                            .hint_text("Search...")
+                            .margin((self.style.input_height - row_height) / 2.0)
+                            .desired_width(f32::INFINITY)
+                            .return_key(None)
+                            .show(ui)
+                    },
+                );
 
                 if let Some((min, max)) = new_selection {
                     text_edit
@@ -319,4 +327,16 @@ fn bounded_wrapping_add(x: usize, amount: usize, max_excl: usize) -> usize {
 
 fn bounded_wrapping_sub(x: usize, amount: usize, max_excl: usize) -> usize {
     (x + max_excl - (amount % max_excl)) % max_excl
+}
+
+fn scope_style<R>(
+    ui: &mut Ui,
+    mut mutate_style: impl FnMut(&mut egui::Style),
+    add_contents: impl FnOnce(&mut Ui) -> R,
+) -> R {
+    let old_style = Arc::clone(ui.style());
+    mutate_style(ui.style_mut());
+    let result = add_contents(ui);
+    ui.set_style(old_style);
+    result
 }

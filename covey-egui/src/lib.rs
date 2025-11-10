@@ -1,15 +1,18 @@
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use covey::host;
 use eframe::CreationContext;
 use egui::{
-    Color32, Key, ScrollArea, Stroke, TextEdit, Ui, Vec2, Vec2b, style::ScrollAnimation,
-    text::CCursor,
+    Color32, FontFamily, FontId, Key, ScrollArea, Stroke, TextEdit, TextStyle, Ui, Vec2, Vec2b,
+    style::ScrollAnimation, text::CCursor,
 };
+
+use crate::row::ListRow;
 
 pub mod cli;
 mod conv;
 mod hotkeys;
+mod row;
 
 pub struct App {
     cli: cli::Receiver,
@@ -34,6 +37,9 @@ pub struct Style {
     input_list_gap: f32,
     window_rounding: f32,
     bg_color: Color32,
+    list_item_gap: f32,
+    font_size: f32,
+    description_font_size: f32,
 }
 
 impl Default for Style {
@@ -45,7 +51,10 @@ impl Default for Style {
             input_height: 32.0,
             input_list_gap: 12.0,
             window_rounding: 8.0,
+            list_item_gap: 4.0,
             bg_color: Color32::from_rgb(25, 17, 19),
+            font_size: 14.0,
+            description_font_size: 12.0,
         }
     }
 }
@@ -118,11 +127,66 @@ impl App {
         cc.egui_ctx.all_styles_mut(|style| {
             style.visuals.panel_fill = self.style.bg_color;
             style.visuals.text_edit_bg_color = Some(self.style.bg_color);
-            style
-                .text_styles
-                .iter_mut()
-                .for_each(|(_, fontid)| fontid.size *= 1.5);
+
+            use FontFamily as FF;
+            use TextStyle as TS;
+            let ss = &self.style;
+            let text_styles = BTreeMap::from_iter([
+                (
+                    TS::Heading,
+                    FontId::new(ss.font_size * 2.0, FF::Proportional),
+                ),
+                (TS::Body, FontId::new(ss.font_size, FF::Proportional)),
+                (TS::Monospace, FontId::new(ss.font_size, FF::Monospace)),
+                (TS::Button, FontId::new(ss.font_size, FF::Proportional)),
+                (
+                    TS::Small,
+                    FontId::new(ss.description_font_size, FF::Proportional),
+                ),
+            ]);
+
+            style.text_styles = text_styles;
         });
+    }
+
+    fn show_list(&mut self, ui: &mut Ui, list_selection_changed: bool) {
+        let Some(list) = &mut self.list else { return };
+
+        ui.allocate_ui(
+            Vec2::new(self.style.inner_width(), self.style.max_list_height()),
+            |ui| {
+                ScrollArea::vertical()
+                    // take up full width but shrink height
+                    .auto_shrink(Vec2b::new(false, true))
+                    .max_height(self.style.max_list_height())
+                    .show(ui, |ui| {
+                        let visuals = &mut ui.style_mut().visuals;
+                        visuals.selection.bg_fill = Color32::from_white_alpha(u8::MAX / 5);
+                        let widget_style = &mut visuals.widgets;
+                        widget_style.active.weak_bg_fill = Color32::from_white_alpha(u8::MAX / 5);
+                        widget_style.active.bg_stroke = Stroke::NONE;
+                        widget_style.hovered.weak_bg_fill = Color32::from_white_alpha(u8::MAX / 10);
+                        widget_style.hovered.bg_stroke = Stroke::NONE;
+                        widget_style.inactive.weak_bg_fill = Color32::TRANSPARENT;
+                        widget_style.inactive.bg_stroke = Stroke::NONE;
+
+                        for (i, item) in list.items.iter().enumerate() {
+                            let response = ui.add(ListRow::new(&mut self.list_selection, i, item));
+
+                            // Can't use response.changed() as that
+                            // doesn't detect changes to self.selection
+                            if self.list_selection == i && list_selection_changed {
+                                response.scroll_to_me_animation(
+                                    None, // Don't scroll if already visible.
+                                    ScrollAnimation::duration(0.2),
+                                );
+                            }
+
+                            ui.add_space(self.style.list_item_gap);
+                        }
+                    });
+            },
+        );
     }
 }
 
@@ -280,37 +344,10 @@ impl eframe::App for &mut App {
                 }
 
                 // results list
-                if let Some(list) = &mut self.list {
+                if let Some(_list) = &mut self.list {
                     ui.add_space(self.style.input_list_gap);
 
-                    ui.allocate_ui(
-                        Vec2::new(self.style.inner_width(), self.style.max_list_height()),
-                        |ui| {
-                            ScrollArea::vertical()
-                                // take up full width but shrink height
-                                .auto_shrink(Vec2b::new(false, true))
-                                .max_height(self.style.max_list_height())
-                                .show(ui, |ui| {
-                                    for (i, item) in list.items.iter().enumerate() {
-                                        let response = ui.radio_value(
-                                            &mut self.list_selection,
-                                            i,
-                                            item.title(),
-                                        );
-
-                                        // Can't use response.changed() as that
-                                        // doesn't detect changes to self.selection
-                                        if self.list_selection == i && list_selection_changed {
-                                            response.scroll_to_me_animation(
-                                                None, // Don't scroll if already visible.
-                                                ScrollAnimation::duration(0.2),
-                                            );
-                                        }
-                                    }
-                                });
-                        },
-                    );
-                    ui.end_row();
+                    self.show_list(ui, list_selection_changed);
                 }
 
                 let existing_height = ui.ctx().content_rect().height();

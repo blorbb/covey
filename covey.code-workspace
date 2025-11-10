@@ -1,16 +1,22 @@
 {
-    "folders": [
-        {
-            "path": "."
-        },
-        {
-            "path": "../covey-plugins"
-        }
-    ],
-    "settings": {
-        "eslint.validate": ["svelte", "typescript"],
-        "editor.codeActionsOnSave": {
-            "source.fixAll": "explicit",
-        },
+  "folders": [
+    {
+      "path": "."
+    },
+    {
+      "path": "../covey-plugins"
     }
+  ],
+  "settings": {
+    "eslint.validate": ["svelte", "typescript"],
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "explicit"
+    },
+    "folder-path-color.folders": [
+      { "path": "/covey/", "symbol": "HO", "color": "magenta" },
+      { "path": "/covey-egui/", "symbol": "UI", "color": "cyan" },
+      { "path": "/covey-schema/", "symbol": "S", "color": "green" },
+      { "path": "/covey-plugin/", "symbol": "PL", "color": "yellow" }
+    ]
+  }
 }

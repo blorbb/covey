@@ -1,12 +1,12 @@
-use covey::{covey_schema::hotkey::Hotkey, host};
+use covey::host;
 use eframe::CreationContext;
 use egui::{
-    Color32, Key, KeyboardShortcut, Modifiers, ScrollArea, Stroke, TextEdit, Ui, Vec2, Vec2b,
-    style::ScrollAnimation, text::CCursor,
+    Color32, Key, ScrollArea, Stroke, TextEdit, Vec2, Vec2b, style::ScrollAnimation, text::CCursor,
 };
 
 pub mod cli;
 mod conv;
+mod hotkeys;
 
 pub struct App {
     cli: cli::Receiver,
@@ -200,20 +200,22 @@ impl eframe::App for &mut App {
                 }
 
                 // global keyboard shortcuts //
-                if key_pressed_consume(ui, Key::Escape) {
+                if hotkeys::key_pressed_consume(ui, Key::Escape) {
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                 }
                 if let Some(list) = &self.list {
-                    if key_pressed_consume(ui, Key::ArrowDown) {
+                    if hotkeys::key_pressed_consume(ui, Key::ArrowDown) {
                         self.list_selection =
                             bounded_wrapping_add(self.list_selection, 1, list.len());
                         list_selection_changed = true;
-                    } else if key_pressed_consume(ui, Key::ArrowUp) {
+                    } else if hotkeys::key_pressed_consume(ui, Key::ArrowUp) {
                         self.list_selection =
                             bounded_wrapping_sub(self.list_selection, 1, list.len());
                         list_selection_changed = true;
-                    } else if hotkey_pressed_consume(ui, self.tx.config().app.reload_hotkey.clone())
-                    {
+                    } else if hotkeys::hotkey_pressed_consume(
+                        ui,
+                        self.tx.config().app.reload_hotkey.clone(),
+                    ) {
                         self.tx.reload_plugin(list.plugin.id());
                     }
                 }
@@ -221,10 +223,10 @@ impl eframe::App for &mut App {
                 // handle activations
                 if let Some(list) = &self.list
                     && let Some(item) = list.items.get(self.list_selection)
-                    && let Some(hotkey) = get_hotkey(ui)
+                    && let Some(hotkey) = hotkeys::hotkey_pressed_now(ui)
                     && let Some(future) = self.tx.activate_by_hotkey(item.clone(), hotkey.clone())
                 {
-                    hotkey_pressed_consume(ui, hotkey);
+                    hotkeys::hotkey_pressed_consume(ui, hotkey);
                     tokio::spawn(future);
                 }
 
@@ -311,64 +313,10 @@ impl eframe::App for &mut App {
     }
 }
 
-fn key_pressed_consume(ui: &mut Ui, key: Key) -> bool {
-    ui.input_mut(|state| state.consume_key(Modifiers::NONE, key))
-}
-
-fn hotkey_pressed_consume(ui: &mut Ui, key: Hotkey) -> bool {
-    let is_mac = ui.ctx().os().is_mac();
-    ui.input_mut(|state| {
-        state.consume_shortcut(&KeyboardShortcut::new(
-            Modifiers {
-                alt: key.alt,
-                ctrl: key.ctrl,
-                shift: key.shift,
-                mac_cmd: is_mac && key.ctrl,
-                command: key.ctrl,
-            },
-            conv::covey_key_code_to_egui_key(key.key),
-        ))
-    })
-}
-
 fn bounded_wrapping_add(x: usize, amount: usize, max_excl: usize) -> usize {
     (x + amount) % max_excl
 }
 
 fn bounded_wrapping_sub(x: usize, amount: usize, max_excl: usize) -> usize {
     (x + max_excl - (amount % max_excl)) % max_excl
-}
-
-fn get_hotkey(ui: &mut Ui) -> Option<Hotkey> {
-    ui.input(|i| {
-        let keys_pressed: Vec<_> = i
-            .events
-            .iter()
-            .filter_map(|ev| match ev {
-                egui::Event::Key {
-                    key,
-                    physical_key: _,
-                    pressed: true,
-                    repeat: false,
-                    modifiers: _,
-                } => Some(key),
-                _ => None,
-            })
-            .collect();
-
-        if keys_pressed.len() > 1 {
-            return None;
-        }
-
-        let key_code = conv::egui_key_to_covey_key_code(**keys_pressed.first()?)?;
-
-        let m = i.modifiers;
-        Some(Hotkey {
-            key: key_code,
-            ctrl: m.command,
-            alt: m.alt,
-            shift: m.shift,
-            meta: false,
-        })
-    })
 }

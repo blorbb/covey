@@ -61,8 +61,8 @@ impl Receiver {
     }
 }
 
-/// Makes a listener for CLI messages, returning `Ok(None)` if covey is already
-/// open and this process should stop, and `Ok(Some(rx))` if this is the primary instance.
+/// Makes a listener for CLI messages, returning `Ok(None)` this process should stop,
+/// and `Ok(Some(rx))` if this is the primary instance.
 ///
 /// Also parses CLI arguments, exiting with a help message if it fails.
 pub fn listener() -> io::Result<Option<(GuiSettings, Receiver)>> {
@@ -72,20 +72,21 @@ pub fn listener() -> io::Result<Option<(GuiSettings, Receiver)>> {
     let name = "covey.sock".to_ns_name::<GenericNamespaced>()?;
 
     let listener = match ListenerOptions::new().name(name.clone()).create_sync() {
+        // Another instance already open, send message to that instance
         Err(e) if e.kind() == io::ErrorKind::AddrInUse => {
             tracing::info!("address in use");
             let mut conn = Stream::connect(name)?;
 
             let msg = match cmd {
-                Commands::Open { stay_open: false } => {
+                CliCommands::Open { stay_open: false } => {
                     tracing::info!("opening existing instance");
                     b"open\n".as_slice()
                 }
-                Commands::Open { stay_open: true } => {
+                CliCommands::Open { stay_open: true } => {
                     tracing::info!("opening existing instance and keeping open");
                     b"open stay\n"
                 }
-                Commands::Exit => {
+                CliCommands::Exit => {
                     tracing::info!("closing existing instance");
                     b"exit\n"
                 }
@@ -101,31 +102,40 @@ pub fn listener() -> io::Result<Option<(GuiSettings, Receiver)>> {
         x => x?,
     };
 
-    let (tx, rx) = mpsc::channel::<Message>();
-    thread::spawn(move || {
-        for msg in listener.incoming() {
-            match msg {
-                Ok(msg) => {
-                    if let Err(e) = handle_msg(msg, &tx) {
-                        tracing::error!("error handling message from cli: {e}")
+    // This is the primary instance, initialise.
+    match cmd {
+        CliCommands::Open { stay_open } => {
+            let (tx, rx) = mpsc::channel::<Message>();
+            thread::spawn(move || {
+                for msg in listener.incoming() {
+                    match msg {
+                        Ok(msg) => {
+                            if let Err(e) = handle_msg(msg, &tx) {
+                                tracing::error!("error handling message from cli: {e}")
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!("error receiving message from cli: {e}")
+                        }
                     }
                 }
-                Err(e) => {
-                    tracing::error!("error receiving message from cli: {e}")
-                }
-            }
-        }
-    });
+            });
 
-    return Ok(Some((
-        GuiSettings {
-            close_on_blur: matches!(cmd, Commands::Open { stay_open: false }),
-        },
-        Receiver {
-            rx: Arc::new(rx),
-            last_msg: Arc::new(Mutex::new(None)),
-        },
-    )));
+            return Ok(Some((
+                GuiSettings {
+                    close_on_blur: !stay_open,
+                },
+                Receiver {
+                    rx: Arc::new(rx),
+                    last_msg: Arc::new(Mutex::new(None)),
+                },
+            )));
+        }
+        CliCommands::Exit => {
+            tracing::error!("no existing instance to exit from");
+            return Ok(None);
+        }
+    }
 
     fn handle_msg(msg: Stream, tx: &mpsc::Sender<Message>) -> anyhow::Result<()> {
         let mut request = String::new();
@@ -157,11 +167,11 @@ pub fn listener() -> io::Result<Option<(GuiSettings, Receiver)>> {
 #[derive(Parser)]
 struct Args {
     #[command(subcommand)]
-    cmd: Option<Commands>,
+    cmd: Option<CliCommands>,
 }
 
-#[derive(Subcommand)]
-enum Commands {
+#[derive(Subcommand, Debug, PartialEq, Eq)]
+enum CliCommands {
     Open {
         #[arg(short, long)]
         stay_open: bool,
@@ -169,7 +179,7 @@ enum Commands {
     Exit,
 }
 
-impl Default for Commands {
+impl Default for CliCommands {
     fn default() -> Self {
         Self::Open { stay_open: false }
     }

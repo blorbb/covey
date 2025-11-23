@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use egui::{
     Color32, CornerRadius, Margin, Shadow, Spacing, Stroke, Vec2, Visuals,
     style::{
-        DebugOptions, Interaction, ScrollAnimation, ScrollStyle, Selection, TextCursorStyle,
-        WidgetVisuals, Widgets,
+        Interaction, ScrollAnimation, ScrollStyle, Selection, TextCursorStyle, WidgetVisuals,
+        Widgets,
     },
 };
 
@@ -99,7 +99,8 @@ pub fn style_reset() -> egui::Style {
             ..Visuals::dark()
         },
         animation_time: 0.0,
-        debug: DebugOptions::default(),
+        #[cfg(debug_assertions)]
+        debug: egui::style::DebugOptions::default(),
         explanation_tooltips: false,
         url_in_tooltip: false,
         always_scroll_the_only_direction: true,

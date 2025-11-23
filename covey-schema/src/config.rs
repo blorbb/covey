@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     hotkey::{Hotkey, KeyCode},
     keyed_list::{Id, Identify, KeyedList},
+    style::UserStyle,
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -15,6 +16,8 @@ use crate::{
 pub struct GlobalConfig {
     #[serde(default)]
     pub app: AppSettings,
+    #[serde(default)]
+    pub style: UserStyle,
     #[serde(default)]
     pub plugins: KeyedList<PluginEntry>,
 }

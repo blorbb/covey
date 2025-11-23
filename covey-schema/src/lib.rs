@@ -20,3 +20,4 @@ pub mod generate;
 pub mod hotkey;
 pub mod keyed_list;
 pub mod manifest;
+pub mod style;

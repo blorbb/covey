@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     tracing::info!("Starting window");
-    let mut app = App::new(&rx, covey_egui::UserStyle::default(), settings)?;
+    let mut app = App::new(&rx, settings)?;
     app.open()?;
 
     loop {

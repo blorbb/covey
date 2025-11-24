@@ -196,16 +196,7 @@ impl eframe::App for &mut App {
         egui::TopBottomPanel::top("main-panel")
             .frame(egui::Frame::window(&ctx.style()))
             .show(ctx, |ui| {
-                // close if unfocused
                 let window_currently_focused = ui.input(|i| i.focused);
-                if self.settings.close_on_blur
-                    && self.has_previously_focused
-                    && !window_currently_focused
-                {
-                    tracing::info!("window unfocused");
-                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-                    return;
-                }
 
                 // CLI window actions //
                 match self.cli.try_recv() {
@@ -366,8 +357,19 @@ impl eframe::App for &mut App {
                         )));
                 }
 
+                // Close if unfocused
                 // must set this at the end to guarantee it is false on the first frame
                 self.has_previously_focused |= window_currently_focused;
+                // this must also be at the end to avoid a weird flash of blank when closing
+                // by losing focus
+                if self.settings.close_on_blur
+                    && self.has_previously_focused
+                    && !window_currently_focused
+                {
+                    tracing::info!("window unfocused");
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                    return;
+                }
             });
     }
 }

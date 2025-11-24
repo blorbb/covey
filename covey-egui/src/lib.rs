@@ -25,7 +25,8 @@ pub struct App {
     /// Whether the last opening of the app has been focused.
     ///
     /// Used to avoid closing the app early if focus isn't gained for a bit.
-    has_focused: bool,
+    /// Will be false on the first frame of the app opening.
+    has_previously_focused: bool,
     pub settings: GuiSettings,
 }
 
@@ -49,7 +50,7 @@ impl App {
             input: String::new(),
             list: None,
             list_selection: 0,
-            has_focused: false,
+            has_previously_focused: false,
             settings,
         })
     }
@@ -79,7 +80,7 @@ impl App {
                 Ok(Box::new(&mut *self))
             }),
         );
-        self.has_focused = false;
+        self.has_previously_focused = false;
         result
     }
 
@@ -181,15 +182,15 @@ impl eframe::App for &mut App {
         egui::TopBottomPanel::top("main-panel")
             .frame(egui::Frame::window(&ctx.style()))
             .show(ctx, |ui| {
-                if self.settings.close_on_blur {
-                    let window_focused = ui.input(|i| i.focused);
-                    if window_focused {
-                        self.has_focused = true;
-                    } else if !window_focused && self.has_focused {
-                        tracing::info!("window unfocused");
-                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-                        return;
-                    }
+                // close if unfocused
+                let window_currently_focused = ui.input(|i| i.focused);
+                if self.settings.close_on_blur
+                    && self.has_previously_focused
+                    && !window_currently_focused
+                {
+                    tracing::info!("window unfocused");
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                    return;
                 }
 
                 // CLI window actions //
@@ -299,6 +300,18 @@ impl eframe::App for &mut App {
                     },
                 );
 
+                // select all on first frame
+                if !self.has_previously_focused {
+                    text_edit.state.cursor.set_char_range(Some(
+                        egui::text::CCursorRange::select_all(&text_edit.galley),
+                    ));
+                    text_edit
+                        .state
+                        .clone()
+                        .store(ui.ctx(), text_edit.response.id);
+                }
+
+                // edit selection based on plugin response
                 if let Some((min, max)) = new_selection {
                     text_edit
                         .state
@@ -315,7 +328,7 @@ impl eframe::App for &mut App {
                 }
 
                 // can't request focus if the app is unfocused
-                if !text_edit.response.has_focus() && ui.input(|i| i.focused) {
+                if !text_edit.response.has_focus() && window_currently_focused {
                     text_edit.response.request_focus();
                     // the text edit focus ring will flash for one frame without this
                     ui.ctx().request_discard("lost text edit focus");
@@ -328,15 +341,19 @@ impl eframe::App for &mut App {
                     self.show_list(ui, list_selection_changed);
                 }
 
+                // set window size //
                 let existing_height = ui.ctx().content_rect().height();
                 let new_height = ui.cursor().top() + self.style().window_margin().block;
-                if existing_height != new_height {
+                if (existing_height - new_height).abs() < 1. {
                     ui.ctx()
                         .send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(
                             self.style().window_width(),
                             new_height,
                         )));
                 }
+
+                // must set this at the end to guarantee it is false on the first frame
+                self.has_previously_focused |= window_currently_focused;
             });
     }
 }

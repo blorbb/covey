@@ -168,7 +168,7 @@ impl UserStyle {
     }
 
     pub fn list_padding(&self) -> Padding {
-        self.list_padding.unwrap_or(Padding::new(4., 2.))
+        self.list_padding.unwrap_or(Padding::new(4., 4.))
     }
 
     /// Computed property.

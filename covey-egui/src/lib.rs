@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, LazyLock},
+};
 
 use covey::{covey_schema::style::UserStyle, host};
 use eframe::CreationContext;
@@ -14,6 +17,8 @@ mod conv;
 mod hotkeys;
 mod row;
 mod style;
+
+static ICON_TEXT_STYLE: LazyLock<TextStyle> = LazyLock::new(|| TextStyle::Name(Arc::from("icon")));
 
 pub struct App {
     cli: cli::Receiver,
@@ -76,6 +81,7 @@ impl App {
             "covey",
             options.clone(),
             Box::new(|cc| {
+                egui_extras::install_image_loaders(&cc.egui_ctx);
                 self.style_ctx(cc);
                 Ok(Box::new(&mut *self))
             }),
@@ -123,6 +129,13 @@ impl App {
                     TextStyle::Small,
                     FontId::new(ss.description_font_size(), FontFamily::Proportional),
                 ),
+                (
+                    ICON_TEXT_STYLE.clone(),
+                    FontId::new(
+                        ss.font_size() + ss.description_font_size(),
+                        FontFamily::Proportional,
+                    ),
+                ),
             ]);
         });
     }
@@ -145,6 +158,7 @@ impl App {
                     v.widgets
                         .set_corner_radius(CornerRadius::same(s.list_rounding().round() as u8));
                     ui.style_mut().spacing.button_padding = s.list_padding().as_egui();
+                    ui.style_mut().spacing.icon_spacing = s.list_padding().block;
 
                     for (i, item) in list.items.iter().enumerate() {
                         let response = ui.add(ListRow::new(&mut self.list_selection, i, item));
@@ -447,12 +461,12 @@ impl AsEgui<Color32> for covey::covey_schema::style::Color {
 
 impl AsEgui<Margin> for covey::covey_schema::style::Padding {
     fn as_egui(&self) -> Margin {
-        Margin::symmetric(self.block.round() as i8, self.inline.round() as i8)
+        Margin::symmetric(self.inline.round() as i8, self.block.round() as i8)
     }
 }
 
 impl AsEgui<Vec2> for covey::covey_schema::style::Padding {
     fn as_egui(&self) -> Vec2 {
-        Vec2::new(self.block, self.inline)
+        Vec2::new(self.inline, self.block)
     }
 }

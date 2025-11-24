@@ -20,6 +20,12 @@ parking_lot.workspace = true
 covey = { path = "../covey" }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 clap = { version = "4.5.51", features = ["derive"] }
+egui_extras = { version = "0.33", features = ["file", "svg", "all_loaders"] }
+image = { version = "0.25", default-features = false, features = [
+    "jpeg",
+    "png",
+] }
+urlencoding = "2"
 
 [lints]
 workspace = true

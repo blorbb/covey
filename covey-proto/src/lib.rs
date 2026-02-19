@@ -117,13 +117,6 @@ pub mod plugin_response {
             }
         }
 
-        pub fn finish_activation_response(request_id: covey_request::RequestId) -> Self {
-            Self {
-                request_id,
-                response: Body::FinishActivationResponse,
-            }
-        }
-
         pub fn display_error(request_id: covey_request::RequestId, error: String) -> Self {
             Self::perform_action(request_id, Action::DisplayError(error))
         }

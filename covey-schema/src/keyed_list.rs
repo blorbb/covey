@@ -1,7 +1,7 @@
 //! An ordered map (de)serialized as a list with keys.
 
 use core::{fmt, slice};
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
@@ -89,6 +89,25 @@ impl<T: Identify> KeyedList<T> {
             }
         }
     }
+
+    pub fn map_same_id<U>(self, mut f: impl FnMut(T) -> U) -> Result<KeyedList<U>, T::Id>
+    where
+        U: Identify<Id = T::Id>,
+    {
+        let items = self
+            .items
+            .into_iter()
+            .map(|t| {
+                let t_id = t.id().clone();
+                let u = f(t);
+                if &t_id == u.id() { Ok(u) } else { Err(t_id) }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // This is safe because from the mapping, every id is equal,
+        // so ids must be unique across the vec.
+        Ok(KeyedList { items })
+    }
 }
 
 impl<T> KeyedList<T> {
@@ -147,6 +166,22 @@ pub trait Identify {
     fn id(&self) -> &Self::Id;
 }
 
+impl<T: Identify> Identify for Arc<T> {
+    type Id = T::Id;
+
+    fn id(&self) -> &Self::Id {
+        (**self).id()
+    }
+}
+
+impl<T: Identify> Identify for Box<T> {
+    type Id = T::Id;
+
+    fn id(&self) -> &Self::Id {
+        (**self).id()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct UniqueIdError<Id> {
     duplicate: Id,
@@ -154,7 +189,7 @@ pub struct UniqueIdError<Id> {
 
 impl<Id: StringId> fmt::Display for UniqueIdError<Id> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "id {:?} is duplicated", self.duplicate.to_arc())
+        write!(f, "id {:?} is duplicated", self.duplicate.as_str())
     }
 }
 

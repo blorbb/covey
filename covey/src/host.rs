@@ -10,7 +10,6 @@ use std::{
     fs,
     future::Future,
     io::{Read as _, Write as _},
-    mem,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -22,26 +21,28 @@ use covey_proto::{covey_request::RequestId, plugin_response::Response};
 use covey_schema::{
     config::{GlobalConfig, PluginEntry},
     hotkey::Hotkey,
-    id::{CommandId, PluginId},
-    keyed_list::KeyedList,
+    id::{CommandId, PluginId, StringId},
+    keyed_list::{Identify as _, KeyedList},
 };
+use parking_lot::RwLock;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use crate::{
     CONFIG_DIR, CONFIG_PATH, ListItem, PLUGINS_DIR, Plugin,
-    event::{Action, InternalAction, ListItemId},
+    event::{Action, ListItemId},
+    plugin::PluginProcess,
 };
 
 pub struct RequestSender {
     config: GlobalConfig,
-    plugins: KeyedList<Plugin>,
-    response_sender: mpsc::UnboundedSender<Action>,
+    plugin_processes: Arc<KeyedList<Arc<PluginProcess>>>,
+    merger: Arc<ResponseMerger>,
     next_request_id: u64,
 }
 
 pub struct ResponseReceiver {
-    response_receiver: mpsc::UnboundedReceiver<Action>,
+    action_receiver: mpsc::UnboundedReceiver<Action>,
 }
 
 impl RequestSender {
@@ -49,27 +50,28 @@ impl RequestSender {
     ///
     /// Responses should be handled by calling [`ResponseReceiver::recv_action`].
     #[tracing::instrument(skip(self))]
-    pub fn send_query(&mut self, query: String) -> impl Future<Output = ()> + use<> {
+    pub fn send_query(&mut self, query: String) -> impl Future<Output = ()> + use<> + Send + Sync {
         debug!("setting input to {query:?}");
 
         let request_id = RequestId(self.next_request_id);
         self.next_request_id += 1;
         // let icon_themes = Arc::clone(&self.config.app.icon_themes);
-        let plugins = self.plugins.clone();
+        let plugins = Arc::clone(&self.plugin_processes);
 
         async move {
             for plugin in plugins
-                .into_iter()
-                .filter(|plugin| !plugin.config_entry().disabled)
+                .iter()
+                .filter(|plugin| !plugin.metadata().config_entry().disabled)
             {
                 let Some(stripped) = plugin
+                    .metadata()
                     .prefix()
                     .and_then(|prefix| query.strip_prefix(prefix))
                 else {
                     continue;
                 };
 
-                debug!("querying plugin {plugin:?}");
+                debug!("querying plugin {}", plugin.id().as_str());
                 plugin.query(request_id, stripped.to_string()).await;
                 // match plugin.query(stripped).await {
                 //     Ok(proto_list) => response_sender.send(InternalAction::SetList {
@@ -99,32 +101,13 @@ impl RequestSender {
 
         let request_id = RequestId(self.next_request_id);
         self.next_request_id += 1;
+        let plugins = Arc::clone(&self.plugin_processes);
 
         async move {
-            item.plugin
-                .activate(request_id, item.local_id, command_id)
-                .await
-            // loop {
-            //     match stream.message().await {
-            //         Ok(Some(value)) => {
-            //             let Some(action) = value.action.action else {
-            //                 tracing::warn!("plugin {:?} did not provide an action", item.plugin);
-            //                 continue;
-            //             };
-
-            //             tracing::debug!("received action {action:?}");
-            //             response_sender
-            //                 .send(InternalAction::from_proto_action(&item.plugin, action))
-            //                 .expect("receiver should be alive");
-            //         }
-            //         Ok(None) => break,
-            //         Err(e) => {
-            //             response_sender
-            //                 .send(InternalAction::DisplayError(e.to_string()))
-            //                 .expect("receiver should be alive");
-            //         }
-            //     };
-            // }
+            let Some(plugin) = plugins.get(item.plugin.id()) else {
+                return;
+            };
+            plugin.activate(request_id, item.local_id, command_id).await
         }
     }
 
@@ -134,37 +117,27 @@ impl RequestSender {
     /// Returns [`Some`] if the hotkey activated some command, otherwise [`None`].
     #[tracing::instrument(skip(self))]
     pub fn activate_by_hotkey(
-        &self,
+        &mut self,
         item: ListItem,
         hotkey: Hotkey,
     ) -> Option<impl Future<Output = ()> + use<>> {
-        let cmd_name = item.activated_command_from_hotkey(&hotkey)?;
-        Some(self.activate(item.id(), cmd_name.as_str().to_string()))
+        let command_id = item.activated_command_from_hotkey(&hotkey)?;
+        Some(self.activate(item.id(), command_id.clone()))
     }
 }
 
 impl ResponseReceiver {
     /// Receives an action by a plugin.
     pub async fn recv_action(&mut self) -> Action {
-        loop {
-            let internal_action = self
-                .response_receiver
-                .recv()
-                .await
-                .expect("senders should still exist");
-
-            if let Some(action) = self.convert_internal_action(internal_action) {
-                return action;
-            }
-        }
+        self.action_receiver.recv().await.unwrap()
     }
 
     pub fn try_recv_action(&mut self) -> Option<Action> {
-        loop {
-            let internal_action = self.response_receiver.try_recv().ok()?;
-
-            if let Some(action) = self.convert_internal_action(internal_action) {
-                return Some(action);
+        match self.action_receiver.try_recv() {
+            Ok(action) => Some(action),
+            Err(mpsc::error::TryRecvError::Empty) => None,
+            Err(mpsc::error::TryRecvError::Disconnected) => {
+                panic!("action sender should never be dropped")
             }
         }
     }
@@ -175,21 +148,23 @@ impl RequestSender {
     pub fn config(&self) -> &GlobalConfig {
         &self.config
     }
-
-    /// Ordered set of all enabled plugins.
-    #[tracing::instrument(skip(self))]
-    pub fn plugins(&self) -> &KeyedList<Plugin> {
-        &self.plugins
-    }
 }
 
 struct ResponseMerger {
     latest_received_query_request_id: AtomicU64,
     action_sender: mpsc::UnboundedSender<Action>,
+    // Extra config stuff
+    icon_themes: RwLock<Arc<[String]>>,
 }
 
 impl ResponseMerger {
-    fn send(&self, response: Response, plugin_entry: &PluginEntry) {
+    fn send_error(&self, title: impl Into<String>, description: impl Into<String>) {
+        _ = self
+            .action_sender
+            .send(Action::DisplayError(title.into(), description.into()))
+    }
+
+    fn send(&self, plugin: &Plugin, response: Response) {
         match response.response {
             covey_proto::plugin_response::Body::SetList(list) => {
                 // Check if the latest received id < new id. If so, send the action.
@@ -202,12 +177,35 @@ impl ResponseMerger {
                     })
                     .is_ok()
                 {
-                    let action =
-                        Action::SetList(crate::List::from_proto(plugin, icon_themes, list));
+                    let action = Action::SetList(crate::List::from_proto(
+                        plugin,
+                        &self.icon_themes.read(),
+                        list,
+                    ));
+                    _ = self.action_sender.send(action);
                 }
             }
-            covey_proto::plugin_response::Body::PerformAction(action) => todo!(),
+            covey_proto::plugin_response::Body::PerformAction(action) => {
+                let action = match action {
+                    covey_proto::plugin_response::Action::Close => Action::Close,
+                    covey_proto::plugin_response::Action::Copy(str) => Action::Copy(str),
+                    covey_proto::plugin_response::Action::SetInput(input) => {
+                        Action::SetInput(crate::Input::from_proto(plugin, input))
+                    }
+                    covey_proto::plugin_response::Action::DisplayError(err) => {
+                        Action::DisplayError(format!("Plugin {} failed", plugin.id().as_str()), err)
+                    }
+                };
+                _ = self.action_sender.send(action)
+            }
         }
+    }
+
+    fn plugin_to_process(self: Arc<Self>, plugin: Plugin) -> Arc<PluginProcess> {
+        Arc::new(PluginProcess::new(
+            plugin.clone(),
+            Arc::new(move |response| self.send(&plugin, response)),
+        ))
     }
 }
 
@@ -228,10 +226,33 @@ pub fn channel() -> Result<(RequestSender, ResponseReceiver)> {
     let mut global_config: GlobalConfig = toml::from_str(&s)?;
     find_and_insert_plugins_from_fs(&mut global_config);
 
-    let (response_sender, response_receiver) = mpsc::unbounded_channel();
+    let (action_sender, action_receiver) = mpsc::unbounded_channel();
 
-    let plugins = KeyedList::new_lossy(config.plugins.iter().filter_map(|plugin_entry| {
-        match Plugin::new(plugin_entry.clone()) {
+    let merger = Arc::new(ResponseMerger {
+        latest_received_query_request_id: AtomicU64::new(0),
+        action_sender,
+        icon_themes: RwLock::new(Arc::clone(&global_config.app.icon_themes)),
+    });
+
+    let plugins = load_plugins_from_config(&global_config);
+    info!("found plugins: {plugins:?}");
+    let plugin_processes = map_plugins_to_processes(plugins, Arc::clone(&merger));
+
+    Ok((
+        RequestSender {
+            config: global_config,
+            plugin_processes: Arc::new(plugin_processes),
+            merger,
+            // must be greater than the initial `latest_received_query_request_id`
+            next_request_id: 1,
+        },
+        ResponseReceiver { action_receiver },
+    ))
+}
+
+fn load_plugins_from_config(config: &GlobalConfig) -> KeyedList<Plugin> {
+    KeyedList::new_lossy(config.plugins.iter().filter_map(|plugin_entry| {
+        match Plugin::new_read_manifest(plugin_entry.clone()) {
             Ok(plugin) => {
                 debug!("found plugin {plugin:?}");
                 Some(plugin)
@@ -241,28 +262,16 @@ pub fn channel() -> Result<(RequestSender, ResponseReceiver)> {
                 None
             }
         }
-    }));
-
-    info!("found plugins: {plugins:?}");
-
-    Ok(channel_with_plugins(global_config, plugins))
+    }))
 }
 
-fn channel_with_plugins(
-    config: GlobalConfig,
+fn map_plugins_to_processes(
     plugins: KeyedList<Plugin>,
-) -> (RequestSender, ResponseReceiver) {
-    let (response_sender, response_receiver) = mpsc::unbounded_channel();
-    (
-        RequestSender {
-            config,
-            plugins,
-            response_sender,
-            next_request_id: 1,
-            latest_received_query_request_id: 0,
-        },
-        ResponseReceiver { response_receiver },
-    )
+    merger: Arc<ResponseMerger>,
+) -> KeyedList<Arc<PluginProcess>> {
+    plugins
+        .map_same_id(|plugin| Arc::clone(&merger).plugin_to_process(plugin))
+        .expect("plugin process has same id as plugin")
 }
 
 /// Finds extra plugins from the plugin directory and inserts it into the config.
@@ -285,70 +294,50 @@ fn find_and_insert_plugins_from_fs(config: &mut GlobalConfig) {
     }));
 }
 
-/// Reads the manifests of every plugin listed in the config.
-fn load_plugins(
-    config: &GlobalConfig,
-    responses: mpsc::UnboundedSender<Response>,
-) -> KeyedList<Plugin> {
-    KeyedList::new_lossy(config.plugins.iter().filter_map(|plugin_entry| {
-        match Plugin::new(plugin_entry.clone()) {
-            Ok(plugin) => {
-                debug!("found plugin {plugin:?}");
-                Some(plugin)
-            }
-            Err(e) => {
-                error!("error loading plugin: {e}");
-                None
-            }
-        }
-    }))
-}
-
 // extra file-io methods
 impl RequestSender {
     /// Reloads all plugins with the new configuration.
     #[tracing::instrument(skip_all)]
     pub fn reload(&mut self, config: GlobalConfig) {
         debug!("reloading");
-        self.plugins = load_plugins(&config);
-        // TODO: spawn this in another task and handle errors properly
-        Self::write_config(&config).expect("TODO");
         self.config = config;
+        *self.merger.icon_themes.write() = Arc::clone(&self.config.app.icon_themes);
+        self.plugin_processes = Arc::new(map_plugins_to_processes(
+            load_plugins_from_config(&self.config),
+            Arc::clone(&self.merger),
+        ));
+        // TODO: spawn this in another task and handle errors properly
+        Self::write_config(&self.config).expect("TODO");
     }
 
     pub fn reload_plugin(&mut self, plugin_id: &PluginId) {
         debug!("reloading plugin {plugin_id:?}");
 
         let Some(plugin_config) = self.config.plugins.get(plugin_id) else {
-            self.response_sender
-                .send(InternalAction::DisplayError(format!(
-                    "Failed to reload plugin\ncould not find config of plugin {plugin_id:?}"
-                )))
-                .expect("receiver must remain open");
+            self.merger.send_error(
+                "Failed to reload plugin",
+                format!("could not find config of plugin {}", plugin_id.as_str()),
+            );
             return;
         };
 
-        let new_plugins = mem::take(&mut self.plugins)
-            .into_iter()
-            .filter_map(|plugin| {
-                if plugin.id() == plugin_id {
-                    match Plugin::new(plugin_config.clone()) {
-                        Ok(plugin) => Some(plugin),
-                        Err(e) => {
-                            self.response_sender
-                                .send(InternalAction::DisplayError(format!(
-                                    "Failed to reload plugin\n{e:#}"
-                                )))
-                                .expect("receiver must remain open");
-                            None
-                        }
+        let new_plugins = self.plugin_processes.iter().filter_map(|plugin| {
+            if plugin.id() == plugin_id {
+                match Plugin::new_read_manifest(plugin_config.clone()) {
+                    Ok(plugin) => Some(Arc::clone(&self.merger).plugin_to_process(plugin)),
+                    Err(e) => {
+                        self.merger
+                            .send_error("Failed to reload plugin", format!("{e:#}"));
+                        None
                     }
-                } else {
-                    Some(plugin)
                 }
-            });
+            } else {
+                Some(Arc::clone(plugin))
+            }
+        });
 
-        self.plugins = KeyedList::new(new_plugins).expect("new keyed list should have same keys");
+        self.plugin_processes =
+            Arc::new(KeyedList::new(new_plugins).expect("new keyed list should have same keys"));
     }
 
     /// Writes the config to the [`CONFIG_PATH`].

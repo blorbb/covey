@@ -158,9 +158,6 @@ async fn main<T: Plugin>() -> Result<(), anyhow::Error> {
                         }
                         None => eprintln!("failed to fetch callback of list item {item_id:?}"),
                     };
-                    let finish_response =
-                        covey_proto::plugin_response::Response::finish_activation_response(id);
-                    finish_response.write_to_stdout();
                 }
             };
         });

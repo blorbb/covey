@@ -7,7 +7,7 @@ use std::{
     sync::{LazyLock, OnceLock},
 };
 
-pub use list::{ItemIcon, List, ListItem, ListStyle};
+pub use list::{Icon, List, ListItem, ListStyle};
 mod action;
 pub use action::{Action, Actions};
 mod input;

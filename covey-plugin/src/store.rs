@@ -8,7 +8,7 @@ use std::{
 use az::CheckedAs;
 use covey_proto::plugin_response::ListItemId;
 
-use crate::{ItemIcon, List, ListItem, ListStyle, list::ListItemCallbacks};
+use crate::{Icon, List, ListItem, ListStyle, list::ListItemCallbacks};
 
 /// Store to map list item IDs to their callbacks.
 pub(crate) struct ListItemStore {
@@ -74,7 +74,7 @@ impl ListItemStore {
                     id: ListItemId(id),
                     title: item.title,
                     description: item.description,
-                    icon: item.icon.map(ItemIcon::into_proto),
+                    icon: item.icon.map(Icon::into_proto),
                     available_commands: item.commands.ids().cloned().collect(),
                 });
                 callbacks.push(item.commands);

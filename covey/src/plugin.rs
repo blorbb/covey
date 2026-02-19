@@ -1,7 +1,6 @@
 use core::fmt;
-use std::{hash::Hash, path::PathBuf, sync::Arc};
+use std::{hash::Hash, io, path::PathBuf, sync::Arc};
 
-use anyhow::Result;
 use covey_proto::{
     covey_request::{Request, RequestId},
     plugin_response::Response,
@@ -13,10 +12,11 @@ use covey_schema::{
     keyed_list::Identify,
     manifest::PluginManifest,
 };
+use tokio::sync::Mutex;
 
 use crate::DATA_DIR;
 
-/// A ref-counted reference to a plugin instance.
+/// Metadata about a plugin.
 ///
 /// Comparison traits ([`Eq`], [`Hash`], etc) are in terms of
 /// this plugin's name.
@@ -27,30 +27,35 @@ use crate::DATA_DIR;
 /// retrying the request.
 #[derive(Clone)]
 pub struct Plugin {
-    plugin: Arc<implementation::PluginInner>,
+    meta: Arc<implementation::PluginMetadata>,
 }
 
 impl Plugin {
-    /// Initialises a plugin from it's configuration and sends responses to
-    /// the `response_sender` function.
-    pub(crate) fn new(config: PluginEntry, response_sender: Arc<dyn Fn(Response)>) -> Result<Self> {
-        Ok(Self {
-            plugin: Arc::new(implementation::PluginInner::new(config, response_sender)?),
-        })
+    pub(crate) fn new_read_manifest(entry: PluginEntry) -> anyhow::Result<Self> {
+        let toml = std::fs::read_to_string(manifest_path(entry.id.as_str()))?;
+        let manifest: PluginManifest = toml::from_str(&toml)?;
+
+        Ok(Self::new(entry, manifest))
+    }
+
+    pub(crate) fn new(entry: PluginEntry, manifest: PluginManifest) -> Self {
+        Self {
+            meta: Arc::new(implementation::PluginMetadata { entry, manifest }),
+        }
     }
 
     pub fn id(&self) -> &PluginId {
-        &self.plugin.entry.id
+        &self.meta.entry.id
     }
 
     /// Gets the prefix used to activate this plugin, either the user-defined or
     /// default prefix.
     pub fn prefix(&self) -> Option<&str> {
-        self.plugin
+        self.meta
             .entry
             .prefix
             .as_ref()
-            .or(self.plugin.manifest.default_prefix.as_ref())
+            .or(self.meta.manifest.default_prefix.as_ref())
             .map(String::as_str)
     }
 
@@ -75,7 +80,7 @@ impl Plugin {
     }
 
     pub fn config_entry(&self) -> &PluginEntry {
-        &self.plugin.entry
+        &self.meta.entry
     }
 
     /// Returns the path to the provided plugin's directory.
@@ -95,24 +100,7 @@ impl Plugin {
     }
 
     pub fn manifest(&self) -> &PluginManifest {
-        &self.plugin.manifest
-    }
-
-    pub(crate) async fn query(&self, request_id: RequestId, query: String) {
-        self.plugin
-            .send_request_or_display_error(&Request::query(request_id, query))
-            .await
-    }
-
-    pub(crate) async fn activate(
-        &self,
-        request_id: RequestId,
-        item_id: covey_proto::plugin_response::ListItemId,
-        command_id: CommandId,
-    ) {
-        self.plugin
-            .send_request_or_display_error(&Request::activate(request_id, item_id, command_id))
-            .await
+        &self.meta.manifest
     }
 }
 
@@ -170,10 +158,104 @@ fn manifest_path(plugin_name: &str) -> PathBuf {
     data_directory_path(plugin_name).join("manifest.toml")
 }
 
+/// A lazily started plugin process.
+pub(crate) struct PluginProcess {
+    plugin: Plugin,
+    response_sender: Arc<dyn Fn(Response) + Send + Sync>,
+    process: Mutex<Option<implementation::ActiveProcess>>,
+}
+
+impl PluginProcess {
+    pub(crate) fn new(
+        plugin: Plugin,
+        response_sender: Arc<dyn Fn(Response) + Send + Sync>,
+    ) -> Self {
+        Self {
+            plugin,
+            response_sender,
+            process: Mutex::new(None),
+        }
+    }
+
+    pub(crate) fn metadata(&self) -> &Plugin {
+        &self.plugin
+    }
+
+    pub(crate) async fn query(&self, request_id: RequestId, query: String) {
+        self.send_request_or_display_error(&Request::query(request_id, query))
+            .await
+    }
+
+    pub(crate) async fn activate(
+        &self,
+        request_id: RequestId,
+        item_id: covey_proto::plugin_response::ListItemId,
+        command_id: CommandId,
+    ) {
+        self.send_request_or_display_error(&Request::activate(request_id, item_id, command_id))
+            .await
+    }
+
+    /// Sends a request to the plugin process, retrying once if the process has been killed.
+    async fn send_request_with_retry(&self, request: &Request) -> io::Result<()> {
+        let mut guard = self.process.lock().await;
+        match &mut *guard {
+            Some(process) => {
+                match process.send_request(request).await {
+                    Ok(()) => Ok(()),
+                    Err(e) => {
+                        // TODO: remove this log, only restart if the right error kind is reached
+                        tracing::warn!("failed to write request: {e:#}");
+                        tracing::warn!("restarting killed plugin {:?}", self.plugin.id());
+                        *process = self.start_process().await?;
+                        process.send_request(request).await?;
+                        Ok(())
+                    }
+                }
+            }
+            None => {
+                tracing::info!("initialising plugin {:?}", self.plugin.id());
+                let mut process = self.start_process().await?;
+                // Set the guard even if the request fails for some reason
+                let request_result = process.send_request(request).await;
+                *guard = Some(process);
+                request_result
+            }
+        }
+    }
+
+    async fn send_request_or_display_error(&self, request: &Request) {
+        match self.send_request_with_retry(request).await {
+            Ok(()) => {}
+            Err(e) => {
+                _ = (self.response_sender)(Response::display_error(request.id, format!("{e:#}")))
+            }
+        }
+    }
+
+    async fn start_process(&self) -> io::Result<implementation::ActiveProcess> {
+        let bin_path = self.plugin.binary_path();
+        implementation::ActiveProcess::new(
+            self.plugin.id().clone(),
+            bin_path,
+            &self.plugin.config_entry().settings,
+            Arc::clone(&self.response_sender),
+        )
+        .await
+    }
+}
+
+impl Identify for PluginProcess {
+    type Id = PluginId;
+
+    fn id(&self) -> &Self::Id {
+        self.plugin.id()
+    }
+}
+
 mod implementation {
     use std::{io, path::PathBuf, process::Stdio, sync::Arc};
 
-    use anyhow::{Context as _, Result};
     use covey_proto::{covey_request::Request, plugin_response::Response};
     use covey_schema::{
         config::PluginEntry,
@@ -183,101 +265,25 @@ mod implementation {
     use tokio::{
         io::{AsyncBufReadExt as _, AsyncWriteExt, BufReader},
         process::{Child, Command},
-        sync::Mutex,
     };
-    use tracing::info;
 
-    use super::{binary_path, manifest_path};
-
-    pub(super) struct PluginInner {
-        process: Mutex<Option<PluginProcess>>,
+    pub(super) struct PluginMetadata {
         pub(super) manifest: PluginManifest,
         pub(super) entry: PluginEntry,
-        response_sender: Arc<dyn Fn(Response)>,
     }
 
-    impl PluginInner {
-        pub(super) fn new(config: PluginEntry, responses: Arc<dyn Fn(Response)>) -> Result<Self> {
-            let id = &config.id;
-            let path = manifest_path(id.as_str());
-            let toml = std::fs::read_to_string(path)
-                .context(format!("error opening manifest file of {}", id.as_str()))?;
-            let manifest: PluginManifest = toml::from_str(&toml)
-                .context(format!("error reading manifest of {}", id.as_str()))?;
-
-            Ok(Self {
-                process: Mutex::new(None),
-                manifest,
-                entry: config,
-                response_sender: responses,
-            })
-        }
-
-        async fn new_process(&self) -> io::Result<PluginProcess> {
-            let bin_path = binary_path(self.entry.id.as_str());
-            PluginProcess::new(
-                self.entry.id.clone(),
-                bin_path,
-                &self.entry.settings,
-                Arc::clone(&self.response_sender),
-            )
-            .await
-        }
-
-        /// Sends a request to the plugin process, retrying once if the process has been killed.
-        async fn send_request_with_retry(&self, request: &Request) -> io::Result<()> {
-            let mut guard = self.process.lock().await;
-            match &mut *guard {
-                Some(process) => {
-                    match process.send_request(request).await {
-                        Ok(()) => Ok(()),
-                        Err(e) => {
-                            // TODO: remove this log, only restart if the right error kind is reached
-                            tracing::warn!("failed to write request: {e:#}");
-                            tracing::warn!("restarting killed plugin {:?}", self.entry.id);
-                            *process = self.new_process().await?;
-                            process.send_request(request).await?;
-                            Ok(())
-                        }
-                    }
-                }
-                None => {
-                    info!("initialising plugin {:?}", self.entry.id);
-                    let mut process = self.new_process().await?;
-                    // Set the guard even if the request fails for some reason
-                    let request_result = process.send_request(request).await;
-                    *guard = Some(process);
-                    request_result
-                }
-            }
-        }
-
-        pub(super) async fn send_request_or_display_error(&self, request: &Request) {
-            match self.send_request_with_retry(request).await {
-                Ok(()) => {}
-                Err(e) => {
-                    _ = (self.response_sender)(Response::display_error(
-                        request.id,
-                        format!("{e:#}"),
-                    ))
-                }
-            }
-        }
-    }
-
-    struct PluginProcess {
+    pub(super) struct ActiveProcess {
         // killed on drop, need to hold it so that it's dropped when this struct is dropped.
         _process: Child,
         child_stdin: tokio::process::ChildStdin,
     }
 
-    impl PluginProcess {
-        /// Starts the plugin process.
-        async fn new(
+    impl ActiveProcess {
+        pub(super) async fn new(
             plugin_id: PluginId,
             bin_path: PathBuf,
             initialization_settings: &serde_json::Map<String, serde_json::Value>,
-            response_sender: Arc<dyn Fn(Response)>,
+            response_sender: Arc<dyn Fn(Response) + Send + Sync>,
         ) -> io::Result<Self> {
             let initialization_settings = serde_json::to_string(initialization_settings)
                 .expect("plugin init settings should be serializable");
@@ -332,7 +338,7 @@ mod implementation {
         }
 
         /// Tries to send the request to the process. Does not retry on failure.
-        async fn send_request(&mut self, request: &Request) -> io::Result<()> {
+        pub(super) async fn send_request(&mut self, request: &Request) -> io::Result<()> {
             let mut json = serde_json::to_string(request).expect("request should be serializable");
             json.push('\n');
             self.child_stdin.write_all(json.as_bytes()).await?;

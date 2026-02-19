@@ -66,7 +66,7 @@ impl ListStyle {
 pub struct ListItem {
     pub title: String,
     pub description: String,
-    pub icon: Option<ItemIcon>,
+    pub icon: Option<Icon>,
     pub(crate) commands: ListItemCallbacks,
 }
 
@@ -88,20 +88,20 @@ impl ListItem {
     }
 
     #[must_use = "builder method consumes self"]
-    pub fn with_icon(mut self, icon: Option<ItemIcon>) -> Self {
+    pub fn with_icon(mut self, icon: Option<Icon>) -> Self {
         self.icon = icon;
         self
     }
 
     #[must_use = "builder method consumes self"]
     pub fn with_icon_name(mut self, name: impl Into<String>) -> Self {
-        self.icon = Some(ItemIcon::Name(name.into()));
+        self.icon = Some(Icon::Name(name.into()));
         self
     }
 
     #[must_use = "builder method consumes self"]
     pub fn with_icon_text(mut self, text: impl Into<String>) -> Self {
-        self.icon = Some(ItemIcon::Text(text.into()));
+        self.icon = Some(Icon::Text(text.into()));
         self
     }
 
@@ -118,12 +118,12 @@ impl ListItem {
 }
 
 #[derive(Debug, Clone)]
-pub enum ItemIcon {
+pub enum Icon {
     Name(String),
     Text(String),
 }
 
-impl ItemIcon {
+impl Icon {
     pub(crate) fn into_proto(self) -> covey_proto::plugin_response::ListItemIcon {
         use covey_proto::plugin_response::ListItemIcon as Proto;
         match self {

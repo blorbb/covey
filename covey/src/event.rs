@@ -3,45 +3,9 @@
 use core::fmt;
 use std::path::PathBuf;
 
-use az::SaturatingAs as _;
-use covey_schema::{hotkey::Hotkey, keyed_list::Id};
+use covey_schema::{hotkey::Hotkey, id::CommandId};
 
 use crate::Plugin;
-
-/// Action response returned by a plugin.
-///
-/// May contain some extra pieces of information that should not
-/// be exposed to users.
-pub(crate) enum InternalAction {
-    /// Set the displayed list.
-    SetList {
-        list: List,
-        /// The action number this is associated with.
-        ///
-        /// If set list is called with an index older than the latest list,
-        /// this event will be ignored.
-        index: u64,
-    },
-    Close,
-    Copy(String),
-    SetInput(Input),
-    DisplayError(String),
-}
-
-impl fmt::Debug for InternalAction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::SetList { list, index: _ } => f
-                .debug_tuple("SetList")
-                .field(&format!("{} items", list.len()))
-                .finish(),
-            Self::Close => write!(f, "Close"),
-            Self::Copy(arg0) => f.debug_tuple("Copy").field(arg0).finish(),
-            Self::SetInput(arg0) => f.debug_tuple("SetInput").field(arg0).finish(),
-            Self::DisplayError(arg0) => f.debug_tuple("DisplayError").field(arg0).finish(),
-        }
-    }
-}
 
 /// An action that should be performed by the frontend.
 pub enum Action {
@@ -57,23 +21,22 @@ pub enum Action {
 pub struct Input {
     pub contents: String,
     /// Range in terms of chars, not bytes
-    pub selection: (u16, u16),
+    pub selection: (usize, usize),
 }
 
 impl Input {
     pub(crate) fn prefix_with(&mut self, prefix: &str) {
         self.contents.insert_str(0, prefix);
-        let prefix_len =
-            u16::try_from(prefix.chars().count()).expect("prefix should not be insanely long");
+        let prefix_len = prefix.chars().count();
 
         let (a, b) = self.selection;
         self.selection = (a.saturating_add(prefix_len), b.saturating_add(prefix_len));
     }
 
-    pub(crate) fn from_proto(plugin: &Plugin, il: covey_proto::Input) -> Self {
+    pub(crate) fn from_proto(plugin: &Plugin, il: covey_proto::plugin_response::Input) -> Self {
         let mut input = Self {
             contents: il.query,
-            selection: (il.range_lb.saturating_as(), il.range_ub.saturating_as()),
+            selection: (il.selection.start, il.selection.end),
         };
         input.prefix_with(
             plugin
@@ -104,9 +67,9 @@ impl List {
     pub(crate) fn from_proto(
         plugin: &Plugin,
         icon_themes: &[String],
-        proto: covey_proto::QueryResponse,
+        proto: covey_proto::plugin_response::List,
     ) -> Self {
-        let style = proto.list_style.map(ListStyle::from_proto);
+        let style = proto.style.map(ListStyle::from_proto);
         let list: Vec<_> = proto
             .items
             .into_iter()
@@ -137,11 +100,11 @@ pub enum ListStyle {
 }
 
 impl ListStyle {
-    pub(crate) fn from_proto(proto: covey_proto::query_response::ListStyle) -> Self {
-        use covey_proto::query_response::ListStyle as Ls;
+    pub(crate) fn from_proto(proto: covey_proto::plugin_response::ListStyle) -> Self {
+        use covey_proto::plugin_response::ListStyle as Ls;
         match proto {
-            Ls::Rows(()) => Self::Rows,
-            Ls::Grid(()) => Self::Grid,
+            Ls::Rows => Self::Rows,
+            Ls::Grid => Self::Grid,
             Ls::GridWithColumns(columns) => Self::GridWithColumns(columns),
         }
     }
@@ -151,7 +114,7 @@ impl ListStyle {
 #[derive(Clone)]
 pub struct ListItem {
     plugin: Plugin,
-    item: covey_proto::ListItem,
+    item: covey_proto::plugin_response::ListItem,
     icon: Option<ResolvedIcon>,
 }
 
@@ -179,20 +142,17 @@ impl ListItem {
         }
     }
 
-    pub fn available_commands(&self) -> &[String] {
+    pub fn available_commands(&self) -> &[CommandId] {
         &self.item.available_commands
     }
 
     /// Gets the command that can be activated from the provided hotkey.
-    pub fn activated_command_from_hotkey(&self, hotkey: &Hotkey) -> Option<Id> {
-        self.available_commands()
-            .iter()
-            .map(|id| Id::new(&id))
-            .find(|cmd_id| {
-                self.plugin()
-                    .hotkeys_of_cmd(&cmd_id)
-                    .is_some_and(|hotkeys| hotkeys.contains(&hotkey))
-            })
+    pub fn activated_command_from_hotkey(&self, hotkey: &Hotkey) -> Option<&CommandId> {
+        self.available_commands().iter().find(|cmd_id| {
+            self.plugin()
+                .hotkeys_of_cmd(&cmd_id)
+                .is_some_and(|hotkeys| hotkeys.contains(&hotkey))
+        })
     }
 }
 

@@ -1,5 +1,7 @@
 use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
 
+use covey_proto::plugin_response::CommandId;
+
 use crate::Menu;
 
 pub struct List {
@@ -49,12 +51,12 @@ pub enum ListStyle {
 }
 
 impl ListStyle {
-    pub(crate) fn into_proto(self) -> covey_proto::query_response::ListStyle {
-        use covey_proto::query_response::ListStyle as Proto;
+    pub(crate) fn into_proto(self) -> covey_proto::plugin_response::ListStyle {
+        use covey_proto::plugin_response::ListStyle as Proto;
         match self {
-            ListStyle::Rows => Proto::Rows(()),
-            ListStyle::Grid => Proto::Grid(()),
-            ListStyle::GridWithColumns(columns) => Proto::GridWithColumns(columns),
+            Self::Rows => Proto::Rows,
+            Self::Grid => Proto::Grid,
+            Self::GridWithColumns(columns) => Proto::GridWithColumns(columns),
         }
     }
 }
@@ -64,8 +66,7 @@ impl ListStyle {
 pub struct ListItem {
     pub title: String,
     pub description: String,
-    pub icon: Option<Icon>,
-    /// Key is the command's ID.
+    pub icon: Option<ItemIcon>,
     pub(crate) commands: ListItemCallbacks,
 }
 
@@ -87,20 +88,20 @@ impl ListItem {
     }
 
     #[must_use = "builder method consumes self"]
-    pub fn with_icon(mut self, icon: Option<Icon>) -> Self {
+    pub fn with_icon(mut self, icon: Option<ItemIcon>) -> Self {
         self.icon = icon;
         self
     }
 
     #[must_use = "builder method consumes self"]
     pub fn with_icon_name(mut self, name: impl Into<String>) -> Self {
-        self.icon = Some(Icon::Name(name.into()));
+        self.icon = Some(ItemIcon::Name(name.into()));
         self
     }
 
     #[must_use = "builder method consumes self"]
     pub fn with_icon_text(mut self, text: impl Into<String>) -> Self {
-        self.icon = Some(Icon::Text(text.into()));
+        self.icon = Some(ItemIcon::Text(text.into()));
         self
     }
 
@@ -117,14 +118,14 @@ impl ListItem {
 }
 
 #[derive(Debug, Clone)]
-pub enum Icon {
+pub enum ItemIcon {
     Name(String),
     Text(String),
 }
 
-impl Icon {
-    pub(crate) fn into_proto(self) -> covey_proto::list_item::Icon {
-        use covey_proto::list_item::Icon as Proto;
+impl ItemIcon {
+    pub(crate) fn into_proto(self) -> covey_proto::plugin_response::ListItemIcon {
+        use covey_proto::plugin_response::ListItemIcon as Proto;
         match self {
             Self::Name(name) => Proto::Name(name),
             Self::Text(text) => Proto::Text(text),
@@ -162,7 +163,7 @@ type ActivationFunction = Arc<dyn Fn(Menu) -> DynFuture<()> + Send + Sync>;
 #[derive(Clone)]
 pub(crate) struct ListItemCallbacks {
     /// Key is the command's ID.
-    commands: HashMap<&'static str, ActivationFunction>,
+    commands: HashMap<CommandId, ActivationFunction>,
     item_title: String,
 }
 
@@ -175,18 +176,18 @@ impl ListItemCallbacks {
     }
 
     pub(crate) fn add_command(&mut self, name: &'static str, callback: ActivationFunction) {
-        self.commands.insert(name, callback);
+        self.commands.insert(CommandId::new(name), callback);
     }
 
     /// Calls a command by name, doing nothing if the command is not found.
-    pub(crate) async fn call_command(&self, name: &str, menu: Menu) {
+    pub(crate) async fn call_command(&self, name: &CommandId, menu: Menu) {
         if let Some(cmd) = self.commands.get(name) {
             crate::rank::register_usage(&self.item_title);
             cmd(menu).await;
         }
     }
 
-    pub(crate) fn ids(&self) -> impl Iterator<Item = &'static str> + use<'_> {
-        self.commands.keys().copied()
+    pub(crate) fn ids(&self) -> impl Iterator<Item = &CommandId> {
+        self.commands.keys()
     }
 }

@@ -5,7 +5,7 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
 use super::CratePaths;
-use crate::{keyed_list::Identify, manifest::PluginManifest};
+use crate::{id::StringId as _, keyed_list::Identify, manifest::PluginManifest};
 
 pub(super) fn generate_ext_trait(manifest: &PluginManifest, paths: &CratePaths) -> TokenStream {
     let covey_plugin = &paths.covey_plugin;

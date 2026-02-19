@@ -18,6 +18,7 @@ pub mod config;
 #[doc(hidden)]
 pub mod generate;
 pub mod hotkey;
+pub mod id;
 pub mod keyed_list;
 pub mod manifest;
 pub mod style;

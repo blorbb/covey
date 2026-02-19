@@ -6,8 +6,9 @@ use std::{
 };
 
 use az::CheckedAs;
+use covey_proto::plugin_response::ListItemId;
 
-use crate::{Icon, List, ListItem, ListStyle, list::ListItemCallbacks};
+use crate::{ItemIcon, List, ListItem, ListStyle, list::ListItemCallbacks};
 
 /// Store to map list item IDs to their callbacks.
 pub(crate) struct ListItemStore {
@@ -35,12 +36,12 @@ impl ListItemStore {
 
     /// Stores the result of a query, returning the response that should be
     /// sent to covey.
-    pub(crate) fn store_query_result(&mut self, list: List) -> covey_proto::QueryResponse {
+    pub(crate) fn store_query_result(&mut self, list: List) -> covey_proto::plugin_response::List {
         // Don't store an empty result
         if list.items.is_empty() {
-            return covey_proto::QueryResponse {
+            return covey_proto::plugin_response::List {
                 items: vec![],
-                list_style: list.style.map(ListStyle::into_proto),
+                style: list.style.map(ListStyle::into_proto),
             };
         }
 
@@ -51,27 +52,30 @@ impl ListItemStore {
             first_id: items.first().expect("list should be non empty").id,
         });
 
-        return covey_proto::QueryResponse {
+        return covey_proto::plugin_response::List {
             items,
-            list_style: list.style.map(ListStyle::into_proto),
+            style: list.style.map(ListStyle::into_proto),
         };
 
         fn split_item_vec(
             ids: &AutoIncrementer,
             vec: Vec<ListItem>,
-        ) -> (Vec<covey_proto::ListItem>, Vec<ListItemCallbacks>) {
+        ) -> (
+            Vec<covey_proto::plugin_response::ListItem>,
+            Vec<ListItemCallbacks>,
+        ) {
             let new_ids = ids.fetch_many(vec.len() as u64);
 
             let mut items = vec![];
             let mut callbacks = vec![];
 
             for (id, item) in iter::zip(new_ids, vec) {
-                items.push(covey_proto::ListItem {
-                    id,
+                items.push(covey_proto::plugin_response::ListItem {
+                    id: ListItemId(id),
                     title: item.title,
                     description: item.description,
-                    icon: item.icon.map(Icon::into_proto),
-                    available_commands: item.commands.ids().map(ToOwned::to_owned).collect(),
+                    icon: item.icon.map(ItemIcon::into_proto),
+                    available_commands: item.commands.ids().cloned().collect(),
                 });
                 callbacks.push(item.commands);
             }
@@ -86,7 +90,7 @@ impl ListItemStore {
     /// However, implementation may change in the future which disposes of
     /// callbacks more frequently, and may have extremely rare edge cases where
     /// a callback is disposed but then activated.
-    pub(crate) fn fetch_callbacks_of(&mut self, id: u64) -> Option<ListItemCallbacks> {
+    pub(crate) fn fetch_callbacks_of(&mut self, id: ListItemId) -> Option<ListItemCallbacks> {
         // linear search is good enough
         let (found_index, found_callback) =
             self.queries.iter().enumerate().find_map(|(i, query)| {
@@ -109,12 +113,12 @@ impl ListItemStore {
 /// - Number of items stored is non-zero.
 struct QueryListItemStore {
     callbacks: Vec<ListItemCallbacks>,
-    first_id: u64,
+    first_id: ListItemId,
 }
 
 impl QueryListItemStore {
-    pub fn callback_of_id(&self, id: u64) -> Option<&ListItemCallbacks> {
-        let offset = id - self.first_id;
+    pub fn callback_of_id(&self, id: ListItemId) -> Option<&ListItemCallbacks> {
+        let offset = id.0 - self.first_id.0;
         self.callbacks.get(
             offset
                 .checked_as::<usize>()

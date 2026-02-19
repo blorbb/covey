@@ -11,39 +11,37 @@ use std::{
     future::Future,
     io::{Read as _, Write as _},
     mem,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use anyhow::Result;
+use covey_proto::{covey_request::RequestId, plugin_response::Response};
 use covey_schema::{
     config::{GlobalConfig, PluginEntry},
     hotkey::Hotkey,
-    keyed_list::{Id, KeyedList},
+    id::{CommandId, PluginId},
+    keyed_list::KeyedList,
 };
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    CONFIG_DIR, CONFIG_PATH, List, ListItem, PLUGINS_DIR, Plugin,
+    CONFIG_DIR, CONFIG_PATH, ListItem, PLUGINS_DIR, Plugin,
     event::{Action, InternalAction, ListItemId},
 };
 
 pub struct RequestSender {
     config: GlobalConfig,
     plugins: KeyedList<Plugin>,
-    response_sender: mpsc::UnboundedSender<InternalAction>,
-    /// Every query has an incrementing dispatch number that plugins respond with,
-    /// to identify which query a response was from.
-    next_dispatch_index: u64,
+    response_sender: mpsc::UnboundedSender<Action>,
+    next_request_id: u64,
 }
 
 pub struct ResponseReceiver {
-    response_receiver: mpsc::UnboundedReceiver<InternalAction>,
-    /// The last dispatch number received from any plugin response.
-    ///
-    /// If we receive a response with a dispatch number smaller than this,
-    /// it should be ignored as it is outdated.
-    latest_received_dispatch: u64,
+    response_receiver: mpsc::UnboundedReceiver<Action>,
 }
 
 impl RequestSender {
@@ -54,10 +52,9 @@ impl RequestSender {
     pub fn send_query(&mut self, query: String) -> impl Future<Output = ()> + use<> {
         debug!("setting input to {query:?}");
 
-        let response_sender = self.response_sender.clone();
-        let dispatch_index = self.next_dispatch_index;
-        self.next_dispatch_index += 1;
-        let icon_themes = Arc::clone(&self.config.app.icon_themes);
+        let request_id = RequestId(self.next_request_id);
+        self.next_request_id += 1;
+        // let icon_themes = Arc::clone(&self.config.app.icon_themes);
         let plugins = self.plugins.clone();
 
         async move {
@@ -73,15 +70,15 @@ impl RequestSender {
                 };
 
                 debug!("querying plugin {plugin:?}");
-
-                match plugin.query(stripped).await {
-                    Ok(proto_list) => response_sender.send(InternalAction::SetList {
-                        list: List::from_proto(&plugin, &icon_themes, proto_list),
-                        index: dispatch_index,
-                    }),
-                    Err(e) => response_sender.send(InternalAction::DisplayError(format!("{e:#}"))),
-                }
-                .expect("receiver disconnected while sending query response");
+                plugin.query(request_id, stripped.to_string()).await;
+                // match plugin.query(stripped).await {
+                //     Ok(proto_list) => response_sender.send(InternalAction::SetList {
+                //         list: List::from_proto(&plugin, &icon_themes, proto_list),
+                //         index: request_id,
+                //     }),
+                //     Err(e) => response_sender.send(InternalAction::DisplayError(format!("{e:#}"))),
+                // }
+                // .expect("receiver disconnected while sending query response");
                 return;
             }
 
@@ -94,45 +91,40 @@ impl RequestSender {
     /// Responses should be handled by calling [`ResponseReceiver::recv_action`].
     #[tracing::instrument(skip(self))]
     pub fn activate(
-        &self,
+        &mut self,
         item: ListItemId,
-        command_name: String,
+        command_id: CommandId,
     ) -> impl Future<Output = ()> + use<> {
         debug!("activating {item:?}");
 
-        let response_sender = self.response_sender.clone();
+        let request_id = RequestId(self.next_request_id);
+        self.next_request_id += 1;
+
         async move {
-            let mut stream = match item.plugin.activate(item.local_id, command_name).await {
-                Ok(stream) => stream,
-                Err(e) => {
-                    response_sender
-                        .send(InternalAction::DisplayError(format!("{e:#}")))
-                        .expect("receiver should be alive");
-                    return;
-                }
-            };
+            item.plugin
+                .activate(request_id, item.local_id, command_id)
+                .await
+            // loop {
+            //     match stream.message().await {
+            //         Ok(Some(value)) => {
+            //             let Some(action) = value.action.action else {
+            //                 tracing::warn!("plugin {:?} did not provide an action", item.plugin);
+            //                 continue;
+            //             };
 
-            loop {
-                match stream.message().await {
-                    Ok(Some(value)) => {
-                        let Some(action) = value.action.action else {
-                            tracing::warn!("plugin {:?} did not provide an action", item.plugin);
-                            continue;
-                        };
-
-                        tracing::debug!("received action {action:?}");
-                        response_sender
-                            .send(InternalAction::from_proto_action(&item.plugin, action))
-                            .expect("receiver should be alive");
-                    }
-                    Ok(None) => break,
-                    Err(e) => {
-                        response_sender
-                            .send(InternalAction::DisplayError(e.to_string()))
-                            .expect("receiver should be alive");
-                    }
-                };
-            }
+            //             tracing::debug!("received action {action:?}");
+            //             response_sender
+            //                 .send(InternalAction::from_proto_action(&item.plugin, action))
+            //                 .expect("receiver should be alive");
+            //         }
+            //         Ok(None) => break,
+            //         Err(e) => {
+            //             response_sender
+            //                 .send(InternalAction::DisplayError(e.to_string()))
+            //                 .expect("receiver should be alive");
+            //         }
+            //     };
+            // }
         }
     }
 
@@ -176,26 +168,6 @@ impl ResponseReceiver {
             }
         }
     }
-
-    /// Converts an [`InternalAction`] to an [`Action`], returning [`None`] if
-    /// the action should be ignored.
-    fn convert_internal_action(&mut self, action: InternalAction) -> Option<Action> {
-        Some(match action {
-            InternalAction::SetList { list, index } => {
-                if index <= self.latest_received_dispatch {
-                    return None;
-                }
-                self.latest_received_dispatch = index;
-                Action::SetList(list)
-            }
-            InternalAction::Close => Action::Close,
-            InternalAction::Copy(str) => Action::Copy(str),
-            InternalAction::SetInput(input) => Action::SetInput(input),
-            InternalAction::DisplayError(err) => {
-                Action::DisplayError("Plugin failed".to_owned(), err)
-            }
-        })
-    }
 }
 
 // extra getters
@@ -208,6 +180,34 @@ impl RequestSender {
     #[tracing::instrument(skip(self))]
     pub fn plugins(&self) -> &KeyedList<Plugin> {
         &self.plugins
+    }
+}
+
+struct ResponseMerger {
+    latest_received_query_request_id: AtomicU64,
+    action_sender: mpsc::UnboundedSender<Action>,
+}
+
+impl ResponseMerger {
+    fn send(&self, response: Response, plugin_entry: &PluginEntry) {
+        match response.response {
+            covey_proto::plugin_response::Body::SetList(list) => {
+                // Check if the latest received id < new id. If so, send the action.
+                // Otherwise, this response is outdated and we should not update the list.
+                let new = response.request_id.0;
+                if self
+                    .latest_received_query_request_id
+                    .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |old| {
+                        (old < new).then_some(new)
+                    })
+                    .is_ok()
+                {
+                    let action =
+                        Action::SetList(crate::List::from_proto(plugin, icon_themes, list));
+                }
+            }
+            covey_proto::plugin_response::Body::PerformAction(action) => todo!(),
+        }
     }
 }
 
@@ -226,8 +226,22 @@ pub fn channel() -> Result<(RequestSender, ResponseReceiver)> {
     file.read_to_string(&mut s)?;
 
     let mut global_config: GlobalConfig = toml::from_str(&s)?;
-    find_plugins_from_fs(&mut global_config);
-    let plugins = load_plugins(&global_config);
+    find_and_insert_plugins_from_fs(&mut global_config);
+
+    let (response_sender, response_receiver) = mpsc::unbounded_channel();
+
+    let plugins = KeyedList::new_lossy(config.plugins.iter().filter_map(|plugin_entry| {
+        match Plugin::new(plugin_entry.clone()) {
+            Ok(plugin) => {
+                debug!("found plugin {plugin:?}");
+                Some(plugin)
+            }
+            Err(e) => {
+                error!("error loading plugin: {e}");
+                None
+            }
+        }
+    }));
 
     info!("found plugins: {plugins:?}");
 
@@ -244,17 +258,15 @@ fn channel_with_plugins(
             config,
             plugins,
             response_sender,
-            next_dispatch_index: 1,
+            next_request_id: 1,
+            latest_received_query_request_id: 0,
         },
-        ResponseReceiver {
-            response_receiver,
-            latest_received_dispatch: 0,
-        },
+        ResponseReceiver { response_receiver },
     )
 }
 
 /// Finds extra plugins from the plugin directory and inserts it into the config.
-fn find_plugins_from_fs(config: &mut GlobalConfig) {
+fn find_and_insert_plugins_from_fs(config: &mut GlobalConfig) {
     let Ok(dirs) = fs::read_dir(&*PLUGINS_DIR) else {
         warn!("failed to read plugins dir");
         return;
@@ -264,16 +276,20 @@ fn find_plugins_from_fs(config: &mut GlobalConfig) {
     let plugin_ids = dirs
         .filter_map(Result::ok)
         .flat_map(|plugin_dir| plugin_dir.file_name().into_string())
-        .inspect(|plugin_id| debug!("discovered plugin {plugin_id:?} from fs"));
+        .inspect(|plugin_id| debug!("discovered plugin {plugin_id:?} from fs"))
+        .map(|plugin_id| PluginId::new(&plugin_id));
     config.plugins.extend_lossy(plugin_ids.map(|plugin_id| {
-        let mut entry = PluginEntry::new(Id::new(&plugin_id));
+        let mut entry = PluginEntry::new(plugin_id);
         entry.disabled = true; // require explicitly enabling a new plugin
         entry
     }));
 }
 
 /// Reads the manifests of every plugin listed in the config.
-fn load_plugins(config: &GlobalConfig) -> KeyedList<Plugin> {
+fn load_plugins(
+    config: &GlobalConfig,
+    responses: mpsc::UnboundedSender<Response>,
+) -> KeyedList<Plugin> {
     KeyedList::new_lossy(config.plugins.iter().filter_map(|plugin_entry| {
         match Plugin::new(plugin_entry.clone()) {
             Ok(plugin) => {
@@ -300,10 +316,10 @@ impl RequestSender {
         self.config = config;
     }
 
-    pub fn reload_plugin(&mut self, plugin_id: &Id) {
+    pub fn reload_plugin(&mut self, plugin_id: &PluginId) {
         debug!("reloading plugin {plugin_id:?}");
 
-        let Some(plugin_config) = self.config.plugins.get(plugin_id.as_str()) else {
+        let Some(plugin_config) = self.config.plugins.get(plugin_id) else {
             self.response_sender
                 .send(InternalAction::DisplayError(format!(
                     "Failed to reload plugin\ncould not find config of plugin {plugin_id:?}"

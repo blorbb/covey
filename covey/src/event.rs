@@ -43,18 +43,6 @@ impl fmt::Debug for InternalAction {
     }
 }
 
-impl InternalAction {
-    pub(crate) fn from_proto_action(plugin: &Plugin, action: covey_proto::action::Action) -> Self {
-        use covey_proto::action::Action as PrAction;
-        match action {
-            PrAction::Close(()) => Self::Close,
-            PrAction::Copy(str) => Self::Copy(str),
-            PrAction::SetInput(input) => Self::SetInput(Input::from_proto(plugin, input)),
-            PrAction::DisplayError(err) => Self::DisplayError(err),
-        }
-    }
-}
-
 /// An action that should be performed by the frontend.
 pub enum Action {
     Close,
@@ -230,7 +218,7 @@ impl fmt::Debug for ListItem {
 pub struct ListItemId {
     pub plugin: Plugin,
     /// ID unique within the plugin.
-    pub local_id: u64,
+    pub local_id: covey_proto::plugin_response::ListItemId,
 }
 
 /// Icon with named system icons resolved to a file path.
@@ -240,12 +228,13 @@ pub enum ResolvedIcon {
     Text(String),
 }
 
+// TODO: make this async + spawn_blocking
 impl ResolvedIcon {
     pub(crate) fn resolve(
-        proto: covey_proto::list_item::Icon,
+        proto: covey_proto::plugin_response::ListItemIcon,
         icon_themes: &[String],
     ) -> Option<Self> {
-        use covey_proto::list_item::Icon as Proto;
+        use covey_proto::plugin_response::ListItemIcon as Proto;
         match proto {
             Proto::Name(name) => icon_themes
                 .iter()

@@ -1,32 +1,10 @@
-use std::{process, time::Duration};
+use std::{process, sync::Arc, time::Duration};
 
-use covey_proto::plugin_server::PluginServer;
+use anyhow::Context;
 use parking_lot::Mutex;
-use tokio::{net::TcpListener, sync::RwLock, task::LocalSet};
-use tonic::transport::Server;
+use tokio::{io::AsyncBufReadExt as _, task::LocalSet};
 
-use crate::{Plugin, poke, store::ListItemStore};
-
-/// Wrapper around a [`Plugin`] that implements the tonic server.
-pub(crate) struct ServerState<P> {
-    pub(crate) plugin: RwLock<Option<P>>,
-    pub(crate) list_item_store: Mutex<ListItemStore>,
-    // should send a poke on every received request to prevent auto-shutdown.
-    pub(crate) poker: poke::Sender,
-}
-
-impl<T: Plugin> ServerState<T> {
-    /// Creates a new uninitialised plugin.
-    //
-    /// The `initialise` RPC method must be called to fill in the plugin.
-    pub(crate) fn new_empty(poker: poke::Sender) -> Self {
-        Self {
-            plugin: RwLock::new(None),
-            list_item_store: Mutex::new(ListItemStore::new()),
-            poker,
-        }
-    }
-}
+use crate::{Plugin, manifest::ManifestDeserialization as _, poke, store::ListItemStore};
 
 /// Starts up the server with a specified plugin implementation.
 ///
@@ -96,44 +74,99 @@ pub fn run_server<T: Plugin>(plugin_id: &'static str) -> ! {
         .and_then(|rt| {
             let set = LocalSet::new();
             let _guard = set.enter();
-            rt.block_on(set.run_until(async {
-                // if port 0 is provided, asks the OS for a port
-                // https://github.com/hyperium/tonic/blob/master/tests/integration_tests/tests/timeout.rs#L77-L89
-                let listener = TcpListener::bind("[::1]:0").await?;
-                let port = listener.local_addr()?.port();
-
-                // print port for covey to read
-                println!("{port}");
-
-                // auto kill this process after 24h of inactivity
-                let (poker, rx) = poke::channel();
-                tokio::spawn(kill_on_timeout(rx, Duration::from_secs(24 * 60 * 60)));
-
-                Server::builder()
-                    .add_service(PluginServer::new(ServerState::<T>::new_empty(poker)))
-                    .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
-                    .await?;
-
-                Ok(())
-            }))
+            rt.block_on(set.run_until(main::<T>()))
         });
 
     match result {
         Ok(()) => process::exit(0),
         Err(e) => {
-            print_error(&e);
+            println!("{e:#}");
             process::exit(1)
         }
     }
 }
 
-fn print_error(e: &anyhow::Error) {
-    let err_string = e
-        .chain()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    eprintln!("{err_string}");
+async fn main<T: Plugin>() -> Result<(), anyhow::Error> {
+    let manifest_json = std::env::args()
+        .nth(1)
+        .context("JSON manifest must be provided as the first argument to this plugin")?;
+    let plugin = T::new(T::Config::try_from_input(&manifest_json)?).await?;
+    let plugin = Arc::new(plugin);
+
+    // auto kill this process after 24h of inactivity
+    // TODO: remove poker, just add a timeout to next_line().await
+    let (poker, rx) = poke::channel();
+    tokio::spawn(kill_on_timeout(rx, Duration::from_secs(24 * 60 * 60)));
+
+    let list_item_store = Arc::new(Mutex::new(ListItemStore::new()));
+
+    // Manage the stdin/out communication
+    let mut stdin_lines = tokio::io::BufReader::new(tokio::io::stdin()).lines();
+
+    while let Some(line) = stdin_lines.next_line().await? {
+        poker.poke();
+
+        let covey_proto::covey_request::Request { id, request } =
+            serde_json::from_str(&line).context("malformed request from covey")?;
+
+        // Handling the request may take some time, don't block!
+        // Allow handling multiple requests at once by spawning a new task.
+        let plugin = Arc::clone(&plugin);
+        let list_item_store = Arc::clone(&list_item_store);
+        tokio::task::spawn_local(async move {
+            match request {
+                covey_proto::covey_request::Body::Query(query) => {
+                    match plugin.query(query.text).await {
+                        Ok(list) => {
+                            let proto_list = list_item_store.lock().store_query_result(list);
+                            let response =
+                                covey_proto::plugin_response::Response::set_list(id, proto_list);
+                            response.write_to_stdout();
+                        }
+                        Err(e) => {
+                            let response = covey_proto::plugin_response::Response::display_error(
+                                id,
+                                format!("{e:#}"),
+                            );
+                            response.write_to_stdout();
+                        }
+                    };
+                }
+                covey_proto::covey_request::Body::Activate(
+                    covey_proto::covey_request::Activate {
+                        item_id,
+                        command_id,
+                    },
+                ) => {
+                    match list_item_store.lock().fetch_callbacks_of(item_id) {
+                        Some(callbacks) => {
+                            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+                            let menu = crate::Menu { sender: tx };
+
+                            let call_command_task = callbacks.call_command(&command_id, menu);
+                            let forward_to_covey_task = async {
+                                while let Some(action) = rx.recv().await {
+                                    let response =
+                                        covey_proto::plugin_response::Response::perform_action(
+                                            id, action,
+                                        );
+                                    response.write_to_stdout();
+                                }
+                            };
+
+                            tokio::join!(call_command_task, forward_to_covey_task);
+                        }
+                        None => eprintln!("failed to fetch callback of list item {item_id:?}"),
+                    };
+                    let finish_response =
+                        covey_proto::plugin_response::Response::finish_activation_response(id);
+                    finish_response.write_to_stdout();
+                }
+            };
+        });
+    }
+
+    Ok(())
 }
 
 async fn kill_on_timeout(mut rx: poke::Receiver, timeout: Duration) -> ! {

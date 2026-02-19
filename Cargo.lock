@@ -944,8 +944,8 @@ dependencies = [
  "parking_lot",
  "serde_json",
  "tokio",
+ "tokio-stream",
  "toml",
- "tonic",
  "tracing",
 ]
 
@@ -1005,9 +1005,9 @@ dependencies = [
 name = "covey-proto"
 version = "0.0.2"
 dependencies = [
- "prost",
- "tonic",
- "tonic-build",
+ "covey-schema",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

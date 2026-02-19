@@ -1,9 +1,11 @@
 //! An ordered map (de)serialized as a list with keys.
 
 use core::{fmt, slice};
-use std::{collections::HashSet, sync::Arc};
+use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
+
+use crate::id::StringId;
 
 /// A list of items with unique keys.
 ///
@@ -28,7 +30,7 @@ impl<T: Identify> KeyedList<T> {
     ///
     /// # Errors
     /// Errors if multiple values have the same id.
-    pub fn new(items: impl IntoIterator<Item = T>) -> Result<Self, UniqueIdError> {
+    pub fn new(items: impl IntoIterator<Item = T>) -> Result<Self, UniqueIdError<T::Id>> {
         // Check that all ids are unique.
         let mut used = HashSet::new();
 
@@ -66,11 +68,11 @@ impl<T: Identify> KeyedList<T> {
     }
 
     /// Get an item by its id.
-    pub fn get(&self, id: &str) -> Option<&T> {
-        self.items.iter().find(|item| item.id().as_str() == id)
+    pub fn get(&self, id: &T::Id) -> Option<&T> {
+        self.items.iter().find(|item| item.id() == id)
     }
 
-    pub fn contains(&self, id: &str) -> bool {
+    pub fn contains(&self, id: &T::Id) -> bool {
         self.get(id).is_some()
     }
 
@@ -82,7 +84,7 @@ impl<T: Identify> KeyedList<T> {
         // maybe optimise this in the future and let keyed list contain
         // an indexmap for more efficient getting?
         for item in iter {
-            if !self.contains(item.id().as_str()) {
+            if !self.contains(item.id()) {
                 self.items.push(item);
             }
         }
@@ -104,7 +106,7 @@ impl<T> Default for KeyedList<T> {
 }
 
 impl<T: Identify> TryFrom<Vec<T>> for KeyedList<T> {
-    type Error = UniqueIdError;
+    type Error = UniqueIdError<T::Id>;
 
     fn try_from(value: Vec<T>) -> Result<Self, Self::Error> {
         Self::new(value)
@@ -139,37 +141,21 @@ impl<'a, T> IntoIterator for &'a KeyedList<T> {
     }
 }
 
-/// A string ID that is cheap to clone.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
-// ts-rs doesn't support transparent but this is still typed as a string
-#[serde(transparent)]
-pub struct Id(Arc<str>);
-
-impl Id {
-    pub fn new(s: &str) -> Self {
-        Self(Arc::from(s))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-/// A type that has a key that should be unique.
+/// A type that has a unique key.
 pub trait Identify {
-    fn id(&self) -> &Id;
+    type Id: StringId;
+    fn id(&self) -> &Self::Id;
 }
 
 #[derive(Debug, Clone)]
-pub struct UniqueIdError {
+pub struct UniqueIdError<Id> {
     duplicate: Id,
 }
 
-impl fmt::Display for UniqueIdError {
+impl<Id: StringId> fmt::Display for UniqueIdError<Id> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "id {:?} is duplicated", self.duplicate.as_str())
+        write!(f, "id {:?} is duplicated", self.duplicate.to_arc())
     }
 }
 
-impl core::error::Error for UniqueIdError {}
+impl<Id: fmt::Debug + StringId> core::error::Error for UniqueIdError<Id> {}

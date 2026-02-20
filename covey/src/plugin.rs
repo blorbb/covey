@@ -299,7 +299,7 @@ impl ActiveProcess {
         // Forward child stdout to the response_sender channel.
         // Any unrecognised lines will be forwarded as logs, but as a warning.
         // Plugins should not be printing logs to stdout.
-        tokio::task::spawn_local(async move {
+        tokio::spawn(async move {
             let mut lines = stdout.lines();
             while let Ok(Some(line)) = lines.next_line().await
                 && let Some(inner) = plugin.upgrade()

@@ -1,8 +1,8 @@
 //! Generates an extension trait for `covey_plugin::ListItem`
 //! for each of the commands in the manifest.
 
-use proc_macro2::{Ident, Span, TokenStream};
-use quote::quote;
+use proc_macro2::TokenStream;
+use quote::{format_ident, quote};
 
 use super::CratePaths;
 use crate::{id::StringId as _, keyed_list::Identify, manifest::PluginManifest};
@@ -10,11 +10,14 @@ use crate::{id::StringId as _, keyed_list::Identify, manifest::PluginManifest};
 pub(super) fn generate_ext_trait(manifest: &PluginManifest, paths: &CratePaths) -> TokenStream {
     let covey_plugin = &paths.covey_plugin;
 
-    let signatures: Vec<_> = manifest
+    let command_ids: Vec<_> = manifest
         .commands
         .iter()
-        .map(|key| {
-            let method = Ident::new(&format!("on_{}", key.id().as_str().replace('-', "_")), Span::call_site());
+        .map(|item| item.id().as_str())
+        .collect();
+    let signatures: Vec<_> = command_ids.iter()
+        .map(|command| {
+            let method = format_ident!("on_{}", command.replace('-', "_"));
 
             quote! {
                 fn #method(
@@ -36,7 +39,6 @@ pub(super) fn generate_ext_trait(manifest: &PluginManifest, paths: &CratePaths) 
         "[`menu.display_error`]({}::Menu::display_error)",
         covey_plugin
     );
-    let command_names = manifest.commands.iter().map(|item| item.id().as_str());
     let trait_impl = quote! {
         impl self::CommandExt for #covey_plugin::ListItem {
             #(
@@ -52,7 +54,7 @@ pub(super) fn generate_ext_trait(manifest: &PluginManifest, paths: &CratePaths) 
                 #signatures {
                     let callback = ::std::sync::Arc::new(callback);
                     self.add_command(
-                        #command_names,
+                        #command_ids,
                         ::std::sync::Arc::new(move |menu| ::std::boxed::Box::pin({
                             let callback = ::std::sync::Arc::clone(&callback);
                             async move {

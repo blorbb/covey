@@ -3,6 +3,8 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
+// TODO: remove deserialization as a struct of values, only accept the accelerator
+
 /// A key and some modifiers.
 ///
 /// This implements [`serde::Serialize`] as a struct of values.
@@ -28,19 +30,29 @@ use serde::{Deserialize, Serialize};
 /// Examples: `Enter`, `Tab`, `a`, `Z`, `,`, `[`, `Ctrl+X`, `ctrl+shift+q`,
 /// `alt+meta+f12`, `meta+alt+shift+ctrl+0`.
 #[expect(clippy::struct_excessive_bools, reason = "simpler to serialize")]
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
-#[serde(rename_all = "kebab-case")]
 pub struct Hotkey {
     pub key: KeyCode,
-    #[serde(default)]
     pub ctrl: bool,
-    #[serde(default)]
     pub alt: bool,
-    #[serde(default)]
     pub shift: bool,
-    #[serde(default)]
     pub meta: bool,
+}
+
+impl fmt::Debug for Hotkey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self, f)
+    }
+}
+
+impl Serialize for Hotkey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
 }
 
 impl<'de> Deserialize<'de> for Hotkey {

@@ -80,7 +80,7 @@ pub struct PluginEntry {
     /// This or a default prefix must be defined. If both aren't defined, this
     /// plugin will be disabled.
     pub prefix: Option<String>,
-    #[serde(default)] // empty table if missing
+    #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
     pub settings: serde_json::Map<String, serde_json::Value>,
     #[serde(default)]
     pub commands: BTreeMap<CommandId, CommandSettings>,

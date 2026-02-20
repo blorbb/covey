@@ -1,4 +1,4 @@
-use std::{hash::Hash, sync::Arc};
+use std::{fmt, hash::Hash, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 pub trait StringId: Clone + Eq + Hash + Ord {
     fn to_arc(&self) -> Arc<str>;
     fn as_str(&self) -> &str;
-    fn to_string(&self) -> String;
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -28,9 +27,11 @@ impl StringId for CommandId {
     fn as_str(&self) -> &str {
         &self.0
     }
+}
 
-    fn to_string(&self) -> String {
-        self.0.to_string()
+impl fmt::Display for CommandId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
@@ -51,8 +52,10 @@ impl StringId for PluginId {
     fn as_str(&self) -> &str {
         &self.0
     }
+}
 
-    fn to_string(&self) -> String {
-        self.0.to_string()
+impl fmt::Display for PluginId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
     }
 }

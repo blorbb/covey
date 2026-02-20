@@ -7,7 +7,6 @@ use syn::ext::IdentExt;
 
 use super::{CratePaths, Path};
 use crate::{
-    id::StringId as _,
     keyed_list::Identify,
     manifest::{
         PluginManifest, SchemaBool, SchemaFilePath, SchemaFolderPath, SchemaInt, SchemaList,

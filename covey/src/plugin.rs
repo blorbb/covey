@@ -249,7 +249,7 @@ struct PluginInner {
 
 impl Drop for PluginInner {
     fn drop(&mut self) {
-        tracing::info!("dropped plugin {}", self.entry.id.as_str())
+        tracing::info!("dropped plugin {}", self.entry.id)
     }
 }
 
@@ -292,7 +292,7 @@ impl ActiveProcess {
                     && let Some(inner) = plugin.upgrade()
                 {
                     let plugin = Plugin { inner };
-                    tracing::info!("plugin {id}: {line}", id = plugin.id().as_str());
+                    tracing::info!("plugin {id}: {line}", id = plugin.id());
                 }
             }
         });
@@ -309,7 +309,7 @@ impl ActiveProcess {
                 match serde_json::from_str::<Response>(&line) {
                     Ok(response) => _ = response_sender.send((plugin, response)),
                     Err(_) => {
-                        tracing::warn!("plugin {id} (stdout): {line}", id = plugin.id().as_str())
+                        tracing::warn!("plugin {id} (stdout): {line}", id = plugin.id())
                     }
                 }
             }

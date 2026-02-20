@@ -17,7 +17,7 @@ use covey_proto::{covey_request::RequestId, plugin_response::Response};
 use covey_schema::{
     config::{GlobalConfig, PluginEntry},
     hotkey::Hotkey,
-    id::{CommandId, PluginId, StringId},
+    id::{CommandId, PluginId},
     keyed_list::KeyedList,
 };
 use tokio::sync::mpsc;
@@ -123,7 +123,7 @@ impl Host {
             covey_schema::keyed_list::ReplaceResult::IdNotFound => {
                 self.send_error(
                     "Failed to reload plugin",
-                    format!("could not find config of plugin {}", plugin_id.as_str()),
+                    format!("could not find config of plugin {plugin_id}",),
                 );
             }
             covey_schema::keyed_list::ReplaceResult::ReplaceError(e) => {
@@ -194,7 +194,7 @@ impl RequestSender {
                     continue;
                 };
 
-                debug!("querying plugin {}", plugin.id().as_str());
+                debug!("querying plugin {}", plugin.id());
                 plugin.query(request_id, stripped.to_string()).await;
                 return;
             }
@@ -297,7 +297,7 @@ impl ActionReceiver {
                     Action::SetInput(crate::Input::from_proto(plugin, input))
                 }
                 covey_proto::plugin_response::Action::DisplayError(err) => {
-                    Action::DisplayError(format!("Plugin {} failed", plugin.id().as_str()), err)
+                    Action::DisplayError(format!("Plugin {} failed", plugin.id()), err)
                 }
             }),
         }

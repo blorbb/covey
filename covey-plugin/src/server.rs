@@ -4,7 +4,7 @@ use anyhow::Context;
 use parking_lot::Mutex;
 use tokio::{io::AsyncBufReadExt as _, task::LocalSet};
 
-use crate::{Plugin, manifest::ManifestDeserialization as _, store::ListItemStore};
+use crate::{Plugin, PluginBlocking, manifest::ManifestDeserialization as _, store::ListItemStore};
 
 /// Starts up the server with a specified plugin implementation.
 ///
@@ -84,6 +84,20 @@ pub fn run_server<T: Plugin>(plugin_id: &'static str) -> ! {
             process::exit(1)
         }
     }
+}
+
+/// Starts up the server with a specified plugin implementation.
+///
+/// The plugin id should be `env!("CARGO_PKG_NAME")`.
+///
+/// This should be used for plugins where queries are computationally expensive
+/// and cannot be made asynchronous very easily. [`PluginBlocking`] should be
+/// implemented for these types of plugins, which is synchronous but puts each
+/// [`query`](PluginBlocking::query) call into a thread pool.
+///
+/// See docs on [`run_server`] for more details.
+pub fn run_server_blocking<T: PluginBlocking>(plugin_id: &'static str) -> ! {
+    run_server::<Arc<T>>(plugin_id)
 }
 
 async fn main<T: Plugin>() -> anyhow::Result<()> {

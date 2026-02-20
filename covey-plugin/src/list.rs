@@ -125,8 +125,10 @@ impl Icon {
         }
     }
 }
+
+// ActivationFunction needs Send + Sync for PluginBlocking to work.
 type DynFuture<T> = Pin<Box<dyn Future<Output = T>>>;
-type ActivationFunction = Arc<dyn Fn(Menu) -> DynFuture<()>>;
+type ActivationFunction = Arc<dyn Fn(Menu) -> DynFuture<()> + Send + Sync>;
 
 #[derive(Clone)]
 pub(crate) struct ListItemCallbacks {

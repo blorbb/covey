@@ -126,31 +126,27 @@ fn handle_request_line<T: Plugin>(
     list_item_store: Arc<Mutex<ListItemStore>>,
     line: String,
 ) -> anyhow::Result<()> {
-    let covey_proto::covey_request::Request { id, request } =
+    let covey_proto::Request { id, request } =
         serde_json::from_str(&line).context("malformed request from covey")?;
 
     // Handling the request may take some time, don't block!
     // Allow handling multiple requests at once by spawning a new task.
     tokio::task::spawn_local(async move {
         match request {
-            covey_proto::covey_request::Body::Query(query) => {
+            covey_proto::RequestBody::Query(query) => {
                 match plugin.query(query.text).await {
                     Ok(list) => {
                         let proto_list = list_item_store.lock().store_query_result(list);
-                        let response =
-                            covey_proto::plugin_response::Response::set_list(id, proto_list);
-                        response.write_to_stdout();
+                        let response = covey_proto::Response::set_list(id, proto_list);
+                        println!("{}", response.serialize());
                     }
                     Err(e) => {
-                        let response = covey_proto::plugin_response::Response::display_error(
-                            id,
-                            format!("{e:#}"),
-                        );
-                        response.write_to_stdout();
+                        let response = covey_proto::Response::display_error(id, format!("{e:#}"));
+                        println!("{}", response.serialize());
                     }
                 };
             }
-            covey_proto::covey_request::Body::Activate(covey_proto::covey_request::Activate {
+            covey_proto::RequestBody::Activate(covey_proto::RequestActivate {
                 item_id,
                 command_id,
             }) => {
@@ -162,11 +158,8 @@ fn handle_request_line<T: Plugin>(
                         let call_command_task = callbacks.call_command(&command_id, menu);
                         let forward_to_covey_task = async {
                             while let Some(action) = rx.recv().await {
-                                let response =
-                                    covey_proto::plugin_response::Response::perform_action(
-                                        id, action,
-                                    );
-                                response.write_to_stdout();
+                                let response = covey_proto::Response::perform_action(id, action);
+                                println!("{}", response.serialize());
                             }
                         };
 

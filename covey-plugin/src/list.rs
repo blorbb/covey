@@ -1,9 +1,8 @@
 use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
 
-use covey_proto::plugin_response::CommandId;
-
 use crate::Menu;
 
+#[non_exhaustive]
 pub struct List {
     pub items: Vec<ListItem>,
     /// The kind of list to show.
@@ -12,16 +11,11 @@ pub struct List {
     /// the user. Plugins should only set one if the content makes the most
     /// sense with one of these styles.
     pub style: Option<ListStyle>,
-    _priv: (),
 }
 
 impl List {
     pub fn new(items: Vec<ListItem>) -> Self {
-        Self {
-            items,
-            style: None,
-            _priv: (),
-        }
+        Self { items, style: None }
     }
 
     #[must_use = "builder method consumes self"]
@@ -51,12 +45,11 @@ pub enum ListStyle {
 }
 
 impl ListStyle {
-    pub(crate) fn into_proto(self) -> covey_proto::plugin_response::ListStyle {
-        use covey_proto::plugin_response::ListStyle as Proto;
+    pub(crate) fn into_proto(self) -> covey_proto::ListStyle {
         match self {
-            Self::Rows => Proto::Rows,
-            Self::Grid => Proto::Grid,
-            Self::GridWithColumns(columns) => Proto::GridWithColumns(columns),
+            Self::Rows => covey_proto::ListStyle::Rows,
+            Self::Grid => covey_proto::ListStyle::Grid,
+            Self::GridWithColumns(columns) => covey_proto::ListStyle::GridWithColumns(columns),
         }
     }
 }
@@ -124,11 +117,10 @@ pub enum Icon {
 }
 
 impl Icon {
-    pub(crate) fn into_proto(self) -> covey_proto::plugin_response::ListItemIcon {
-        use covey_proto::plugin_response::ListItemIcon as Proto;
+    pub(crate) fn into_proto(self) -> covey_proto::ListItemIcon {
         match self {
-            Self::Name(name) => Proto::Name(name),
-            Self::Text(text) => Proto::Text(text),
+            Self::Name(name) => covey_proto::ListItemIcon::Name(name),
+            Self::Text(text) => covey_proto::ListItemIcon::Text(text),
         }
     }
 }
@@ -162,8 +154,7 @@ type ActivationFunction = Arc<dyn Fn(Menu) -> DynFuture<()> + Send + Sync>;
 
 #[derive(Clone)]
 pub(crate) struct ListItemCallbacks {
-    /// Key is the command's ID.
-    commands: HashMap<CommandId, ActivationFunction>,
+    commands: HashMap<covey_proto::CommandId, ActivationFunction>,
     item_title: String,
 }
 
@@ -176,18 +167,19 @@ impl ListItemCallbacks {
     }
 
     pub(crate) fn add_command(&mut self, name: &'static str, callback: ActivationFunction) {
-        self.commands.insert(CommandId::new(name), callback);
+        self.commands
+            .insert(covey_proto::CommandId::new(name), callback);
     }
 
     /// Calls a command by name, doing nothing if the command is not found.
-    pub(crate) async fn call_command(&self, name: &CommandId, menu: Menu) {
+    pub(crate) async fn call_command(&self, name: &covey_proto::CommandId, menu: Menu) {
         if let Some(cmd) = self.commands.get(name) {
             crate::rank::register_usage(&self.item_title);
             cmd(menu).await;
         }
     }
 
-    pub(crate) fn ids(&self) -> impl Iterator<Item = &CommandId> {
+    pub(crate) fn ids(&self) -> impl Iterator<Item = &covey_proto::CommandId> {
         self.commands.keys()
     }
 }

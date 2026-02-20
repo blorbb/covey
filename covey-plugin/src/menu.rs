@@ -9,7 +9,7 @@ use crate::{Action, Input};
 /// This type is cheap to clone.
 #[derive(Clone)]
 pub struct Menu {
-    pub(crate) sender: UnboundedSender<covey_proto::plugin_response::Action>,
+    pub(crate) sender: UnboundedSender<covey_proto::PluginAction>,
 }
 
 impl Menu {

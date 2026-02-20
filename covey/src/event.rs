@@ -33,7 +33,7 @@ impl Input {
         self.selection = (a.saturating_add(prefix_len), b.saturating_add(prefix_len));
     }
 
-    pub(crate) fn from_proto(plugin: &Plugin, il: covey_proto::plugin_response::Input) -> Self {
+    pub(crate) fn from_proto(plugin: &Plugin, il: covey_proto::Input) -> Self {
         let mut input = Self {
             contents: il.query,
             selection: (il.selection.start, il.selection.end),
@@ -67,7 +67,7 @@ impl List {
     pub(crate) fn from_proto(
         plugin: &Plugin,
         icon_themes: &[String],
-        proto: covey_proto::plugin_response::List,
+        proto: covey_proto::List,
     ) -> Self {
         let style = proto.style.map(ListStyle::from_proto);
         let list: Vec<_> = proto
@@ -100,12 +100,11 @@ pub enum ListStyle {
 }
 
 impl ListStyle {
-    pub(crate) fn from_proto(proto: covey_proto::plugin_response::ListStyle) -> Self {
-        use covey_proto::plugin_response::ListStyle as Ls;
+    pub(crate) fn from_proto(proto: covey_proto::ListStyle) -> Self {
         match proto {
-            Ls::Rows => Self::Rows,
-            Ls::Grid => Self::Grid,
-            Ls::GridWithColumns(columns) => Self::GridWithColumns(columns),
+            covey_proto::ListStyle::Rows => Self::Rows,
+            covey_proto::ListStyle::Grid => Self::Grid,
+            covey_proto::ListStyle::GridWithColumns(columns) => Self::GridWithColumns(columns),
         }
     }
 }
@@ -114,7 +113,7 @@ impl ListStyle {
 #[derive(Clone)]
 pub struct ListItem {
     plugin: Plugin,
-    item: covey_proto::plugin_response::ListItem,
+    item: covey_proto::ListItem,
     icon: Option<ResolvedIcon>,
 }
 
@@ -178,7 +177,7 @@ impl fmt::Debug for ListItem {
 pub struct ListItemId {
     pub plugin: Plugin,
     /// ID unique within the plugin.
-    pub local_id: covey_proto::plugin_response::ListItemId,
+    pub local_id: covey_proto::ListItemId,
 }
 
 /// Icon with named system icons resolved to a file path.
@@ -190,11 +189,9 @@ pub enum ResolvedIcon {
 
 impl ResolvedIcon {
     pub(crate) fn resolve(
-        proto: covey_proto::plugin_response::ListItemIcon,
+        proto: covey_proto::ListItemIcon,
         icon_themes: &[String],
     ) -> Option<Self> {
-        use covey_proto::plugin_response::ListItemIcon as Proto;
-
         // `freedesktop_icons::lookup` can do filesystem reads, which is blocking.
         // Maybe this function should be async. But this is used on the path of turning
         // responses to actions, which is tricky to turn async.
@@ -202,7 +199,7 @@ impl ResolvedIcon {
         // Only new icons will need to perform a filesystem lookup. Most icons should be
         // cached, which is a fast lookup and doesn't block.
         match proto {
-            Proto::Name(name) => icon_themes
+            covey_proto::ListItemIcon::Name(name) => icon_themes
                 .iter()
                 .find_map(|theme| {
                     let path = freedesktop_icons::lookup(&name)
@@ -229,7 +226,7 @@ impl ResolvedIcon {
                     }
                 })
                 .map(Self::File),
-            Proto::Text(text) => Some(Self::Text(text)),
+            covey_proto::ListItemIcon::Text(text) => Some(Self::Text(text)),
         }
     }
 }

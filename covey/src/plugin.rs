@@ -7,7 +7,6 @@ use std::{
     sync::{Arc, Weak},
 };
 
-use covey_proto::{covey_request::Request, plugin_response::Response};
 use covey_schema::{
     config::PluginEntry,
     hotkey::Hotkey,
@@ -38,7 +37,7 @@ pub struct Plugin {
 impl Plugin {
     pub(crate) fn new_read_manifest(
         entry: PluginEntry,
-        response_sender: mpsc::UnboundedSender<(Plugin, Response)>,
+        response_sender: mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
     ) -> anyhow::Result<Self> {
         let toml = std::fs::read_to_string(manifest_path(entry.id.as_str()))?;
         let manifest: PluginManifest = toml::from_str(&toml)?;
@@ -49,7 +48,7 @@ impl Plugin {
     pub(crate) fn new(
         entry: PluginEntry,
         manifest: PluginManifest,
-        response_sender: mpsc::UnboundedSender<(Plugin, Response)>,
+        response_sender: mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
     ) -> Self {
         Self {
             inner: Arc::new(PluginInner {
@@ -120,17 +119,17 @@ impl Plugin {
         &self.inner.manifest
     }
 
-    pub(crate) async fn query(&self, id: covey_proto::covey_request::RequestId, text: String) {
-        self.send_request_or_display_error(&Request::query(id, text))
+    pub(crate) async fn query(&self, id: covey_proto::RequestId, text: String) {
+        self.send_request_or_display_error(&covey_proto::Request::query(id, text))
             .await
     }
     pub(crate) async fn activate(
         &self,
-        id: covey_proto::covey_request::RequestId,
-        item_id: covey_proto::plugin_response::ListItemId,
+        id: covey_proto::RequestId,
+        item_id: covey_proto::ListItemId,
         command_id: CommandId,
     ) {
-        self.send_request_or_display_error(&Request::activate(id, item_id, command_id))
+        self.send_request_or_display_error(&covey_proto::Request::activate(id, item_id, command_id))
             .await
     }
 
@@ -146,7 +145,7 @@ impl Plugin {
     }
 
     /// Sends a request to the plugin process, retrying once if the process has been killed.
-    async fn send_request_with_retry(&self, request: &Request) -> io::Result<()> {
+    async fn send_request_with_retry(&self, request: &covey_proto::Request) -> io::Result<()> {
         let mut guard = self.inner.process.lock().await;
         match &mut *guard {
             Some(process) => {
@@ -173,13 +172,13 @@ impl Plugin {
         }
     }
 
-    async fn send_request_or_display_error(&self, request: &Request) {
+    async fn send_request_or_display_error(&self, request: &covey_proto::Request) {
         match self.send_request_with_retry(request).await {
             Ok(()) => {}
             Err(e) => {
                 _ = self.inner.response_sender.send((
                     self.clone(),
-                    Response::display_error(request.id, format!("{e:#}")),
+                    covey_proto::Response::display_error(request.id, format!("{e:#}")),
                 ))
             }
         }
@@ -243,7 +242,7 @@ fn manifest_path(plugin_name: &str) -> PathBuf {
 struct PluginInner {
     manifest: PluginManifest,
     entry: PluginEntry,
-    response_sender: mpsc::UnboundedSender<(Plugin, Response)>,
+    response_sender: mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
     process: Mutex<Option<ActiveProcess>>,
 }
 
@@ -264,7 +263,7 @@ impl ActiveProcess {
         plugin: Weak<PluginInner>,
         bin_path: PathBuf,
         initialization_settings: &serde_json::Map<String, serde_json::Value>,
-        response_sender: mpsc::UnboundedSender<(Plugin, Response)>,
+        response_sender: mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
     ) -> io::Result<Self> {
         let initialization_settings = serde_json::to_string(initialization_settings)
             .expect("plugin init settings should be serializable");
@@ -306,7 +305,7 @@ impl ActiveProcess {
                 && let Some(inner) = plugin.upgrade()
             {
                 let plugin = Plugin { inner };
-                match serde_json::from_str::<Response>(&line) {
+                match serde_json::from_str::<covey_proto::Response>(&line) {
                     Ok(response) => _ = response_sender.send((plugin, response)),
                     Err(_) => {
                         tracing::warn!("plugin {id} (stdout): {line}", id = plugin.id())
@@ -325,7 +324,7 @@ impl ActiveProcess {
     }
 
     /// Tries to send the request to the process. Does not retry on failure.
-    pub(super) async fn send_request(&mut self, request: &Request) -> io::Result<()> {
+    pub(super) async fn send_request(&mut self, request: &covey_proto::Request) -> io::Result<()> {
         let mut json = serde_json::to_string(request).expect("request should be serializable");
         json.push('\n');
         self.child_stdin.write_all(json.as_bytes()).await?;

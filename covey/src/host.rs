@@ -13,7 +13,6 @@ use std::{
 };
 
 use anyhow::Result;
-use covey_proto::{covey_request::RequestId, plugin_response::Response};
 use covey_schema::{
     config::{GlobalConfig, PluginEntry},
     hotkey::Hotkey,
@@ -160,12 +159,12 @@ impl Host {
 
 struct RequestSender {
     plugins: KeyedList<Plugin>,
-    sender: mpsc::UnboundedSender<(Plugin, Response)>,
+    sender: mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
     next_request_id: u64,
 }
 
 pub struct ActionReceiver {
-    receiver: mpsc::UnboundedReceiver<(Plugin, Response)>,
+    receiver: mpsc::UnboundedReceiver<(Plugin, covey_proto::Response)>,
     other_actions: mpsc::UnboundedReceiver<Action>,
     latest_received_query_request_id: u64,
 }
@@ -178,7 +177,7 @@ impl RequestSender {
     pub fn send_query(&mut self, query: String) -> impl Future<Output = ()> + use<> + Send + Sync {
         debug!("setting input to {query:?}");
 
-        let request_id = RequestId(self.next_request_id);
+        let request_id = covey_proto::RequestId(self.next_request_id);
         self.next_request_id += 1;
         let plugins = self.plugins.clone();
 
@@ -214,7 +213,7 @@ impl RequestSender {
     ) -> impl Future<Output = ()> + use<> + Send + Sync {
         debug!("activating {item:?}");
 
-        let request_id = RequestId(self.next_request_id);
+        let request_id = covey_proto::RequestId(self.next_request_id);
         self.next_request_id += 1;
         let plugins = self.plugins.clone();
 
@@ -272,10 +271,10 @@ impl ActionReceiver {
         &mut self,
         host: &Host,
         plugin: &Plugin,
-        response: Response,
+        response: covey_proto::Response,
     ) -> Option<Action> {
         match response.response {
-            covey_proto::plugin_response::Body::SetList(list) => {
+            covey_proto::ResponseBody::SetList(list) => {
                 // Check if the latest received id < new id. If so, send the action.
                 // Otherwise, this response is outdated and we should not update the list.
                 let new = response.request_id.0;
@@ -290,13 +289,13 @@ impl ActionReceiver {
                     None
                 }
             }
-            covey_proto::plugin_response::Body::PerformAction(action) => Some(match action {
-                covey_proto::plugin_response::Action::Close => Action::Close,
-                covey_proto::plugin_response::Action::Copy(str) => Action::Copy(str),
-                covey_proto::plugin_response::Action::SetInput(input) => {
+            covey_proto::ResponseBody::PerformAction(action) => Some(match action {
+                covey_proto::PluginAction::Close => Action::Close,
+                covey_proto::PluginAction::Copy(str) => Action::Copy(str),
+                covey_proto::PluginAction::SetInput(input) => {
                     Action::SetInput(crate::Input::from_proto(plugin, input))
                 }
-                covey_proto::plugin_response::Action::DisplayError(err) => {
+                covey_proto::PluginAction::DisplayError(err) => {
                     Action::DisplayError(format!("Plugin {} failed", plugin.id()), err)
                 }
             }),
@@ -306,7 +305,7 @@ impl ActionReceiver {
 
 fn load_plugins_from_config(
     config: &GlobalConfig,
-    response_sender: &mpsc::UnboundedSender<(Plugin, Response)>,
+    response_sender: &mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
 ) -> KeyedList<Plugin> {
     KeyedList::new_lossy(config.plugins.iter().filter_map(|plugin_entry| {
         match Plugin::new_read_manifest(plugin_entry.clone(), response_sender.clone()) {

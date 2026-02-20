@@ -1,7 +1,7 @@
 //! An ordered map (de)serialized as a list with keys.
 
 use core::{fmt, slice};
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, mem, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
@@ -90,24 +90,48 @@ impl<T: Identify> KeyedList<T> {
         }
     }
 
-    pub fn map_same_id<U>(self, mut f: impl FnMut(T) -> U) -> Result<KeyedList<U>, T::Id>
-    where
-        U: Identify<Id = T::Id>,
-    {
-        let items = self
-            .items
+    #[must_use]
+    pub fn replace<E>(
+        &mut self,
+        id: &T::Id,
+        mut f: impl FnMut(T) -> Result<T, E>,
+    ) -> ReplaceResult<E> {
+        let mut replace_result = ReplaceResult::IdNotFound;
+        let items = mem::take(&mut self.items)
             .into_iter()
-            .map(|t| {
-                let t_id = t.id().clone();
-                let u = f(t);
-                if &t_id == u.id() { Ok(u) } else { Err(t_id) }
+            .filter_map(|t| {
+                if t.id() == id {
+                    match f(t) {
+                        Err(e) => {
+                            replace_result = ReplaceResult::ReplaceError(e);
+                            None
+                        }
+                        Ok(new_t) => match new_t.id() == id {
+                            true => {
+                                replace_result = ReplaceResult::Replaced;
+                                Some(new_t)
+                            }
+                            false => {
+                                replace_result = ReplaceResult::DifferentId;
+                                None
+                            }
+                        },
+                    }
+                } else {
+                    Some(t)
+                }
             })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        // This is safe because from the mapping, every id is equal,
-        // so ids must be unique across the vec.
-        Ok(KeyedList { items })
+            .collect();
+        self.items = items;
+        replace_result
     }
+}
+
+pub enum ReplaceResult<E> {
+    IdNotFound,
+    ReplaceError(E),
+    DifferentId,
+    Replaced,
 }
 
 impl<T> KeyedList<T> {

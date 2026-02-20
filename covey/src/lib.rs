@@ -1,5 +1,5 @@
 mod event;
-pub mod host;
+mod host;
 mod plugin;
 
 use std::{path::PathBuf, sync::LazyLock};
@@ -7,6 +7,7 @@ use std::{path::PathBuf, sync::LazyLock};
 pub use covey_schema;
 use covey_schema::config::GlobalConfig;
 pub use event::{Action, Input, List, ListItem, ListItemId, ListStyle, ResolvedIcon};
+pub use host::{ActionReceiver, Host, channel};
 pub use plugin::Plugin;
 
 pub static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {

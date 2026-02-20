@@ -105,7 +105,8 @@ impl ListItem {
     #[doc(hidden)]
     #[must_use]
     pub fn add_command(mut self, name: &'static str, callback: ActivationFunction) -> Self {
-        self.commands.add_command(name, callback);
+        self.commands
+            .add_command(covey_proto::CommandId::new(name), callback);
         self
     }
 }
@@ -166,9 +167,12 @@ impl ListItemCallbacks {
         }
     }
 
-    pub(crate) fn add_command(&mut self, name: &'static str, callback: ActivationFunction) {
-        self.commands
-            .insert(covey_proto::CommandId::new(name), callback);
+    pub(crate) fn add_command(
+        &mut self,
+        command_id: covey_proto::CommandId,
+        callback: ActivationFunction,
+    ) {
+        self.commands.insert(command_id, callback);
     }
 
     /// Calls a command by name, doing nothing if the command is not found.

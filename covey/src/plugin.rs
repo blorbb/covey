@@ -162,7 +162,7 @@ impl Plugin {
                 }
             }
             None => {
-                tracing::info!("initialising plugin {:?}", self.id());
+                tracing::info!("initialising plugin {}", self.id());
                 let mut process = self.start_process().await?;
                 // Set the guard even if the request fails for some reason
                 let request_result = process.send_request(request).await;

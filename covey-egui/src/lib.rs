@@ -267,6 +267,7 @@ impl eframe::App for &mut App {
                         self.host.config().app.reload_hotkey.clone(),
                     ) {
                         self.host.reload_plugin(list.plugin.id());
+                        tokio::spawn(self.host.send_query(self.input.clone()));
                     }
                 }
 

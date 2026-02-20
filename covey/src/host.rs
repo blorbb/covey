@@ -101,6 +101,8 @@ impl Host {
     }
 
     /// Reloads all plugins with the new configuration.
+    ///
+    /// Should re-send a query immediately after reloading.
     #[tracing::instrument(skip_all)]
     pub fn reload(&mut self, config: GlobalConfig) {
         debug!("reloading");
@@ -111,8 +113,10 @@ impl Host {
     }
 
     /// Reloads a specific existing plugin, re-reading its manifest.
+    ///
+    /// Should re-send a query immediately after reloading.
     pub fn reload_plugin(&mut self, plugin_id: &PluginId) {
-        debug!("reloading plugin {plugin_id:?}");
+        debug!("reloading plugin {plugin_id}");
 
         let replace_result = self.sender.plugins.replace(plugin_id, |plugin| {
             Plugin::new_read_manifest(plugin.config_entry().clone(), self.sender.sender.clone())

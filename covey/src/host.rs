@@ -332,7 +332,7 @@ fn find_and_insert_plugins_from_fs(config: &mut GlobalConfig) {
     let plugin_ids = dirs
         .filter_map(Result::ok)
         .flat_map(|plugin_dir| plugin_dir.file_name().into_string())
-        .inspect(|plugin_id| debug!("discovered plugin {plugin_id:?} from fs"))
+        .inspect(|plugin_id| debug!("discovered plugin {plugin_id} from fs"))
         .map(|plugin_id| PluginId::new(&plugin_id));
     config.plugins.extend_lossy(plugin_ids.map(|plugin_id| {
         let mut entry = PluginEntry::new(plugin_id);

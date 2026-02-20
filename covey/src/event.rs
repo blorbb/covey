@@ -188,13 +188,19 @@ pub enum ResolvedIcon {
     Text(String),
 }
 
-// TODO: make this async + spawn_blocking
 impl ResolvedIcon {
     pub(crate) fn resolve(
         proto: covey_proto::plugin_response::ListItemIcon,
         icon_themes: &[String],
     ) -> Option<Self> {
         use covey_proto::plugin_response::ListItemIcon as Proto;
+
+        // `freedesktop_icons::lookup` can do filesystem reads, which is blocking.
+        // Maybe this function should be async. But this is used on the path of turning
+        // responses to actions, which is tricky to turn async.
+        //
+        // Only new icons will need to perform a filesystem lookup. Most icons should be
+        // cached, which is a fast lookup and doesn't block.
         match proto {
             Proto::Name(name) => icon_themes
                 .iter()

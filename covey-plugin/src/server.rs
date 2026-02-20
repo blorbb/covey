@@ -4,7 +4,7 @@ use anyhow::Context;
 use parking_lot::Mutex;
 use tokio::{io::AsyncBufReadExt as _, task::LocalSet};
 
-use crate::{Plugin, manifest::ManifestDeserialization as _, poke, store::ListItemStore};
+use crate::{Plugin, manifest::ManifestDeserialization as _, store::ListItemStore};
 
 /// Starts up the server with a specified plugin implementation.
 ///
@@ -86,102 +86,98 @@ pub fn run_server<T: Plugin>(plugin_id: &'static str) -> ! {
     }
 }
 
-async fn main<T: Plugin>() -> Result<(), anyhow::Error> {
+async fn main<T: Plugin>() -> anyhow::Result<()> {
     let manifest_json = std::env::args()
         .nth(1)
         .context("JSON manifest must be provided as the first argument to this plugin")?;
     let plugin = T::new(T::Config::try_from_input(&manifest_json)?).await?;
     let plugin = Arc::new(plugin);
 
-    // auto kill this process after 24h of inactivity
-    // TODO: remove poker, just add a timeout to next_line().await
-    let (poker, rx) = poke::channel();
-    tokio::spawn(kill_on_timeout(rx, Duration::from_secs(24 * 60 * 60)));
-
     let list_item_store = Arc::new(Mutex::new(ListItemStore::new()));
 
-    // Manage the stdin/out communication
     let mut stdin_lines = tokio::io::BufReader::new(tokio::io::stdin()).lines();
 
-    while let Some(line) = stdin_lines.next_line().await? {
-        poker.poke();
-
-        let covey_proto::covey_request::Request { id, request } =
-            serde_json::from_str(&line).context("malformed request from covey")?;
-
-        // Handling the request may take some time, don't block!
-        // Allow handling multiple requests at once by spawning a new task.
-        let plugin = Arc::clone(&plugin);
-        let list_item_store = Arc::clone(&list_item_store);
-        tokio::task::spawn_local(async move {
-            match request {
-                covey_proto::covey_request::Body::Query(query) => {
-                    match plugin.query(query.text).await {
-                        Ok(list) => {
-                            let proto_list = list_item_store.lock().store_query_result(list);
-                            let response =
-                                covey_proto::plugin_response::Response::set_list(id, proto_list);
-                            response.write_to_stdout();
-                        }
-                        Err(e) => {
-                            let response = covey_proto::plugin_response::Response::display_error(
-                                id,
-                                format!("{e:#}"),
-                            );
-                            response.write_to_stdout();
-                        }
-                    };
-                }
-                covey_proto::covey_request::Body::Activate(
-                    covey_proto::covey_request::Activate {
-                        item_id,
-                        command_id,
-                    },
-                ) => {
-                    match list_item_store.lock().fetch_callbacks_of(item_id) {
-                        Some(callbacks) => {
-                            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-                            let menu = crate::Menu { sender: tx };
-
-                            let call_command_task = callbacks.call_command(&command_id, menu);
-                            let forward_to_covey_task = async {
-                                while let Some(action) = rx.recv().await {
-                                    let response =
-                                        covey_proto::plugin_response::Response::perform_action(
-                                            id, action,
-                                        );
-                                    response.write_to_stdout();
-                                }
-                            };
-
-                            tokio::join!(call_command_task, forward_to_covey_task);
-                        }
-                        None => eprintln!("failed to fetch callback of list item {item_id:?}"),
-                    };
-                }
-            };
-        });
-    }
-
-    Ok(())
-}
-
-async fn kill_on_timeout(mut rx: poke::Receiver, timeout: Duration) -> ! {
     loop {
-        // wait for pokes, timing out after the duration
-        match tokio::time::timeout(timeout, rx.poked()).await {
-            // poke before timeout, reset
-            Ok(Ok(())) => continue,
-            // poker dropped!
-            Ok(Err(_)) => {
-                eprintln!("ERROR: timeout poker has somehow dropped. shutting down.");
-                std::process::exit(1);
-            }
-            // timed out
-            Err(_) => {
+        // auto kill this process after 24h of inactivity
+        match tokio::time::timeout(Duration::from_secs(24 * 60 * 60), stdin_lines.next_line()).await
+        {
+            // Timed out
+            Err(timeout) => {
                 eprintln!("{timeout:?} passed without new query. shutting down.");
-                std::process::exit(0);
+                return Ok(());
+            }
+            // `next_line` failed
+            Ok(Err(e)) => anyhow::bail!(e),
+            // No more lines
+            Ok(Ok(None)) => {
+                eprintln!("stdin closed");
+                return Ok(());
+            }
+            // Got a line within the time limit
+            Ok(Ok(Some(line))) => {
+                handle_request_line(Arc::clone(&plugin), Arc::clone(&list_item_store), line)?
             }
         }
     }
+}
+
+fn handle_request_line<T: Plugin>(
+    plugin: Arc<T>,
+    list_item_store: Arc<Mutex<ListItemStore>>,
+    line: String,
+) -> anyhow::Result<()> {
+    let covey_proto::covey_request::Request { id, request } =
+        serde_json::from_str(&line).context("malformed request from covey")?;
+
+    // Handling the request may take some time, don't block!
+    // Allow handling multiple requests at once by spawning a new task.
+    tokio::task::spawn_local(async move {
+        match request {
+            covey_proto::covey_request::Body::Query(query) => {
+                match plugin.query(query.text).await {
+                    Ok(list) => {
+                        let proto_list = list_item_store.lock().store_query_result(list);
+                        let response =
+                            covey_proto::plugin_response::Response::set_list(id, proto_list);
+                        response.write_to_stdout();
+                    }
+                    Err(e) => {
+                        let response = covey_proto::plugin_response::Response::display_error(
+                            id,
+                            format!("{e:#}"),
+                        );
+                        response.write_to_stdout();
+                    }
+                };
+            }
+            covey_proto::covey_request::Body::Activate(covey_proto::covey_request::Activate {
+                item_id,
+                command_id,
+            }) => {
+                match list_item_store.lock().fetch_callbacks_of(item_id) {
+                    Some(callbacks) => {
+                        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+                        let menu = crate::Menu { sender: tx };
+
+                        let call_command_task = callbacks.call_command(&command_id, menu);
+                        let forward_to_covey_task = async {
+                            while let Some(action) = rx.recv().await {
+                                let response =
+                                    covey_proto::plugin_response::Response::perform_action(
+                                        id, action,
+                                    );
+                                response.write_to_stdout();
+                            }
+                        };
+
+                        tokio::join!(call_command_task, forward_to_covey_task);
+                    }
+                    None => {
+                        eprintln!("failed to fetch callback of list item {item_id:?}")
+                    }
+                };
+            }
+        };
+    });
+    Ok(())
 }

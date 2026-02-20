@@ -1,14 +1,14 @@
-use std::future::Future;
-
 use crate::{List, Result, manifest::ManifestDeserialization};
 
-pub trait Plugin: Sized + Send + Sync + 'static {
+pub trait Plugin: Sized + 'static {
     /// The user's configuration for this plugin.
     ///
     /// Use `()` if this plugin has no configuration.
     type Config: ManifestDeserialization;
 
-    fn new(config: Self::Config) -> impl Future<Output = Result<Self>> + Send;
+    #[expect(async_fn_in_trait, reason = "plugin is single threaded")]
+    async fn new(config: Self::Config) -> Result<Self>;
 
-    fn query(&self, query: String) -> impl Future<Output = Result<List>> + Send;
+    #[expect(async_fn_in_trait, reason = "plugin is single threaded")]
+    async fn query(&self, query: String) -> Result<List>;
 }

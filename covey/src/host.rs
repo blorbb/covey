@@ -10,208 +10,24 @@ use std::{
     fs,
     future::Future,
     io::{Read as _, Write as _},
-    mem,
-    sync::Arc,
 };
 
 use anyhow::Result;
 use covey_schema::{
     config::{GlobalConfig, PluginEntry},
     hotkey::Hotkey,
-    keyed_list::{Id, KeyedList},
+    id::{CommandId, PluginId},
+    keyed_list::KeyedList,
 };
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    CONFIG_DIR, CONFIG_PATH, List, ListItem, PLUGINS_DIR, Plugin,
-    event::{Action, InternalAction, ListItemId},
+    CONFIG_DIR, CONFIG_PATH, ListItem, PLUGINS_DIR, Plugin,
+    event::{Action, ListItemId},
 };
 
-pub struct RequestSender {
-    config: GlobalConfig,
-    plugins: KeyedList<Plugin>,
-    response_sender: mpsc::UnboundedSender<InternalAction>,
-    /// Every query has an incrementing dispatch number that plugins respond with,
-    /// to identify which query a response was from.
-    next_dispatch_index: u64,
-}
-
-pub struct ResponseReceiver {
-    response_receiver: mpsc::UnboundedReceiver<InternalAction>,
-    /// The last dispatch number received from any plugin response.
-    ///
-    /// If we receive a response with a dispatch number smaller than this,
-    /// it should be ignored as it is outdated.
-    latest_received_dispatch: u64,
-}
-
-impl RequestSender {
-    /// Calls a plugin with this query.
-    ///
-    /// Responses should be handled by calling [`ResponseReceiver::recv_action`].
-    #[tracing::instrument(skip(self))]
-    pub fn send_query(&mut self, query: String) -> impl Future<Output = ()> + use<> {
-        debug!("setting input to {query:?}");
-
-        let response_sender = self.response_sender.clone();
-        let dispatch_index = self.next_dispatch_index;
-        self.next_dispatch_index += 1;
-        let icon_themes = Arc::clone(&self.config.app.icon_themes);
-        let plugins = self.plugins.clone();
-
-        async move {
-            for plugin in plugins
-                .into_iter()
-                .filter(|plugin| !plugin.config_entry().disabled)
-            {
-                let Some(stripped) = plugin
-                    .prefix()
-                    .and_then(|prefix| query.strip_prefix(prefix))
-                else {
-                    continue;
-                };
-
-                debug!("querying plugin {plugin:?}");
-
-                match plugin.query(stripped).await {
-                    Ok(proto_list) => response_sender.send(InternalAction::SetList {
-                        list: List::from_proto(&plugin, &icon_themes, proto_list),
-                        index: dispatch_index,
-                    }),
-                    Err(e) => response_sender.send(InternalAction::DisplayError(format!("{e:#}"))),
-                }
-                .expect("receiver disconnected while sending query response");
-                return;
-            }
-
-            tracing::warn!("no plugin activated with query {query}");
-        };
-    }
-
-    /// Activates a list item with a specified command.
-    ///
-    /// Responses should be handled by calling [`ResponseReceiver::recv_action`].
-    #[tracing::instrument(skip(self))]
-    pub fn activate(
-        &self,
-        item: ListItemId,
-        command_name: String,
-    ) -> impl Future<Output = ()> + use<> {
-        debug!("activating {item:?}");
-
-        let response_sender = self.response_sender.clone();
-        async move {
-            let mut stream = match item.plugin.activate(item.local_id, command_name).await {
-                Ok(stream) => stream,
-                Err(e) => {
-                    response_sender
-                        .send(InternalAction::DisplayError(format!("{e:#}")))
-                        .expect("receiver should be alive");
-                    return;
-                }
-            };
-
-            loop {
-                match stream.message().await {
-                    Ok(Some(value)) => {
-                        let Some(action) = value.action.action else {
-                            tracing::warn!("plugin {:?} did not provide an action", item.plugin);
-                            continue;
-                        };
-
-                        tracing::debug!("received action {action:?}");
-                        response_sender
-                            .send(InternalAction::from_proto_action(&item.plugin, action))
-                            .expect("receiver should be alive");
-                    }
-                    Ok(None) => break,
-                    Err(e) => {
-                        response_sender
-                            .send(InternalAction::DisplayError(e.to_string()))
-                            .expect("receiver should be alive");
-                    }
-                };
-            }
-        }
-    }
-
-    /// Activates a list item using the specified hotkey.
-    ///
-    /// Figures out the command to run based on the hotkey and plugin configuration.
-    /// Returns [`Some`] if the hotkey activated some command, otherwise [`None`].
-    #[tracing::instrument(skip(self))]
-    pub fn activate_by_hotkey(
-        &self,
-        item: ListItem,
-        hotkey: Hotkey,
-    ) -> Option<impl Future<Output = ()> + use<>> {
-        let cmd_name = item.activated_command_from_hotkey(&hotkey)?;
-        Some(self.activate(item.id(), cmd_name.as_str().to_string()))
-    }
-}
-
-impl ResponseReceiver {
-    /// Receives an action by a plugin.
-    pub async fn recv_action(&mut self) -> Action {
-        loop {
-            let internal_action = self
-                .response_receiver
-                .recv()
-                .await
-                .expect("senders should still exist");
-
-            if let Some(action) = self.convert_internal_action(internal_action) {
-                return action;
-            }
-        }
-    }
-
-    pub fn try_recv_action(&mut self) -> Option<Action> {
-        loop {
-            let internal_action = self.response_receiver.try_recv().ok()?;
-
-            if let Some(action) = self.convert_internal_action(internal_action) {
-                return Some(action);
-            }
-        }
-    }
-
-    /// Converts an [`InternalAction`] to an [`Action`], returning [`None`] if
-    /// the action should be ignored.
-    fn convert_internal_action(&mut self, action: InternalAction) -> Option<Action> {
-        Some(match action {
-            InternalAction::SetList { list, index } => {
-                if index <= self.latest_received_dispatch {
-                    return None;
-                }
-                self.latest_received_dispatch = index;
-                Action::SetList(list)
-            }
-            InternalAction::Close => Action::Close,
-            InternalAction::Copy(str) => Action::Copy(str),
-            InternalAction::SetInput(input) => Action::SetInput(input),
-            InternalAction::DisplayError(err) => {
-                Action::DisplayError("Plugin failed".to_owned(), err)
-            }
-        })
-    }
-}
-
-// extra getters
-impl RequestSender {
-    pub fn config(&self) -> &GlobalConfig {
-        &self.config
-    }
-
-    /// Ordered set of all enabled plugins.
-    #[tracing::instrument(skip(self))]
-    pub fn plugins(&self) -> &KeyedList<Plugin> {
-        &self.plugins
-    }
-}
-
-pub fn channel() -> Result<(RequestSender, ResponseReceiver)> {
+pub fn channel() -> Result<(Host, ActionReceiver)> {
     info!("reading config from file: {:?}", &*CONFIG_PATH);
 
     fs::create_dir_all(&*CONFIG_DIR)?;
@@ -226,119 +42,104 @@ pub fn channel() -> Result<(RequestSender, ResponseReceiver)> {
     file.read_to_string(&mut s)?;
 
     let mut global_config: GlobalConfig = toml::from_str(&s)?;
-    find_plugins_from_fs(&mut global_config);
-    let plugins = load_plugins(&global_config);
+    find_and_insert_plugins_from_fs(&mut global_config);
 
+    let (response_sender, response_receiver) = mpsc::unbounded_channel();
+    let (action_sender, action_receiver) = mpsc::unbounded_channel();
+
+    let plugins = load_plugins_from_config(&global_config, &response_sender);
     info!("found plugins: {plugins:?}");
 
-    Ok(channel_with_plugins(global_config, plugins))
-}
-
-fn channel_with_plugins(
-    config: GlobalConfig,
-    plugins: KeyedList<Plugin>,
-) -> (RequestSender, ResponseReceiver) {
-    let (response_sender, response_receiver) = mpsc::unbounded_channel();
-    (
-        RequestSender {
-            config,
-            plugins,
+    Ok((
+        Host {
+            config: global_config,
+            other_actions: action_sender,
             response_sender,
-            next_dispatch_index: 1,
+            requester: RequestSender {
+                plugins,
+                // must be greater than the initial `latest_received_query_request_id`
+                next_request_id: 1,
+            },
         },
-        ResponseReceiver {
-            response_receiver,
-            latest_received_dispatch: 0,
+        ActionReceiver {
+            receiver: response_receiver,
+            other_actions: action_receiver,
+            latest_received_query_request_id: 0,
         },
-    )
+    ))
 }
 
-/// Finds extra plugins from the plugin directory and inserts it into the config.
-fn find_plugins_from_fs(config: &mut GlobalConfig) {
-    let Ok(dirs) = fs::read_dir(&*PLUGINS_DIR) else {
-        warn!("failed to read plugins dir");
-        return;
-    };
-
-    // each directory in the plugins directory should be the plugin's id
-    let plugin_ids = dirs
-        .filter_map(Result::ok)
-        .flat_map(|plugin_dir| plugin_dir.file_name().into_string())
-        .inspect(|plugin_id| debug!("discovered plugin {plugin_id:?} from fs"));
-    config.plugins.extend_lossy(plugin_ids.map(|plugin_id| {
-        let mut entry = PluginEntry::new(Id::new(&plugin_id));
-        entry.disabled = true; // require explicitly enabling a new plugin
-        entry
-    }));
+pub struct Host {
+    config: GlobalConfig,
+    other_actions: mpsc::UnboundedSender<Action>,
+    requester: RequestSender,
+    response_sender: mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
 }
 
-/// Reads the manifests of every plugin listed in the config.
-fn load_plugins(config: &GlobalConfig) -> KeyedList<Plugin> {
-    KeyedList::new_lossy(config.plugins.iter().filter_map(|plugin_entry| {
-        match Plugin::new(plugin_entry.clone()) {
-            Ok(plugin) => {
-                debug!("found plugin {plugin:?}");
-                Some(plugin)
-            }
-            Err(e) => {
-                error!("error loading plugin: {e}");
-                None
-            }
-        }
-    }))
-}
+impl Host {
+    pub fn send_query(&mut self, query: String) -> impl Future<Output = ()> + use<> + Send + Sync {
+        self.requester.send_query(query)
+    }
 
-// extra file-io methods
-impl RequestSender {
+    pub fn activate(
+        &mut self,
+        item: ListItemId,
+        command_id: CommandId,
+    ) -> impl Future<Output = ()> + use<> + Send + Sync {
+        self.requester.activate(item, command_id)
+    }
+
+    pub fn activate_by_hotkey(
+        &mut self,
+        item: ListItem,
+        hotkey: Hotkey,
+    ) -> Option<impl Future<Output = ()> + use<>> {
+        self.requester.activate_by_hotkey(item, hotkey)
+    }
+
+    pub fn config(&self) -> &GlobalConfig {
+        &self.config
+    }
+
     /// Reloads all plugins with the new configuration.
+    ///
+    /// Should re-send a query immediately after reloading.
     #[tracing::instrument(skip_all)]
     pub fn reload(&mut self, config: GlobalConfig) {
         debug!("reloading");
-        self.plugins = load_plugins(&config);
-        // TODO: spawn this in another task and handle errors properly
-        Self::write_config(&config).expect("TODO");
         self.config = config;
+        self.requester.plugins = load_plugins_from_config(&self.config, &self.response_sender);
+        // TODO: spawn this in another task and handle errors properly
+        Self::write_config(&self.config).expect("TODO");
     }
 
-    pub fn reload_plugin(&mut self, plugin_id: &Id) {
-        debug!("reloading plugin {plugin_id:?}");
-
-        let Some(plugin_config) = self.config.plugins.get(plugin_id.as_str()) else {
-            self.response_sender
-                .send(InternalAction::DisplayError(format!(
-                    "Failed to reload plugin\ncould not find config of plugin {plugin_id:?}"
-                )))
-                .expect("receiver must remain open");
-            return;
-        };
-
-        let new_plugins = mem::take(&mut self.plugins)
-            .into_iter()
-            .filter_map(|plugin| {
-                if plugin.id() == plugin_id {
-                    match Plugin::new(plugin_config.clone()) {
-                        Ok(plugin) => Some(plugin),
-                        Err(e) => {
-                            self.response_sender
-                                .send(InternalAction::DisplayError(format!(
-                                    "Failed to reload plugin\n{e:#}"
-                                )))
-                                .expect("receiver must remain open");
-                            None
-                        }
-                    }
-                } else {
-                    Some(plugin)
-                }
-            });
-
-        self.plugins = KeyedList::new(new_plugins).expect("new keyed list should have same keys");
-    }
-
-    /// Writes the config to the [`CONFIG_PATH`].
+    /// Reloads a specific existing plugin, re-reading its manifest.
     ///
-    /// # Errors
-    /// Returns an error if there was an IO or serialization issue.
+    /// Should re-send a query immediately after reloading.
+    pub fn reload_plugin(&mut self, plugin_id: &PluginId) {
+        debug!("reloading plugin {plugin_id}");
+
+        let replace_result = self.requester.plugins.replace(plugin_id, |plugin| {
+            Plugin::new_read_manifest(plugin.config_entry().clone(), self.response_sender.clone())
+        });
+
+        match replace_result {
+            covey_schema::keyed_list::ReplaceResult::IdNotFound => {
+                self.send_error(
+                    "Failed to reload plugin",
+                    format!("could not find config of plugin {plugin_id}",),
+                );
+            }
+            covey_schema::keyed_list::ReplaceResult::ReplaceError(e) => {
+                self.send_error("Failed to reload plugin", format!("{e:#}"));
+            }
+            covey_schema::keyed_list::ReplaceResult::DifferentId => {
+                panic!("reloaded plugin should have same plugin id");
+            }
+            covey_schema::keyed_list::ReplaceResult::Replaced => {}
+        }
+    }
+
     fn write_config(config: &GlobalConfig) -> Result<()> {
         // stringify here to avoid truncating the file then erroring
         let toml_str = toml::to_string_pretty(config)?;
@@ -353,4 +154,193 @@ impl RequestSender {
 
         Ok(())
     }
+
+    fn send_error(&self, title: impl Into<String>, description: impl Into<String>) {
+        _ = self
+            .other_actions
+            .send(Action::DisplayError(title.into(), description.into()))
+    }
+}
+
+struct RequestSender {
+    plugins: KeyedList<Plugin>,
+    next_request_id: u64,
+}
+
+pub struct ActionReceiver {
+    receiver: mpsc::UnboundedReceiver<(Plugin, covey_proto::Response)>,
+    other_actions: mpsc::UnboundedReceiver<Action>,
+    latest_received_query_request_id: u64,
+}
+
+impl RequestSender {
+    /// Calls a plugin with this query.
+    ///
+    /// Responses should be handled by calling [`ResponseReceiver::recv_action`].
+    #[tracing::instrument(skip(self))]
+    pub fn send_query(&mut self, query: String) -> impl Future<Output = ()> + use<> + Send + Sync {
+        debug!("setting input to {query:?}");
+
+        let request_id = covey_proto::RequestId(self.next_request_id);
+        self.next_request_id += 1;
+        let plugins = self.plugins.clone();
+
+        async move {
+            for plugin in plugins
+                .iter()
+                .filter(|plugin| !plugin.config_entry().disabled)
+            {
+                let Some(stripped) = plugin
+                    .prefix()
+                    .and_then(|prefix| query.strip_prefix(prefix))
+                else {
+                    continue;
+                };
+
+                debug!("querying plugin {}", plugin.id());
+                plugin.query(request_id, stripped.to_string()).await;
+                return;
+            }
+
+            tracing::warn!("no plugin activated with query {query}");
+        };
+    }
+
+    /// Activates a list item with a specified command.
+    ///
+    /// Responses should be handled by calling [`ResponseReceiver::recv_action`].
+    #[tracing::instrument(skip(self))]
+    pub fn activate(
+        &mut self,
+        item: ListItemId,
+        command_id: CommandId,
+    ) -> impl Future<Output = ()> + use<> + Send + Sync {
+        debug!("activating {item:?}");
+
+        let request_id = covey_proto::RequestId(self.next_request_id);
+        self.next_request_id += 1;
+        let plugins = self.plugins.clone();
+
+        async move {
+            let Some(plugin) = plugins.get(item.plugin.id()) else {
+                return;
+            };
+            plugin.activate(request_id, item.local_id, command_id).await
+        }
+    }
+
+    /// Activates a list item using the specified hotkey.
+    ///
+    /// Figures out the command to run based on the hotkey and plugin configuration.
+    /// Returns [`Some`] if the hotkey activated some command, otherwise [`None`].
+    #[tracing::instrument(skip(self))]
+    pub fn activate_by_hotkey(
+        &mut self,
+        item: ListItem,
+        hotkey: Hotkey,
+    ) -> Option<impl Future<Output = ()> + use<>> {
+        let command_id = item.activated_command_from_hotkey(&hotkey)?;
+        Some(self.activate(item.id(), command_id.clone()))
+    }
+}
+
+impl ActionReceiver {
+    /// Receives an action by a plugin.
+    pub async fn recv_action(&mut self, host: &Host) -> Action {
+        loop {
+            let Some((plugin, response)) = self.receiver.recv().await else {
+                continue;
+            };
+            let Some(action) = self.response_to_action(host, &plugin, response) else {
+                continue;
+            };
+            return action;
+        }
+    }
+
+    pub fn try_recv_action(&mut self, host: &Host) -> Option<Action> {
+        let plugin_action = self
+            .receiver
+            .try_recv()
+            .ok()
+            .and_then(|(plugin, response)| self.response_to_action(host, &plugin, response));
+
+        match plugin_action {
+            Some(action) => Some(action),
+            None => self.other_actions.try_recv().ok(),
+        }
+    }
+
+    fn response_to_action(
+        &mut self,
+        host: &Host,
+        plugin: &Plugin,
+        response: covey_proto::Response,
+    ) -> Option<Action> {
+        match response.response {
+            covey_proto::ResponseBody::SetList(list) => {
+                // Check if the latest received id < new id. If so, send the action.
+                // Otherwise, this response is outdated and we should not update the list.
+                let new = response.request_id.0;
+                if self.latest_received_query_request_id < new {
+                    self.latest_received_query_request_id = new;
+                    Some(Action::SetList(crate::List::from_proto(
+                        plugin,
+                        &host.config.app.icon_themes,
+                        list,
+                    )))
+                } else {
+                    None
+                }
+            }
+            covey_proto::ResponseBody::PerformAction(action) => Some(match action {
+                covey_proto::PluginAction::Close => Action::Close,
+                covey_proto::PluginAction::Copy(str) => Action::Copy(str),
+                covey_proto::PluginAction::SetInput(input) => {
+                    Action::SetInput(crate::Input::from_proto(plugin, input))
+                }
+                covey_proto::PluginAction::DisplayError(err) => {
+                    Action::DisplayError(format!("Plugin {} failed", plugin.id()), err)
+                }
+            }),
+        }
+    }
+}
+
+fn load_plugins_from_config(
+    config: &GlobalConfig,
+    response_sender: &mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
+) -> KeyedList<Plugin> {
+    KeyedList::new_lossy(config.plugins.iter().filter_map(|plugin_entry| {
+        match Plugin::new_read_manifest(plugin_entry.clone(), response_sender.clone()) {
+            Ok(plugin) => {
+                debug!("found plugin {plugin:?}");
+                Some(plugin)
+            }
+            Err(e) => {
+                error!("error loading plugin: {e}");
+                None
+            }
+        }
+    }))
+}
+
+/// Finds extra plugins from the plugin directory and inserts it into the config.
+fn find_and_insert_plugins_from_fs(config: &mut GlobalConfig) {
+    let Ok(dirs) = fs::read_dir(&*PLUGINS_DIR) else {
+        warn!("failed to read plugins dir");
+        return;
+    };
+
+    // each directory in the plugins directory should be the plugin's id
+    let plugin_ids = dirs
+        .filter_map(Result::ok)
+        .flat_map(|plugin_dir| plugin_dir.file_name().into_string())
+        .inspect(|plugin_id| debug!("discovered plugin {plugin_id} from fs"))
+        .map(|plugin_id| PluginId::new(&plugin_id));
+    config.plugins.extend_lossy(plugin_ids.map(|plugin_id| {
+        let mut entry = PluginEntry::new(plugin_id);
+        entry.disabled = true; // require explicitly enabling a new plugin
+        entry
+    }));
 }

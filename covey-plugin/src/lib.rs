@@ -13,12 +13,11 @@ pub use action::{Action, Actions};
 mod input;
 pub use input::{Input, SelectionRange};
 mod plugin;
-pub use plugin::Plugin;
+pub use plugin::{Plugin, PluginBlocking};
 mod server;
-pub use server::run_server;
+pub use server::{run_server, run_server_blocking};
 mod menu;
 pub use menu::Menu;
-mod poke;
 pub mod spawn;
 mod store;
 

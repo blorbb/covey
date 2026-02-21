@@ -2,53 +2,36 @@ use crate::Input;
 
 /// An action for Covey to perform.
 ///
-/// There are associated constructor functions which are easier to use
-/// than constructing from the enum variants.
-///
 /// Note that actions don't close Covey automatically. Add [`Action::Close`] to
 /// close the application. This should usually be first to feel more responsive
 /// and avoid waiting for other commands to run before closing.
 #[derive(Debug, Clone)]
-pub enum Action {
-    Close,
-    Copy(String),
-    SetInput(Input),
-    DisplayError(String),
-}
+pub struct Action(covey_proto::PluginAction);
 
 impl Action {
-    pub(crate) fn into_proto(self) -> covey_proto::Action {
-        use covey_proto::action::Action as PrAction;
-
-        let inner_action = match self {
-            Self::Close => PrAction::Close(()),
-            Self::Copy(str) => PrAction::Copy(str),
-            Self::SetInput(input) => PrAction::SetInput(input.into_proto()),
-            Self::DisplayError(err) => PrAction::DisplayError(err),
-        };
-
-        covey_proto::Action {
-            action: Some(inner_action),
-        }
+    pub(crate) fn into_proto(self) -> covey_proto::PluginAction {
+        self.0
     }
 }
 
 /// Helper constructors for action variants
 impl Action {
     pub fn close() -> Self {
-        Self::Close
+        Self(covey_proto::PluginAction::Close)
     }
 
     pub fn copy(str: impl Into<String>) -> Self {
-        Self::Copy(str.into())
+        Self(covey_proto::PluginAction::Copy(str.into()))
     }
 
     pub fn set_input(input: impl Into<Input>) -> Self {
-        Self::SetInput(input.into())
+        Self(covey_proto::PluginAction::SetInput(
+            input.into().into_proto(),
+        ))
     }
 
     pub fn display_error(err: impl std::fmt::Display) -> Self {
-        Self::DisplayError(err.to_string())
+        Self(covey_proto::PluginAction::DisplayError(err.to_string()))
     }
 }
 
@@ -84,6 +67,6 @@ impl From<Action> for Actions {
 
 impl From<Input> for Actions {
     fn from(value: Input) -> Self {
-        Self::from(Action::SetInput(value))
+        Self::from(Action::set_input(value))
     }
 }

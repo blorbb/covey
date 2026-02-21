@@ -1,26 +1,25 @@
+use std::ops::Range;
+
 #[derive(Debug, Clone)]
 pub struct Input {
     pub query: String,
-    pub range_lb: u16,
-    pub range_ub: u16,
+    pub selection: SelectionRange,
 }
 
 impl Input {
     /// Sets the input to the provided query and with the cursor placed
     /// at the end.
     pub fn new(query: impl Into<String>) -> Self {
-        let range = SelectionRange::end();
+        let selection = SelectionRange::end();
         Self {
             query: query.into(),
-            range_lb: range.lower_bound,
-            range_ub: range.upper_bound,
+            selection,
         }
     }
 
     #[must_use = "builder method consumes self"]
     pub fn select(mut self, sel: SelectionRange) -> Self {
-        self.range_lb = sel.lower_bound;
-        self.range_ub = sel.lower_bound;
+        self.selection = sel;
         self
     }
 
@@ -28,21 +27,20 @@ impl Input {
     pub(crate) fn into_proto(self) -> covey_proto::Input {
         covey_proto::Input {
             query: self.query,
-            range_lb: u32::from(self.range_lb),
-            range_ub: u32::from(self.range_ub),
+            selection: self.selection.to_range(),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct SelectionRange {
-    lower_bound: u16,
-    upper_bound: u16,
+    lower_bound: usize,
+    upper_bound: usize,
 }
 
 impl SelectionRange {
     /// Sets both the start and end bound to the provided index.
-    pub fn at(index: u16) -> Self {
+    pub fn at(index: usize) -> Self {
         Self {
             lower_bound: index,
             upper_bound: index,
@@ -53,7 +51,7 @@ impl SelectionRange {
     pub fn all() -> Self {
         Self {
             lower_bound: 0,
-            upper_bound: u16::MAX,
+            upper_bound: usize::MAX,
         }
     }
 
@@ -63,6 +61,10 @@ impl SelectionRange {
     }
 
     pub fn end() -> Self {
-        Self::at(u16::MAX)
+        Self::at(usize::MAX)
+    }
+
+    pub fn to_range(&self) -> Range<usize> {
+        self.lower_bound..self.upper_bound
     }
 }

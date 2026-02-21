@@ -24,10 +24,9 @@ repository = "https://github.com/blorbb/covey"
 az = "1.2.1"
 dirs = "5.0.1"
 tokio = "1.41.0"
+tokio-stream = "0.1"
 tracing = "0.1.41"
 serde = { version = "1", features = ["derive"] }
-prost = "0.13.3"
-tonic = "0.12.3"
 toml = { version = "0.8.19", features = ["preserve_order"] }
 parking_lot = "0.12"
 syn = "2"

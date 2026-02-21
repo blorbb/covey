@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, LazyLock},
 };
 
-use covey::{covey_schema::style::UserStyle, host};
+use covey::covey_schema::style::UserStyle;
 use eframe::CreationContext;
 use egui::{
     Color32, CornerRadius, FontFamily, FontId, Key, Margin, RichText, ScrollArea, Stroke, TextEdit,
@@ -22,8 +22,8 @@ static ICON_TEXT_STYLE: LazyLock<TextStyle> = LazyLock::new(|| TextStyle::Name(A
 
 pub struct App {
     cli: cli::Receiver,
-    tx: host::RequestSender,
-    rx: host::ResponseReceiver,
+    host: covey::Host,
+    actions: covey::ActionReceiver,
     input: String,
     list: Option<covey::List>,
     list_selection: usize,
@@ -41,17 +41,17 @@ pub struct GuiSettings {
 
 impl App {
     fn style(&self) -> &UserStyle {
-        &self.tx.config().style
+        &self.host.config().style
     }
 
     pub fn new(cli_rx: &cli::Receiver, settings: GuiSettings) -> anyhow::Result<Self> {
-        let (mut tx, rx) = covey::host::channel()?;
+        let (mut host, actions) = covey::channel()?;
         // immediately send an empty query
-        tokio::spawn(tx.send_query(String::new()));
+        tokio::spawn(host.send_query(String::new()));
         Ok(Self {
             cli: cli_rx.clone(),
-            tx,
-            rx,
+            host,
+            actions,
             input: String::new(),
             list: None,
             list_selection: 0,
@@ -143,7 +143,7 @@ impl App {
     fn show_list(&mut self, ui: &mut Ui, list_selection_changed: bool) {
         // need to manually unpack for disjoint borrows
         let Some(list) = &mut self.list else { return };
-        let s = &self.tx.config().style;
+        let s = &self.host.config().style;
 
         ui.allocate_ui(Vec2::new(s.inner_width(), s.max_list_height()), |ui| {
             ScrollArea::vertical()
@@ -216,7 +216,7 @@ impl eframe::App for &mut App {
                 // covey responses //
                 let mut new_selection = None;
                 let mut list_selection_changed = false;
-                match self.rx.try_recv_action() {
+                match self.actions.try_recv_action(&self.host) {
                     None => {}
                     Some(covey::Action::Close) => {
                         tracing::info!("received close request");
@@ -236,7 +236,7 @@ impl eframe::App for &mut App {
                         // Another query to update the plugin on what it changed.
                         // This change isn't detected by text_edit.response.changed()
                         if contents != self.input {
-                            tokio::spawn(self.tx.send_query(contents.clone()));
+                            tokio::spawn(self.host.send_query(contents.clone()));
                         }
 
                         self.input = contents;
@@ -264,9 +264,10 @@ impl eframe::App for &mut App {
                         list_selection_changed = true;
                     } else if hotkeys::hotkey_pressed_consume(
                         ui,
-                        self.tx.config().app.reload_hotkey.clone(),
+                        self.host.config().app.reload_hotkey.clone(),
                     ) {
-                        self.tx.reload_plugin(list.plugin.id());
+                        self.host.reload_plugin(list.plugin.id());
+                        tokio::spawn(self.host.send_query(self.input.clone()));
                     }
                 }
 
@@ -274,7 +275,7 @@ impl eframe::App for &mut App {
                 if let Some(list) = &self.list
                     && let Some(item) = list.items.get(self.list_selection)
                     && let Some(hotkey) = hotkeys::hotkey_pressed_now(ui)
-                    && let Some(future) = self.tx.activate_by_hotkey(item.clone(), hotkey.clone())
+                    && let Some(future) = self.host.activate_by_hotkey(item.clone(), hotkey.clone())
                 {
                     hotkeys::hotkey_pressed_consume(ui, hotkey);
                     tokio::spawn(future);
@@ -292,7 +293,7 @@ impl eframe::App for &mut App {
                     |style| style.visuals.selection.stroke = Stroke::NONE,
                     |ui| {
                         // need disjoint borrows
-                        let style = &self.tx.config().style;
+                        let style = &self.host.config().style;
                         TextEdit::singleline(&mut self.input)
                             // Color is not being set correctly for some reason
                             .hint_text(
@@ -329,7 +330,7 @@ impl eframe::App for &mut App {
                 }
 
                 if text_edit.response.changed() {
-                    tokio::spawn(self.tx.send_query(self.input.clone()));
+                    tokio::spawn(self.host.send_query(self.input.clone()));
                 }
 
                 // can't request focus if the app is unfocused

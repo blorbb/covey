@@ -35,12 +35,12 @@ impl ListItemStore {
 
     /// Stores the result of a query, returning the response that should be
     /// sent to covey.
-    pub(crate) fn store_query_result(&mut self, list: List) -> covey_proto::QueryResponse {
+    pub(crate) fn store_query_result(&mut self, list: List) -> covey_proto::List {
         // Don't store an empty result
         if list.items.is_empty() {
-            return covey_proto::QueryResponse {
+            return covey_proto::List {
                 items: vec![],
-                list_style: list.style.map(ListStyle::into_proto),
+                style: list.style.map(ListStyle::into_proto),
             };
         }
 
@@ -51,9 +51,9 @@ impl ListItemStore {
             first_id: items.first().expect("list should be non empty").id,
         });
 
-        return covey_proto::QueryResponse {
+        return covey_proto::List {
             items,
-            list_style: list.style.map(ListStyle::into_proto),
+            style: list.style.map(ListStyle::into_proto),
         };
 
         fn split_item_vec(
@@ -67,11 +67,11 @@ impl ListItemStore {
 
             for (id, item) in iter::zip(new_ids, vec) {
                 items.push(covey_proto::ListItem {
-                    id,
+                    id: covey_proto::ListItemId(id),
                     title: item.title,
                     description: item.description,
                     icon: item.icon.map(Icon::into_proto),
-                    available_commands: item.commands.ids().map(ToOwned::to_owned).collect(),
+                    available_commands: item.commands.ids().cloned().collect(),
                 });
                 callbacks.push(item.commands);
             }
@@ -86,7 +86,10 @@ impl ListItemStore {
     /// However, implementation may change in the future which disposes of
     /// callbacks more frequently, and may have extremely rare edge cases where
     /// a callback is disposed but then activated.
-    pub(crate) fn fetch_callbacks_of(&mut self, id: u64) -> Option<ListItemCallbacks> {
+    pub(crate) fn fetch_callbacks_of(
+        &mut self,
+        id: covey_proto::ListItemId,
+    ) -> Option<ListItemCallbacks> {
         // linear search is good enough
         let (found_index, found_callback) =
             self.queries.iter().enumerate().find_map(|(i, query)| {
@@ -109,12 +112,12 @@ impl ListItemStore {
 /// - Number of items stored is non-zero.
 struct QueryListItemStore {
     callbacks: Vec<ListItemCallbacks>,
-    first_id: u64,
+    first_id: covey_proto::ListItemId,
 }
 
 impl QueryListItemStore {
-    pub fn callback_of_id(&self, id: u64) -> Option<&ListItemCallbacks> {
-        let offset = id - self.first_id;
+    pub fn callback_of_id(&self, id: covey_proto::ListItemId) -> Option<&ListItemCallbacks> {
+        let offset = id.0 - self.first_id.0;
         self.callbacks.get(
             offset
                 .checked_as::<usize>()

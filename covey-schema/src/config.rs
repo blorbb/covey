@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     hotkey::{Hotkey, KeyCode},
-    keyed_list::{Id, Identify, KeyedList},
+    id::{CommandId, PluginId},
+    keyed_list::{Identify, KeyedList},
     style::UserStyle,
 };
 
@@ -67,7 +68,7 @@ fn default_icon_themes() -> Arc<[String]> {
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub struct PluginEntry {
-    pub id: Id,
+    pub id: PluginId,
     /// Disables this plugin.
     ///
     /// This is `false` by default. The plugin will also be disabled if no
@@ -79,20 +80,21 @@ pub struct PluginEntry {
     /// This or a default prefix must be defined. If both aren't defined, this
     /// plugin will be disabled.
     pub prefix: Option<String>,
-    #[serde(default)] // empty table if missing
+    #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
     pub settings: serde_json::Map<String, serde_json::Value>,
     #[serde(default)]
-    pub commands: BTreeMap<Id, CommandSettings>,
+    pub commands: BTreeMap<CommandId, CommandSettings>,
 }
 
 impl Identify for PluginEntry {
-    fn id(&self) -> &Id {
+    type Id = PluginId;
+    fn id(&self) -> &Self::Id {
         &self.id
     }
 }
 
 impl PluginEntry {
-    pub fn new(plugin_id: Id) -> Self {
+    pub fn new(plugin_id: PluginId) -> Self {
         // make sure these match with the serde default annotations!
         Self {
             id: plugin_id,

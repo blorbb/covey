@@ -17,11 +17,16 @@ description = "APIs for creating Covey plugins"
 workspace = true
 
 [dependencies]
-tokio = { workspace = true, features = ["rt"] }
+tokio = { workspace = true, features = [
+    "rt",
+    "macros",
+    "io-util",
+    "io-std",
+    "time",
+] }
 tokio-stream = { version = "0.1.16", default-features = false, features = [
     "net",
 ] }
-tonic.workspace = true
 az.workspace = true
 anyhow.workspace = true
 sublime_fuzzy = "0.7.0"
@@ -32,6 +37,3 @@ covey-proto = { path = "../covey-proto", version = "0.0.2" }
 serde.workspace = true
 serde_json.workspace = true
 dirs.workspace = true
-
-[build-dependencies]
-tonic-build = "0.12.3"

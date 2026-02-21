@@ -16,7 +16,7 @@ toml.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
 tokio = { workspace = true, features = ["fs", "process", "sync"] }
-tonic.workspace = true
+tokio-stream.workspace = true
 az.workspace = true
 dirs.workspace = true
 parking_lot.workspace = true

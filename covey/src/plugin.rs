@@ -22,6 +22,8 @@ use tokio::{
 
 use crate::DATA_DIR;
 
+/// A ref-counted reference to a plugin instance.
+///
 /// Comparison traits ([`Eq`], [`Hash`], etc) are in terms of
 /// this plugin's name.
 ///

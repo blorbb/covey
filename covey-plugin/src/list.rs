@@ -112,6 +112,7 @@ impl ListItem {
 }
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum Icon {
     Name(String),
     Text(String),

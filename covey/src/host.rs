@@ -54,9 +54,9 @@ pub fn channel() -> Result<(Host, ActionReceiver)> {
         Host {
             config: global_config,
             other_actions: action_sender,
-            sender: RequestSender {
+            response_sender,
+            requester: RequestSender {
                 plugins,
-                sender: response_sender,
                 // must be greater than the initial `latest_received_query_request_id`
                 next_request_id: 1,
             },
@@ -72,12 +72,13 @@ pub fn channel() -> Result<(Host, ActionReceiver)> {
 pub struct Host {
     config: GlobalConfig,
     other_actions: mpsc::UnboundedSender<Action>,
-    sender: RequestSender,
+    requester: RequestSender,
+    response_sender: mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
 }
 
 impl Host {
     pub fn send_query(&mut self, query: String) -> impl Future<Output = ()> + use<> + Send + Sync {
-        self.sender.send_query(query)
+        self.requester.send_query(query)
     }
 
     pub fn activate(
@@ -85,7 +86,7 @@ impl Host {
         item: ListItemId,
         command_id: CommandId,
     ) -> impl Future<Output = ()> + use<> + Send + Sync {
-        self.sender.activate(item, command_id)
+        self.requester.activate(item, command_id)
     }
 
     pub fn activate_by_hotkey(
@@ -93,7 +94,7 @@ impl Host {
         item: ListItem,
         hotkey: Hotkey,
     ) -> Option<impl Future<Output = ()> + use<>> {
-        self.sender.activate_by_hotkey(item, hotkey)
+        self.requester.activate_by_hotkey(item, hotkey)
     }
 
     pub fn config(&self) -> &GlobalConfig {
@@ -107,7 +108,7 @@ impl Host {
     pub fn reload(&mut self, config: GlobalConfig) {
         debug!("reloading");
         self.config = config;
-        self.sender.plugins = load_plugins_from_config(&self.config, &self.sender.sender);
+        self.requester.plugins = load_plugins_from_config(&self.config, &self.response_sender);
         // TODO: spawn this in another task and handle errors properly
         Self::write_config(&self.config).expect("TODO");
     }
@@ -118,8 +119,8 @@ impl Host {
     pub fn reload_plugin(&mut self, plugin_id: &PluginId) {
         debug!("reloading plugin {plugin_id}");
 
-        let replace_result = self.sender.plugins.replace(plugin_id, |plugin| {
-            Plugin::new_read_manifest(plugin.config_entry().clone(), self.sender.sender.clone())
+        let replace_result = self.requester.plugins.replace(plugin_id, |plugin| {
+            Plugin::new_read_manifest(plugin.config_entry().clone(), self.response_sender.clone())
         });
 
         match replace_result {
@@ -163,7 +164,6 @@ impl Host {
 
 struct RequestSender {
     plugins: KeyedList<Plugin>,
-    sender: mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
     next_request_id: u64,
 }
 

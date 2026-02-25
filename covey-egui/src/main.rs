@@ -54,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match rx.recv() {
             cli::Message::Open => {}
             cli::Message::OpenAndStay => {
-                app.settings.close_on_blur = false;
+                app.gui_settings.close_on_blur = false;
             }
             cli::Message::Exit => break,
         }

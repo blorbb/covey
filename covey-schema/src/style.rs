@@ -172,12 +172,23 @@ impl UserStyle {
         self.list_padding.unwrap_or(Padding::new(4., 4.))
     }
 
+    // TODO: remove this, make this computed from row height in the rendering
+    /// Computed property.
+    pub fn bottom_bar_height(&self) -> f32 {
+        self.font_size()
+    }
+
     /// Computed property.
     pub fn max_list_height(&self) -> f32 {
         self.max_window_height()
-            - 2. * self.window_margin().block
+            // above the list
+            - self.window_margin().block
             - self.input_height()
             - self.input_list_gap()
+            // below the list
+            - self.window_margin().block
+            - self.bottom_bar_height()
+            - self.window_margin().block
     }
 
     pub fn inner_width(&self) -> f32 {

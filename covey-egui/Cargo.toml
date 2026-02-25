@@ -9,6 +9,7 @@ repository.workspace = true
 [dependencies]
 egui = { version = "0.33" }
 eframe = "0.33.0"
+egui_taffy = "0.10"
 # tray-icon = "0.21"
 tracing.workspace = true
 arboard = { version = "3.6.0", features = ["image-data"] }

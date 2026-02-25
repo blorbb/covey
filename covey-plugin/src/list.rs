@@ -54,7 +54,8 @@ impl ListStyle {
     }
 }
 
-// This should only be converted into a covey_proto::ListItem via the ListItemStore.
+// This should only be converted into a covey_proto::ListItem via the
+// ListItemStore.
 #[derive(Clone)]
 pub struct ListItem {
     pub title: String,

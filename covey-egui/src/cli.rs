@@ -54,15 +54,15 @@ impl Receiver {
 
     /// Gets the last message that was handled.
     ///
-    /// There may be other messages in the receiving channel but haven't been handled
-    /// with [`Self::try_recv`] yet.
+    /// There may be other messages in the receiving channel but haven't been
+    /// handled with [`Self::try_recv`] yet.
     pub fn last_handled_msg(&self) -> Option<Message> {
         self.last_msg.lock().clone()
     }
 }
 
-/// Makes a listener for CLI messages, returning `Ok(None)` this process should stop,
-/// and `Ok(Some(rx))` if this is the primary instance.
+/// Makes a listener for CLI messages, returning `Ok(None)` this process should
+/// stop, and `Ok(Some(rx))` if this is the primary instance.
 ///
 /// Also parses CLI arguments, exiting with a help message if it fails.
 pub fn listener() -> io::Result<Option<(GuiSettings, Receiver)>> {

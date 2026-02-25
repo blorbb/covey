@@ -146,7 +146,8 @@ impl Plugin {
         .await
     }
 
-    /// Sends a request to the plugin process, retrying once if the process has been killed.
+    /// Sends a request to the plugin process, retrying once if the process has
+    /// been killed.
     async fn send_request_with_retry(&self, request: &covey_proto::Request) -> io::Result<()> {
         let mut guard = self.inner.process.lock().await;
         match &mut *guard {

@@ -38,7 +38,8 @@ pub static PLUGIN_ID: OnceLock<&'static str> = OnceLock::new();
 /// [`covey_plugin`](crate) will also add an `activations.json` file. See
 /// the [`rank`] module for more details.
 ///
-/// This depends on the [`PLUGIN_ID`] static being set before first being called.
+/// This depends on the [`PLUGIN_ID`] static being set before first being
+/// called.
 pub fn plugin_data_dir() -> &'static PathBuf {
     static DIR: LazyLock<PathBuf> = LazyLock::new(|| {
         dirs::data_dir()

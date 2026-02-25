@@ -35,7 +35,8 @@ impl Action {
     }
 }
 
-/// Wrapper for a [`Vec<Action>`] with convenient conversion trait implementations.
+/// Wrapper for a [`Vec<Action>`] with convenient conversion trait
+/// implementations.
 ///
 /// [`From`] Implementations:
 /// - [`IntoIterator<Item = Action>`] -> `Vec<Action>`

@@ -1,7 +1,7 @@
 //! Utilities for spawning processes.
 //!
-//! These are intended for use in command callbacks. They will spawn processes without catching
-//! any stdio.
+//! These are intended for use in command callbacks. They will spawn processes
+//! without catching any stdio.
 
 use std::{
     ffi::OsStr,

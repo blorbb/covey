@@ -176,7 +176,8 @@ pub struct ActionReceiver {
 impl RequestSender {
     /// Calls a plugin with this query.
     ///
-    /// Responses should be handled by calling [`ResponseReceiver::recv_action`].
+    /// Responses should be handled by calling
+    /// [`ResponseReceiver::recv_action`].
     #[tracing::instrument(skip(self))]
     pub fn send_query(&mut self, query: String) -> impl Future<Output = ()> + use<> + Send + Sync {
         debug!("setting input to {query:?}");
@@ -208,7 +209,8 @@ impl RequestSender {
 
     /// Activates a list item with a specified command.
     ///
-    /// Responses should be handled by calling [`ResponseReceiver::recv_action`].
+    /// Responses should be handled by calling
+    /// [`ResponseReceiver::recv_action`].
     #[tracing::instrument(skip(self))]
     pub fn activate(
         &mut self,
@@ -231,8 +233,9 @@ impl RequestSender {
 
     /// Activates a list item using the specified hotkey.
     ///
-    /// Figures out the command to run based on the hotkey and plugin configuration.
-    /// Returns [`Some`] if the hotkey activated some command, otherwise [`None`].
+    /// Figures out the command to run based on the hotkey and plugin
+    /// configuration. Returns [`Some`] if the hotkey activated some
+    /// command, otherwise [`None`].
     #[tracing::instrument(skip(self))]
     pub fn activate_by_hotkey(
         &mut self,
@@ -325,7 +328,8 @@ fn load_plugins_from_config(
     }))
 }
 
-/// Finds extra plugins from the plugin directory and inserts it into the config.
+/// Finds extra plugins from the plugin directory and inserts it into the
+/// config.
 fn find_and_insert_plugins_from_fs(config: &mut GlobalConfig) {
     let Ok(dirs) = fs::read_dir(&*PLUGINS_DIR) else {
         warn!("failed to read plugins dir");

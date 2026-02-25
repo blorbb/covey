@@ -18,11 +18,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt().with_env_filter(filter).init();
 
     // https://github.com/emilk/egui/blob/main/examples/external_eventloop/src/main.rs
+    //
+    // ```
     // let mut event_loop = EventLoop::<UserEvent>::with_user_event().build().unwrap();
     // event_loop.set_control_flow(ControlFlow::Poll);
+    // ```
+    //
     // https://docs.rs/tray-icon/0.21.2/tray_icon/
-    // can't use a custom UserEvent with the event loop when using eframe::create_native
-    // need to use some other kind of channel anyways to tell this app to open from another process
+    // Can't use a custom UserEvent with the event loop when using
+    // eframe::create_native. Need to use some other kind of channel anyways to
+    // tell this app to open from another process
 
     let (settings, rx) = match cli::listener()? {
         Some((settings, rx)) => (settings, rx),

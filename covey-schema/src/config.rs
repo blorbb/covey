@@ -34,7 +34,8 @@ pub struct AppSettings {
     /// Default is Ctrl+R.
     #[serde(default = "default_reload_hotkey")]
     pub reload_hotkey: Hotkey,
-    /// List of system icon themes to use when rendering a named icon from a plugin.
+    /// List of system icon themes to use when rendering a named icon from a
+    /// plugin.
     ///
     /// Icons will try to be loaded from top to bottom.
     #[serde(default = "default_icon_themes")]

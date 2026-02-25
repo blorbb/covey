@@ -3,7 +3,8 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
-// TODO: remove deserialization as a struct of values, only accept the accelerator
+// TODO: remove deserialization as a struct of values, only accept the
+// accelerator
 
 /// A key and some modifiers.
 ///

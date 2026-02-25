@@ -97,6 +97,7 @@ pub struct UserStyle {
     list_padding: Option<Padding>,
 }
 
+/// Getters with defaults.
 impl UserStyle {
     pub fn window_width(&self) -> f32 {
         self.window_width.unwrap_or(600.)

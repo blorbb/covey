@@ -152,7 +152,7 @@ fn insert_font(
     egui_family: egui::FontFamily,
     font: font_kit::font::Font,
 ) {
-    tracing::warn!("loaded font {}", font.full_name());
+    tracing::info!("loaded font {:?}", font.full_name());
 
     fonts.font_data.insert(
         font.full_name(),

@@ -88,7 +88,8 @@ pub struct UserStyle {
     // input
     input_height: Option<f32>,
     cursor_selection_bg: Option<Color>,
-    input_list_gap: Option<f32>,
+    // gap between e.g. input-list and list-bottom bar
+    main_component_gap: Option<f32>,
     // list
     list_item_gap: Option<f32>,
     list_selected_color: Option<Color>,
@@ -146,8 +147,8 @@ impl UserStyle {
         self.cursor_selection_bg.unwrap_or(Color::rgb(113, 51, 68))
     }
 
-    pub fn input_list_gap(&self) -> f32 {
-        self.input_list_gap.unwrap_or(12.)
+    pub fn main_component_gap(&self) -> f32 {
+        self.main_component_gap.unwrap_or(12.)
     }
 
     pub fn list_item_gap(&self) -> f32 {
@@ -184,9 +185,9 @@ impl UserStyle {
             // above the list
             - self.window_margin().block
             - self.input_height()
-            - self.input_list_gap()
+            - self.main_component_gap()
             // below the list
-            - self.window_margin().block
+            - self.main_component_gap()
             - self.bottom_bar_height()
             - self.window_margin().block
     }

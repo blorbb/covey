@@ -3,7 +3,7 @@
 use core::fmt;
 use std::path::PathBuf;
 
-use covey_schema::{hotkey::Hotkey, id::CommandId};
+use covey_schema::{hotkey::Hotkey, id::CommandId, manifest::Command};
 
 use crate::Plugin;
 
@@ -141,13 +141,23 @@ impl ListItem {
         }
     }
 
-    pub fn available_commands(&self) -> &[CommandId] {
+    pub fn available_commands(&self) -> impl Iterator<Item = &Command> {
+        self.available_command_ids().iter().map(|id| {
+            self.plugin
+                .manifest()
+                .commands
+                .get(id)
+                .expect("command from plugin should be in manifest")
+        })
+    }
+
+    pub fn available_command_ids(&self) -> &[CommandId] {
         &self.item.available_commands
     }
 
     /// Gets the command that can be activated from the provided hotkey.
     pub fn activated_command_from_hotkey(&self, hotkey: &Hotkey) -> Option<&CommandId> {
-        self.available_commands().iter().find(|cmd_id| {
+        self.available_command_ids().iter().find(|cmd_id| {
             self.plugin()
                 .hotkeys_of_cmd(&cmd_id)
                 .is_some_and(|hotkeys| hotkeys.contains(&hotkey))

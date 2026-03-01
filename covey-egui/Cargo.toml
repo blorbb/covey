@@ -26,6 +26,10 @@ image = { version = "0.25", default-features = false, features = [
     "png",
 ] }
 urlencoding = "2"
+font-kit = { version = "0.14", default-features = false, features = [
+    "source",
+    "source-fontconfig",
+] }
 
 [lints]
 workspace = true

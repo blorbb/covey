@@ -263,6 +263,17 @@ impl fmt::Display for Hotkey {
     }
 }
 
+impl Hotkey {
+    /// A shorter representation of a hotkey that may contain some special
+    /// unicode characters.
+    ///
+    /// This representation cannot be converted back to a [`Hotkey`] using
+    /// [`FromStr`] or [`Deserialize`].
+    pub fn to_short_string(&self) -> String {
+        self.to_string().replace("Enter", "↵").replace("Tab", "⇥")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseKeyError(String);
 

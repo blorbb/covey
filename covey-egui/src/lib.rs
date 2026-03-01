@@ -20,6 +20,7 @@ mod row;
 mod style;
 
 static ICON_TEXT_STYLE: LazyLock<TextStyle> = LazyLock::new(|| TextStyle::Name(Arc::from("icon")));
+static FONTS: LazyLock<egui::FontDefinitions> = LazyLock::new(style::load_system_fonts);
 
 pub struct App {
     cli: cli::Receiver,
@@ -92,8 +93,7 @@ impl App {
     }
 
     fn set_ctx_style(&self, cc: &CreationContext) {
-        // cc.egui_ctx.style_mut_of(egui::Theme::Dark, |style| {});
-
+        cc.egui_ctx.set_fonts(FONTS.clone());
         cc.egui_ctx.set_style(style::style_reset());
         cc.egui_ctx.all_styles_mut(|style| {
             let ss = self.style();
@@ -407,6 +407,7 @@ impl App {
             .set_corner_radius(CornerRadius::same(s.list_rounding().round() as u8));
         ui.style_mut().spacing.button_padding = s.list_padding().as_egui();
         ui.style_mut().spacing.icon_spacing = s.list_padding().block;
+        ui.style_mut().spacing.item_spacing = Vec2::splat(s.list_item_gap());
 
         ui.horizontal(|ui| {
             match &self.list {
@@ -418,6 +419,13 @@ impl App {
                         selected_item.available_commands().for_each(|command| {
                             // TODO: handle clicks
                             let button = egui::Button::new(&command.title);
+                            let button = if let Some([hotkey, ..]) =
+                                selected_item.plugin().hotkeys_of_cmd(&command.id)
+                            {
+                                button.shortcut_text(hotkey.to_short_string())
+                            } else {
+                                button
+                            };
                             ui.add(button);
                         });
                     };

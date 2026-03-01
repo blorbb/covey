@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use egui::{
     Color32, CornerRadius, Margin, Shadow, Spacing, Stroke, Vec2, Visuals,
@@ -7,6 +7,7 @@ use egui::{
         Widgets,
     },
 };
+use font_kit::{family_name::FamilyName, properties::Properties, source::SystemSource};
 
 pub fn style_reset() -> egui::Style {
     let empty_visuals = WidgetVisuals {
@@ -108,4 +109,63 @@ pub fn style_reset() -> egui::Style {
         // compact_menu_style: todo!(),
         ..egui::Style::default()
     }
+}
+
+pub fn load_system_fonts() -> egui::FontDefinitions {
+    // https://github.com/emilk/egui/discussions/1344#discussioncomment-6432960
+
+    let mut fonts = egui::FontDefinitions::default();
+    insert_font(
+        &mut fonts,
+        egui::FontFamily::Proportional,
+        SystemSource::new()
+            .select_best_match(&[FamilyName::SansSerif], &Properties::new())
+            .unwrap()
+            .load()
+            .unwrap(),
+    );
+    insert_font(
+        &mut fonts,
+        egui::FontFamily::Monospace,
+        SystemSource::new()
+            .select_best_match(&[FamilyName::Monospace], &Properties::new())
+            .unwrap()
+            .load()
+            .unwrap(),
+    );
+    insert_font(
+        &mut fonts,
+        egui::FontFamily::Proportional,
+        SystemSource::new()
+            .select_family_by_name("Inter")
+            .unwrap()
+            .fonts()[0]
+            .load()
+            .unwrap(),
+    );
+
+    fonts
+}
+
+fn insert_font(
+    fonts: &mut egui::FontDefinitions,
+    egui_family: egui::FontFamily,
+    font: font_kit::font::Font,
+) {
+    tracing::warn!("loaded font {}", font.full_name());
+
+    fonts.font_data.insert(
+        font.full_name(),
+        Arc::new(egui::FontData::from_owned(
+            font.copy_font_data()
+                .expect("copy_font_data never returns none")
+                .to_vec(),
+        )),
+    );
+
+    fonts
+        .families
+        .entry(egui_family)
+        .or_default()
+        .insert(0, font.full_name());
 }

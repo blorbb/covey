@@ -11,8 +11,8 @@ use egui::{
     TextStyle, Ui, Vec2, Vec2b, style::ScrollAnimation, text::CCursor, text_edit::TextEditOutput,
 };
 use egui_taffy::{
-    TuiBuilderLogic,
-    taffy::{self, prelude::length},
+    Tui, TuiBuilderLogic,
+    taffy::{self, prelude::*},
     tui,
 };
 
@@ -158,6 +158,7 @@ impl eframe::App for &mut App {
         // for a single frame.
         // Top panel only takes up as much space as the UI needs, so it always has
         // the right size.
+        ctx.all_styles_mut(|style| style.wrap_mode = Some(egui::TextWrapMode::Extend));
         egui::TopBottomPanel::top("main-panel")
             .frame(egui::Frame::window(&ctx.style()))
             .show(ctx, |ui| {
@@ -169,7 +170,8 @@ impl eframe::App for &mut App {
 /// Changes made within the current frame that the ui elements may need to be
 /// aware of.
 ///
-/// These do not persist across multiple frames.
+/// These do not persist across multiple frames, unlike the state stored in
+/// [`App`].
 struct RenderingState {
     new_cursor_selection: Option<(usize, usize)>,
     list_selection_changed: bool,
@@ -192,36 +194,61 @@ impl App {
         self.handle_keyboard_input(ui, &mut rendering_state);
 
         // The UI
-        self.show_input(ui, &rendering_state);
-        self.show_list(ui, &rendering_state);
-        self.show_buttom_bar(ui);
+        tui(ui, ui.id().with("main"))
+            .reserve_width(self.style().inner_width())
+            .reserve_height(self.style().max_window_height())
+            .style(taffy::Style {
+                display: Display::Flex,
+                flex_direction: taffy::FlexDirection::Column,
+                align_items: Some(taffy::AlignItems::Stretch),
+                size: taffy::Size {
+                    width: percent(1.),
+                    height: auto(),
+                },
+                max_size: percent(1.),
+                gap: length(self.style().input_list_gap()),
+                ..Default::default()
+            })
+            // .style(taffy::Style {
+            //     flex_direction: taffy::FlexDirection::Column,
+            //     align_items: Some(taffy::AlignItems::Stretch),
+            //     // padding: self.style().window_margin().as_egui(),
+            //     gap: length(self.style().input_list_gap()),
+            //     ..Default::default()
+            // })
+            .show(|tui| {
+                self.show_input(tui, &rendering_state);
+                self.show_list(tui, &rendering_state);
+                self.show_buttom_bar(tui);
 
-        // set window size //
-        let existing_height = ui.ctx().content_rect().height();
-        let new_height = ui.cursor().top() + self.style().window_margin().block;
-        if (existing_height - new_height).abs() < 1. {
-            ui.ctx()
-                .send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(
-                    self.style().window_width(),
-                    new_height,
-                )));
-        }
+                // set window size //
+                let ui = tui.egui_ui();
+                let existing_height = ui.ctx().content_rect().height();
+                let new_height = ui.cursor().top() + self.style().window_margin().block;
+                if (existing_height - new_height).abs() < 1. {
+                    ui.ctx()
+                        .send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(
+                            self.style().window_width(),
+                            new_height,
+                        )));
+                }
 
-        // Close if unfocused
-        // must set this at the end to guarantee it is false on the first frame
-        self.app_has_been_focused |= rendering_state.window_is_focused;
-        // this must also be at the end to avoid a weird flash of blank when closing
-        // by losing focus
-        if self.gui_settings.close_on_blur
-            && self.app_has_been_focused
-            && !rendering_state.window_is_focused
-        {
-            tracing::info!("window unfocused");
-            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-            return ControlFlow::Break(());
-        }
+                // Close if unfocused
+                // must set this at the end to guarantee it is false on the first frame
+                self.app_has_been_focused |= rendering_state.window_is_focused;
+                // this must also be at the end to avoid a weird flash of blank when closing
+                // by losing focus
+                if self.gui_settings.close_on_blur
+                    && self.app_has_been_focused
+                    && !rendering_state.window_is_focused
+                {
+                    tracing::info!("window unfocused");
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                    return ControlFlow::Break(());
+                }
 
-        ControlFlow::Continue(())
+                ControlFlow::Continue(())
+            })
     }
 
     fn handle_cli_action(&mut self, ui: &mut Ui) -> ControlFlow<()> {
@@ -318,59 +345,103 @@ impl App {
         }
     }
 
-    fn show_input(&mut self, ui: &mut Ui, rendering_state: &RenderingState) {
-        let row_height = ui.fonts_mut(|f| f.row_height(&egui::TextStyle::Body.resolve(ui.style())));
+    fn show_input(&mut self, tui: &mut Tui, rendering_state: &RenderingState) {
+        let row_height = {
+            let ui = tui.egui_ui_mut();
+            ui.fonts_mut(|f| f.row_height(&egui::TextStyle::Body.resolve(ui.style())))
+        };
 
-        let mut text_edit = scope_style(
-            ui,
-            |style| style.visuals.selection.stroke = Stroke::NONE,
-            |ui| {
-                // need disjoint borrows
-                let style = &self.host.config().style;
-                TextEdit::singleline(&mut self.input)
-                    // Color is not being set correctly for some reason
-                    .hint_text(RichText::new("Search...").color(style.weak_text_color().as_egui()))
-                    .margin((style.input_height() - row_height) / 2.0)
-                    .desired_width(f32::INFINITY)
-                    .return_key(None)
-                    .show(ui)
-            },
-        );
+        tui.style(taffy::Style {
+            display: Display::Flex,
+            flex_direction: FlexDirection::Row,
+            align_items: Some(AlignItems::Stretch),
+            padding: length(4.0),
+            ..Default::default()
+        })
+        .add_with_border(|tui| {
+            // need disjoint borrows
+            let style = &self.host.config().style;
+            let mut text_edit = tui
+                .style(taffy::Style {
+                    flex_grow: 1.0,
+                    ..Default::default()
+                })
+                .ui(|ui| {
+                    TextEdit::singleline(&mut self.input)
+                        // Color is not being set correctly for some reason
+                        .hint_text(
+                            RichText::new("Search...").color(style.weak_text_color().as_egui()),
+                        )
+                        .desired_width(f32::INFINITY)
+                        .return_key(None)
+                        .show(ui)
+                });
+            // let mut text_edit = scope_style(
+            //     tui.egui_ui_mut(),
+            //     |style| style.visuals.selection.stroke = Stroke::NONE,
+            //     |ui| {
+            //         // need disjoint borrows
+            //         let style = &self.host.config().style;
+            //         TextEdit::singleline(&mut self.input)
+            //             // Color is not being set correctly for some reason
+            //             .hint_text(
+            //
+            // RichText::new("Search...").color(style.weak_text_color().as_egui()),
+            //             )
+            //             .margin((style.input_height() - row_height) / 2.0)
+            //             .desired_width(f32::INFINITY)
+            //             .return_key(None)
+            //             .show(ui)
+            //     },
+            // );
 
-        // Misc state changes
-        if !self.app_has_been_focused {
-            text_edit.select_all(ui); // select all on first frame
-        }
+            let ui = tui.egui_ui_mut();
+            // Misc state changes
+            if !self.app_has_been_focused {
+                text_edit.select_all(ui); // select all on first frame
+            }
 
-        if let Some((min, max)) = rendering_state.new_cursor_selection {
-            text_edit.set_cursor_selection(ui, min, max);
-        }
+            if let Some((min, max)) = rendering_state.new_cursor_selection {
+                text_edit.set_cursor_selection(ui, min, max);
+            }
 
-        if text_edit.response.changed() {
-            tokio::spawn(self.host.send_query(self.input.clone()));
-        }
+            if text_edit.response.changed() {
+                tokio::spawn(self.host.send_query(self.input.clone()));
+            }
 
-        // can't request focus if the app is unfocused
-        if !text_edit.response.has_focus() && rendering_state.window_is_focused {
-            text_edit.response.request_focus();
-            // the text edit focus ring will flash for one frame without this
-            ui.ctx().request_discard("lost text edit focus");
-        }
+            // can't request focus if the app is unfocused
+            if !text_edit.response.has_focus() && rendering_state.window_is_focused {
+                text_edit.response.request_focus();
+                // the text edit focus ring will flash for one frame without this
+                ui.ctx().request_discard("lost text edit focus");
+            }
+        });
     }
 
-    fn show_list(&mut self, ui: &mut Ui, rendering_state: &RenderingState) {
+    fn show_list(&mut self, tui: &mut Tui, rendering_state: &RenderingState) {
         // need to manually unpack for disjoint borrows
         let Some(list) = &mut self.list else { return };
         let s = &self.host.config().style;
 
-        ui.add_space(s.input_list_gap());
-
-        ui.allocate_ui(Vec2::new(s.inner_width(), s.max_list_height()), |ui| {
+        // Don't use the taffy overflow as it doesn't support some features
+        // auto shrink and max height
+        tui.style(taffy::Style {
+            display: Display::Flex,
+            flex_direction: FlexDirection::Column,
+            gap: length(s.list_item_gap()),
+            flex_grow: 1.0,
+            size: taffy::Size {
+                width: auto(),
+                height: length(s.max_list_height()),
+            },
+            ..Default::default()
+        })
+        .add_with_border(|tui| {
             ScrollArea::vertical()
                 // take up full width but shrink height
                 .auto_shrink(Vec2b::new(false, true))
                 .max_height(s.max_list_height())
-                .show(ui, |ui| {
+                .show(tui.egui_ui_mut(), |ui| {
                     let v = &mut ui.style_mut().visuals;
                     v.selection.bg_fill = s.list_selected_color().as_egui();
                     v.widgets.active.weak_bg_fill = s.list_selected_color().as_egui();
@@ -379,7 +450,6 @@ impl App {
                         .set_corner_radius(CornerRadius::same(s.list_rounding().round() as u8));
                     ui.style_mut().spacing.button_padding = s.list_padding().as_egui();
                     ui.style_mut().spacing.icon_spacing = s.list_padding().block;
-
                     for (i, item) in list.items.iter().enumerate() {
                         let response = ui.add(ListRow::new(&mut self.list_selection, i, item));
 
@@ -390,65 +460,58 @@ impl App {
                                 ScrollAnimation::duration(0.2),
                             );
                         }
-
-                        let is_last = i == list.items.len() - 1;
-                        if !is_last {
-                            ui.add_space(s.list_item_gap());
-                        }
                     }
                 })
         });
     }
 
-    fn show_buttom_bar(&mut self, ui: &mut Ui) {
-        ui.add_space(self.style().window_margin().block);
-        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-        let v = &mut ui.style_mut().visuals;
-        let s = self.style();
-        v.selection.bg_fill = s.list_selected_color().as_egui();
-        v.widgets.active.weak_bg_fill = s.list_selected_color().as_egui();
-        v.widgets.hovered.weak_bg_fill = s.list_hovered_color().as_egui();
-        v.widgets
-            .set_corner_radius(CornerRadius::same(s.list_rounding().round() as u8));
-        ui.style_mut().spacing.button_padding = s.list_padding().as_egui();
-        ui.style_mut().spacing.icon_spacing = s.list_padding().block;
+    fn show_buttom_bar(&mut self, tui: &mut Tui) {
+        // let v = &mut ui.style_mut().visuals;
+        // let s = self.style();
+        // v.selection.bg_fill = s.list_selected_color().as_egui();
+        // v.widgets.active.weak_bg_fill = s.list_selected_color().as_egui();
+        // v.widgets.hovered.weak_bg_fill = s.list_hovered_color().as_egui();
+        // v.widgets
+        //     .set_corner_radius(CornerRadius::same(s.list_rounding().round() as u8));
+        // ui.style_mut().spacing.button_padding = s.list_padding().as_egui();
+        // ui.style_mut().spacing.icon_spacing = s.list_padding().block;
 
-        tui(ui, ui.id().with("bottom bar"))
-            .style(taffy::Style {
-                flex_direction: taffy::FlexDirection::Row,
-                justify_items: Some(taffy::JustifyItems::End),
-                gap: length(8.),
-                ..Default::default()
-            })
-            .show(|tui| {
-                match &self.list {
-                    None => {
-                        tui.label("No plugin activated");
-                    }
-                    Some(list) => {
-                        tui.style(taffy::Style {
-                            gap: length(8.),
-                            ..Default::default()
-                        })
-                        .add(|tui| {
-                            if let Some(selected_item) = list.items.get(self.list_selection) {
-                                selected_item
-                                    .available_commands()
-                                    .iter()
-                                    .for_each(|cmd_id| {
-                                        let command =
-                                            &list.plugin.manifest().commands.get(cmd_id).expect(
-                                                "command from plugin should be in manifest",
-                                            );
-                                        // TODO: handle clicks
-                                        let _ = tui.ui_add(egui::Button::new(&command.title));
-                                    });
-                            }
-                        });
-                        let _ = tui.ui_add(egui::Button::new(&list.plugin.manifest().name));
-                    }
+        tui.style(taffy::Style {
+            flex_direction: taffy::FlexDirection::Row,
+            justify_content: Some(taffy::JustifyContent::SpaceBetween),
+            ..Default::default()
+        })
+        .add_with_border(|tui| {
+            match &self.list {
+                None => {
+                    tui.label("No plugin activated");
                 }
-            })
+                Some(list) => {
+                    // tui.style(taffy::Style {
+                    //     gap: length(8.),
+                    //     ..Default::default()
+                    // })
+                    // .add(|tui| {
+                    if let Some(selected_item) = list.items.get(self.list_selection) {
+                        selected_item
+                            .available_commands()
+                            .iter()
+                            .for_each(|cmd_id| {
+                                let command = &list
+                                    .plugin
+                                    .manifest()
+                                    .commands
+                                    .get(cmd_id)
+                                    .expect("command from plugin should be in manifest");
+                                // TODO: handle clicks
+                                let _ = tui.ui_add(egui::Button::new(&command.title));
+                            });
+                    }
+                    // });
+                    let _ = tui.ui_add(egui::Button::new(&list.plugin.manifest().name));
+                }
+            }
+        })
     }
 }
 
@@ -572,5 +635,16 @@ impl AsEgui<Margin> for covey::covey_schema::style::Padding {
 impl AsEgui<Vec2> for covey::covey_schema::style::Padding {
     fn as_egui(&self) -> Vec2 {
         Vec2::new(self.inline, self.block)
+    }
+}
+
+impl<T: FromLength> AsEgui<taffy::Rect<T>> for covey::covey_schema::style::Padding {
+    fn as_egui(&self) -> taffy::Rect<T> {
+        taffy::Rect {
+            left: T::from_length(self.inline),
+            right: T::from_length(self.inline),
+            top: T::from_length(self.block),
+            bottom: T::from_length(self.block),
+        }
     }
 }

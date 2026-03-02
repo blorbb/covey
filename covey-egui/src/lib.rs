@@ -68,6 +68,9 @@ impl App {
             run_and_return: true,
             viewport: egui::ViewportBuilder::default()
                 .with_resizable(false)
+                // this needs to be the max size that the window could be.
+                // otherwise requests to make it larger will be capped at this size.
+                // *1.2 to account for minor errors in sizing calculations.
                 .with_inner_size([
                     self.style().window_width(),
                     self.style().max_window_height() * 1.2,
@@ -188,7 +191,9 @@ impl App {
 
         // The UI
         self.show_input(ui, &rendering_state);
+        ui.add_space(self.style().main_component_gap());
         self.show_list(ui, &rendering_state);
+        ui.add_space(self.style().main_component_gap());
         self.show_buttom_bar(ui);
 
         // set window size //
@@ -358,8 +363,6 @@ impl App {
         let Some(list) = &mut self.list else { return };
         let s = &self.host.config().style;
 
-        ui.add_space(s.main_component_gap());
-
         ui.allocate_ui(Vec2::new(s.inner_width(), s.max_list_height()), |ui| {
             ScrollArea::vertical()
                 // take up full width but shrink height
@@ -374,6 +377,7 @@ impl App {
                         .set_corner_radius(CornerRadius::same(s.list_rounding().round() as u8));
                     ui.style_mut().spacing.button_padding = s.list_padding().as_egui();
                     ui.style_mut().spacing.icon_spacing = s.list_padding().block;
+                    ui.style_mut().spacing.item_spacing = Vec2::splat(s.list_item_gap());
 
                     for (i, item) in list.items.iter().enumerate() {
                         let response = ui.add(ListRow::new(&mut self.list_selection, i, item));
@@ -385,24 +389,20 @@ impl App {
                                 ScrollAnimation::duration(0.2),
                             );
                         }
-
-                        let is_last = i == list.items.len() - 1;
-                        if !is_last {
-                            ui.add_space(s.list_item_gap());
-                        }
                     }
                 })
         });
     }
 
     fn show_buttom_bar(&mut self, ui: &mut Ui) {
-        ui.add_space(self.style().window_margin().block);
-        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+        // TODO: fully custom button component that takes in a style + ui.
+        // remove uses of modifying ui style.
         let v = &mut ui.style_mut().visuals;
         let s = self.style();
         v.selection.bg_fill = s.list_selected_color().as_egui();
         v.widgets.active.weak_bg_fill = s.list_selected_color().as_egui();
-        v.widgets.hovered.weak_bg_fill = s.list_hovered_color().as_egui();
+        v.widgets.hovered.weak_bg_fill = s.list_selected_color().as_egui();
+        v.widgets.inactive.weak_bg_fill = s.list_hovered_color().as_egui();
         v.widgets
             .set_corner_radius(CornerRadius::same(s.list_rounding().round() as u8));
         ui.style_mut().spacing.button_padding = s.list_padding().as_egui();

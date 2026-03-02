@@ -173,10 +173,11 @@ impl UserStyle {
         self.list_padding.unwrap_or(Padding::new(4., 4.))
     }
 
-    // TODO: remove this, make this computed from row height in the rendering
+    // TODO: this isn't completely accurate, the height should be the "row height".
+    // but this can only be computed from egui with a known font.
     /// Computed property.
     pub fn bottom_bar_height(&self) -> f32 {
-        self.font_size()
+        self.font_size() + self.list_padding().block * 2.0
     }
 
     /// Computed property.

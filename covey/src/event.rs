@@ -142,13 +142,13 @@ impl ListItem {
     }
 
     pub fn available_commands(&self) -> impl Iterator<Item = &Command> {
-        self.available_command_ids().iter().map(|id| {
-            self.plugin
-                .manifest()
-                .commands
-                .get(id)
-                .expect("command from plugin should be in manifest")
-        })
+        // should iterate over the manifest instead of available command ids so that
+        // the order stays consistent!
+        self.plugin()
+            .manifest()
+            .commands
+            .iter()
+            .filter(|cmd| self.available_command_ids().contains(&cmd.id))
     }
 
     pub fn available_command_ids(&self) -> &[CommandId] {

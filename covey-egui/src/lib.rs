@@ -417,7 +417,6 @@ impl App {
                 Some(list) => {
                     if let Some(selected_item) = list.items.get(self.list_selection) {
                         selected_item.available_commands().for_each(|command| {
-                            // TODO: handle clicks
                             let button = egui::Button::new(&command.title);
                             let button = if let Some([hotkey, ..]) =
                                 selected_item.plugin().hotkeys_of_cmd(&command.id)
@@ -426,9 +425,16 @@ impl App {
                             } else {
                                 button
                             };
-                            ui.add(button);
+
+                            if ui.add(button).clicked() {
+                                tokio::spawn(
+                                    self.host.activate(selected_item.id(), command.id.clone()),
+                                );
+                            }
                         });
                     };
+
+                    // TODO: make clicking this go to a settings window
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.add(egui::Button::new(&list.plugin.manifest().name));
                     });

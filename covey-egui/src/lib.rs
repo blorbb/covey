@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     ops::ControlFlow,
     sync::{Arc, LazyLock},
 };
@@ -416,22 +416,28 @@ impl App {
                 }
                 Some(list) => {
                     if let Some(selected_item) = list.items.get(self.list_selection) {
-                        selected_item.available_commands().for_each(|command| {
-                            let button = egui::Button::new(&command.title);
-                            let button = if let Some([hotkey, ..]) =
+                        // some commands have the same hotkey, but we only activate the FIRST
+                        // command with the given hotkey. need to filter out duplicate hotkeys from
+                        // subsequent commands.
+                        let mut used_hotkeys = HashSet::new();
+                        for command in selected_item.available_commands() {
+                            let mut button = egui::Button::new(&command.title);
+
+                            if let Some(hotkeys) =
                                 selected_item.plugin().hotkeys_of_cmd(&command.id)
+                                && let Some(new_hotkey) =
+                                    hotkeys.iter().find(|hotkey| !used_hotkeys.contains(hotkey))
                             {
-                                button.shortcut_text(hotkey.to_short_string())
-                            } else {
-                                button
-                            };
+                                button = button.shortcut_text(new_hotkey.to_short_string());
+                                used_hotkeys.extend(hotkeys);
+                            }
 
                             if ui.add(button).clicked() {
                                 tokio::spawn(
                                     self.host.activate(selected_item.id(), command.id.clone()),
                                 );
                             }
-                        });
+                        }
                     };
 
                     // TODO: make clicking this go to a settings window

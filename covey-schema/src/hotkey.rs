@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 /// Examples: `Enter`, `Tab`, `a`, `Z`, `,`, `[`, `Ctrl+X`, `ctrl+shift+q`,
 /// `alt+meta+f12`, `meta+alt+shift+ctrl+0`.
 #[expect(clippy::struct_excessive_bools, reason = "simpler to serialize")]
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 pub struct Hotkey {
     pub key: KeyCode,
@@ -110,7 +110,7 @@ impl<'de> Deserialize<'de> for Hotkey {
 /// - Escape or lock keys.
 /// - Media keys.
 #[rustfmt::skip]
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum KeyCode {

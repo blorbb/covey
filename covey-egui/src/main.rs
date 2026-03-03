@@ -4,6 +4,9 @@ use covey_egui::{App, cli};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 // https://github.com/emilk/egui/blob/main/examples/serial_windows/src/main.rs
 
 // Need to use the multi-threaded runtime for some reason

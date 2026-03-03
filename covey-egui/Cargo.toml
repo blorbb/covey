@@ -30,6 +30,7 @@ font-kit = { version = "0.14", default-features = false, features = [
     "source",
     "source-fontconfig",
 ] }
+mimalloc = { version = "0.1", features = ["v3"] }
 
 [lints]
 workspace = true

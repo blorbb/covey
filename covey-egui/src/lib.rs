@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeMap, HashSet},
-    ops::ControlFlow,
     sync::{Arc, LazyLock},
 };
 
@@ -23,9 +22,9 @@ static ICON_TEXT_STYLE: LazyLock<TextStyle> = LazyLock::new(|| TextStyle::Name(A
 static FONTS: LazyLock<egui::FontDefinitions> = LazyLock::new(style::load_system_fonts);
 
 pub struct App {
-    cli: cli::Receiver,
-    host: covey::Host,
-    actions: covey::ActionReceiver,
+    pub host: covey::Host,
+    pub cli: cli::Receiver,
+    pub plugin_actions: covey::ActionReceiver,
     input: String,
     list: Option<covey::List>,
     list_selection: usize,
@@ -35,6 +34,15 @@ pub struct App {
     /// Will be false on the first frame of the app opening.
     app_has_been_focused: bool,
     pub gui_settings: GuiSettings,
+    /// Whether the gui should be closed.
+    ///
+    /// After sending a close command, the app continues for a few more updates.
+    /// We want the plugin actions received after being closed to be handled by
+    /// the background handler (in main.rs) instead of a regular app update.
+    ///
+    /// Primarily, there are issues with setting the clipboard while the app is
+    /// supposed to be closed.
+    is_closed: bool,
 }
 
 pub struct GuiSettings {
@@ -46,19 +54,20 @@ impl App {
         &self.host.config().style
     }
 
-    pub fn new(cli_rx: &cli::Receiver, gui_settings: GuiSettings) -> anyhow::Result<Self> {
+    pub fn new(cli_rx: cli::Receiver, gui_settings: GuiSettings) -> anyhow::Result<Self> {
         let (mut host, actions) = covey::channel()?;
         // immediately send an empty query
         tokio::spawn(host.send_query(String::new()));
         Ok(Self {
-            cli: cli_rx.clone(),
+            cli: cli_rx,
             host,
-            actions,
+            plugin_actions: actions,
             input: String::new(),
             list: None,
             list_selection: 0,
             app_has_been_focused: false,
             gui_settings,
+            is_closed: true,
         })
     }
 
@@ -82,6 +91,7 @@ impl App {
             ..Default::default()
         };
 
+        self.is_closed = false;
         let result = eframe::run_native(
             "covey",
             options.clone(),
@@ -92,6 +102,7 @@ impl App {
             }),
         );
         self.app_has_been_focused = false;
+        self.is_closed = true;
         result
     }
 
@@ -158,9 +169,7 @@ impl eframe::App for &mut App {
         // the right size.
         egui::TopBottomPanel::top("main-panel")
             .frame(egui::Frame::window(&ctx.style()))
-            .show(ctx, |ui| {
-                let _: ControlFlow<()> = self.show(ui);
-            });
+            .show(ctx, |ui| self.show(ui));
     }
 }
 
@@ -168,25 +177,38 @@ impl eframe::App for &mut App {
 /// aware of.
 ///
 /// These do not persist across multiple frames.
-struct RenderingState {
-    new_cursor_selection: Option<(usize, usize)>,
-    list_selection_changed: bool,
-    window_is_focused: bool,
+#[derive(Debug)]
+pub struct RenderingState {
+    pub new_cursor_selection: Option<(usize, usize)>,
+    pub list_selection_changed: bool,
+    pub window_is_focused: bool,
 }
 
 /// Rendering
 impl App {
-    /// The returned [`ControlFlow`] doesn't mean anything, just convenient for
-    /// using `?` operator.
-    fn show(&mut self, ui: &mut Ui) -> ControlFlow<()> {
+    fn show(&mut self, ui: &mut Ui) {
+        if self.is_closed {
+            return;
+        }
+
         let mut rendering_state = RenderingState {
             new_cursor_selection: None,
             list_selection_changed: false,
             window_is_focused: ui.input(|i| i.focused),
         };
 
-        self.handle_cli_action(ui)?;
-        self.handle_plugin_action(ui, &mut rendering_state)?;
+        while let Some(action) = self.cli.try_recv() {
+            match self.handle_cli_action(Some(ui), action) {
+                AppControlFlow::Continue | AppControlFlow::OpenGui => {}
+                AppControlFlow::CloseGui | AppControlFlow::ExitProcess => return,
+            }
+        }
+        while let Some(action) = self.plugin_actions.try_recv(&self.host) {
+            match self.handle_plugin_action(Some(ui), action, &mut rendering_state) {
+                AppControlFlow::Continue | AppControlFlow::OpenGui => {}
+                AppControlFlow::CloseGui | AppControlFlow::ExitProcess => return,
+            }
+        }
         self.handle_keyboard_input(ui, &mut rendering_state);
 
         // The UI
@@ -218,52 +240,72 @@ impl App {
         {
             tracing::info!("window unfocused");
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-            return ControlFlow::Break(());
+            self.is_closed = true;
+            return;
         }
-
-        ControlFlow::Continue(())
     }
 
-    fn handle_cli_action(&mut self, ui: &mut Ui) -> ControlFlow<()> {
-        match self.cli.try_recv() {
-            Some(cli::Message::Exit) => {
+    #[tracing::instrument(skip(self, ui))]
+    pub fn handle_cli_action(
+        &mut self,
+        ui: Option<&mut Ui>,
+        action: cli::Action,
+    ) -> AppControlFlow {
+        tracing::trace!("handling cli action");
+        match action {
+            cli::Action::Exit => {
                 tracing::info!("received exit message");
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-                ControlFlow::Break(())
+                if let Some(ui) = ui {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+                self.is_closed = true;
+                AppControlFlow::ExitProcess
             }
             // Trying to open while already open -> do nothing
-            Some(cli::Message::OpenAndStay) => {
+            cli::Action::OpenAndStay => {
                 self.gui_settings.close_on_blur = false;
-                ControlFlow::Continue(())
+                AppControlFlow::OpenGui
             }
-            Some(cli::Message::Open) => ControlFlow::Continue(()),
-            None => ControlFlow::Continue(()),
+            cli::Action::Open => AppControlFlow::OpenGui,
         }
     }
 
-    fn handle_plugin_action(
+    /// If `ui` is [`None`], some actions won't complete or backups will be
+    /// used.
+    #[tracing::instrument(skip(self, ui, rendering_state))]
+    pub fn handle_plugin_action(
         &mut self,
-        ui: &mut Ui,
+        ui: Option<&mut Ui>,
+        action: covey::Action,
         rendering_state: &mut RenderingState,
-    ) -> ControlFlow<()> {
-        match self.actions.try_recv_action(&self.host) {
-            None => ControlFlow::Continue(()),
-            Some(covey::Action::Close) => {
+    ) -> AppControlFlow {
+        tracing::trace!("handling plugin action");
+        match action {
+            covey::Action::Close => {
                 tracing::info!("received close request");
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-                ControlFlow::Break(())
+                if let Some(ui) = ui {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                };
+                self.is_closed = true;
+                AppControlFlow::CloseGui
             }
-            Some(covey::Action::Copy(str)) => {
-                ui.ctx().send_cmd(egui::OutputCommand::CopyText(str));
-                ControlFlow::Continue(())
+            covey::Action::Copy(str) => {
+                if let Some(ui) = ui {
+                    ui.ctx().copy_text(str);
+                } else {
+                    _ = arboard::Clipboard::new()
+                        .and_then(|mut c| c.set_text(str))
+                        .inspect_err(|e| tracing::error!("failed to set clipboard text: {e:#}"));
+                }
+                AppControlFlow::Continue
             }
-            Some(covey::Action::DisplayError(title, desc)) => {
+            covey::Action::DisplayError(title, desc) => {
                 todo!("error: {title} {desc}");
             }
-            Some(covey::Action::SetInput(covey::Input {
+            covey::Action::SetInput(covey::Input {
                 contents,
                 selection: (min, max),
-            })) => {
+            }) => {
                 // Another query to update the plugin on what it changed.
                 // This change isn't detected by text_edit.response.changed()
                 if contents != self.input {
@@ -271,14 +313,14 @@ impl App {
                 }
                 self.input = contents;
                 rendering_state.new_cursor_selection = Some((min, max));
-                ControlFlow::Continue(())
+                AppControlFlow::Continue
             }
-            Some(covey::Action::SetList(list)) => {
+            covey::Action::SetList(list) => {
                 tracing::debug!("received list with {} items", list.len());
                 self.list = Some(list);
                 self.list_selection = 0;
                 rendering_state.list_selection_changed = true;
-                ControlFlow::Continue(())
+                AppControlFlow::Continue
             }
         }
     }
@@ -448,6 +490,20 @@ impl App {
             }
         });
     }
+}
+
+/// Control flow of the application that should be taken after an action has
+/// been handled.
+#[must_use = "additional control flow must be handled by caller"]
+pub enum AppControlFlow {
+    /// Let the app continue as normal (open/closed stays as is).
+    Continue,
+    /// Open the GUI if the window is not already open.
+    OpenGui,
+    /// Close the GUI but continue waiting for more commands in the background.
+    CloseGui,
+    /// Close the GUI and exit the entire process.
+    ExitProcess,
 }
 
 fn bounded_wrapping_add(x: usize, amount: usize, max_excl: usize) -> usize {

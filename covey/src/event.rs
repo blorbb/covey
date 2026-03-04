@@ -1,13 +1,13 @@
 //! Actions returned by a plugin.
 
-use core::fmt;
-use std::path::PathBuf;
+use std::{fmt, path::PathBuf};
 
 use covey_schema::{hotkey::Hotkey, id::CommandId, manifest::Command};
 
 use crate::Plugin;
 
 /// An action that should be performed by the frontend.
+#[derive(Debug)]
 pub enum Action {
     Close,
     SetList(List),
@@ -48,11 +48,28 @@ impl Input {
 }
 
 /// A list of results to show provided by a plugin.
-#[derive(Debug)]
 pub struct List {
     pub items: Vec<ListItem>,
     pub style: Option<ListStyle>,
     pub plugin: Plugin,
+}
+
+impl fmt::Debug for List {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("List")
+            .field(
+                "items",
+                &self
+                    .items
+                    .iter()
+                    .take(3)
+                    .map(|item| item.title())
+                    .collect::<Box<[_]>>(),
+            )
+            .field("style", &self.style)
+            .field("plugin", &self.plugin)
+            .finish()
+    }
 }
 
 impl List {

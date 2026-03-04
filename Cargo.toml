@@ -20,6 +20,7 @@ repository = "https://github.com/blorbb/covey"
 
 [workspace.dependencies]
 anyhow = "1"
+arboard = { version = "3", features = ["wayland-data-control"] }
 az = "1"
 clap = "4.5.51"
 covey = { path = "covey", version = "0.0.2" }

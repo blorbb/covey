@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use covey_egui::{App, cli};
+use covey_egui::{App, AppControlFlow, cli};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 
@@ -32,34 +32,53 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // eframe::create_native. Need to use some other kind of channel anyways to
     // tell this app to open from another process
 
-    let (settings, rx) = match cli::listener()? {
+    let (settings, cli_rx) = match cli::listener()? {
         Some((settings, rx)) => (settings, rx),
         // Another instance is already open, quit.
         None => return Ok(()),
     };
 
     tracing::info!("Starting window");
-    let mut app = App::new(&rx, settings)?;
+    let mut app = App::new(cli_rx, settings)?;
     app.open()?;
 
-    loop {
+    'main: loop {
         tracing::info!("closed window");
 
         // If the app received an exit signal while open, stop
-        match rx.last_handled_msg() {
-            Some(cli::Message::Exit) => break,
+        match app.cli.last_handled_msg() {
+            Some(cli::Action::Exit) => break 'main,
             // Ignore an open that was already handled
             // (ignored bc its already open or just the last open message)
-            Some(cli::Message::Open | cli::Message::OpenAndStay) => {}
+            Some(cli::Action::Open | cli::Action::OpenAndStay) => {}
             None => {}
         }
 
-        match rx.recv() {
-            cli::Message::Open => {}
-            cli::Message::OpenAndStay => {
-                app.gui_settings.close_on_blur = false;
+        tracing::info!("continuing listening in background");
+        'background_tasks: loop {
+            let mut dummy_rendering_state = covey_egui::RenderingState {
+                new_cursor_selection: None,
+                list_selection_changed: false,
+                window_is_focused: false,
+            };
+
+            let control_flow = tokio::select! {
+                action = app.plugin_actions.recv(&app.host) => {
+                    tracing::debug!("received plugin action {action:?}");
+                    app.handle_plugin_action(None, action, &mut dummy_rendering_state)
+                }
+                action = app.cli.recv() => {
+                    tracing::debug!("received cli action {action:?}");
+                    app.handle_cli_action(None, action)
+                }
+            };
+
+            match control_flow {
+                AppControlFlow::Continue => {}
+                AppControlFlow::OpenGui => break 'background_tasks,
+                AppControlFlow::CloseGui => {}
+                AppControlFlow::ExitProcess => break 'main,
             }
-            cli::Message::Exit => break,
         }
 
         tracing::info!("Starting window");

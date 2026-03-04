@@ -6,6 +6,10 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 
+[package.metadata.cargo-machete]
+# features on image are used by egui_extras for which image loaders to use.
+ignored = ["image"]
+
 [[bin]]
 name = "covey"
 path = "src/main.rs"
@@ -16,6 +20,7 @@ x11 = []
 
 [dependencies]
 anyhow.workspace = true
+arboard.workspace = true
 clap = { workspace = true, features = ["derive"] }
 covey.workspace = true
 eframe.workspace = true
@@ -30,10 +35,6 @@ tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 # tray-icon = "0.21"
-
-[package.metadata.cargo-machete]
-# features on image are used by egui_extras for which image loaders to use.
-ignored = ["image"]
 
 [lints]
 workspace = true

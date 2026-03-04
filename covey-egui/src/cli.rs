@@ -1,9 +1,5 @@
 use std::{
     io::{self, BufRead as _, Read as _, Write as _},
-    sync::{
-        Arc,
-        mpsc::{self, RecvError, TryRecvError},
-    },
     thread,
 };
 
@@ -12,39 +8,42 @@ use interprocess::local_socket::{
     GenericNamespaced, ListenerOptions, Stream, ToNsName as _,
     traits::{ListenerExt as _, Stream as _},
 };
-use parking_lot::Mutex;
+use tokio::sync::mpsc::{self, error::TryRecvError};
 
 use crate::GuiSettings;
 
 // may have strings inside later, so not Copy
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Message {
+pub enum Action {
     Open,
     OpenAndStay,
     Exit,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Receiver {
-    rx: Arc<mpsc::Receiver<Message>>,
-    last_msg: Arc<Mutex<Option<Message>>>,
+    rx: mpsc::UnboundedReceiver<Action>,
+    last_msg: Option<Action>,
 }
 
 impl Receiver {
-    pub fn recv(&self) -> Message {
-        match self.rx.recv() {
-            Ok(msg) => {
-                *self.last_msg.lock() = Some(msg.clone());
-                msg
-            }
-            Err(RecvError) => panic!("cli listener should not be disconnected"),
-        }
+    /// Cancel safe.
+    #[must_use]
+    pub async fn recv(&mut self) -> Action {
+        let msg = self
+            .rx
+            .recv()
+            .await
+            .expect("cli listener should not be disconnected");
+        self.last_msg = Some(msg.clone());
+        msg
     }
 
-    pub fn try_recv(&self) -> Option<Message> {
+    #[must_use]
+    pub fn try_recv(&mut self) -> Option<Action> {
         match self.rx.try_recv() {
             Ok(msg) => {
-                *self.last_msg.lock() = Some(msg.clone());
+                self.last_msg = Some(msg.clone());
                 Some(msg)
             }
             Err(TryRecvError::Empty) => None,
@@ -56,8 +55,9 @@ impl Receiver {
     ///
     /// There may be other messages in the receiving channel but haven't been
     /// handled with [`Self::try_recv`] yet.
-    pub fn last_handled_msg(&self) -> Option<Message> {
-        self.last_msg.lock().clone()
+    #[must_use]
+    pub fn last_handled_msg(&self) -> Option<&Action> {
+        self.last_msg.as_ref()
     }
 }
 
@@ -105,7 +105,7 @@ pub fn listener() -> io::Result<Option<(GuiSettings, Receiver)>> {
     // This is the primary instance, initialise.
     match cmd {
         CliCommands::Open { stay_open } => {
-            let (tx, rx) = mpsc::channel::<Message>();
+            let (tx, rx) = mpsc::unbounded_channel::<Action>();
             thread::spawn(move || {
                 for msg in listener.incoming() {
                     match msg {
@@ -125,10 +125,7 @@ pub fn listener() -> io::Result<Option<(GuiSettings, Receiver)>> {
                 GuiSettings {
                     close_on_blur: !stay_open,
                 },
-                Receiver {
-                    rx: Arc::new(rx),
-                    last_msg: Arc::new(Mutex::new(None)),
-                },
+                Receiver { rx, last_msg: None },
             )));
         }
         CliCommands::Exit => {
@@ -137,7 +134,7 @@ pub fn listener() -> io::Result<Option<(GuiSettings, Receiver)>> {
         }
     }
 
-    fn handle_msg(msg: Stream, tx: &mpsc::Sender<Message>) -> anyhow::Result<()> {
+    fn handle_msg(msg: Stream, tx: &mpsc::UnboundedSender<Action>) -> anyhow::Result<()> {
         let mut request = String::new();
         let mut msg = io::BufReader::new(msg); // Needed for read_line
 
@@ -147,13 +144,13 @@ pub fn listener() -> io::Result<Option<(GuiSettings, Receiver)>> {
 
         match &*request.trim() {
             "open" => {
-                tx.send(Message::Open)?;
+                tx.send(Action::Open)?;
             }
             "open stay" => {
-                tx.send(Message::OpenAndStay)?;
+                tx.send(Action::OpenAndStay)?;
             }
             "exit" => {
-                tx.send(Message::Exit)?;
+                tx.send(Action::Exit)?;
             }
             _ => {
                 anyhow::bail!("unknown message {request:?}");

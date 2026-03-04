@@ -249,19 +249,31 @@ impl RequestSender {
 
 impl ActionReceiver {
     /// Receives an action by a plugin.
-    pub async fn recv_action(&mut self, host: &Host) -> Action {
+    ///
+    /// Cancel safe.
+    #[tracing::instrument(skip_all)]
+    pub async fn recv(&mut self, host: &Host) -> Action {
+        // TODO: receive from other_actions too
+
         loop {
-            let Some((plugin, response)) = self.receiver.recv().await else {
-                continue;
-            };
-            let Some(action) = self.response_to_action(host, &plugin, response) else {
-                continue;
-            };
-            return action;
+            tracing::trace!(items_in_queue = self.receiver.len());
+
+            let (plugin, response) = self
+                .receiver
+                .recv()
+                .await
+                .expect("host should contain corresponding sender");
+
+            if let Some(action) = self.response_to_action(host, &plugin, response) {
+                return action;
+            }
         }
     }
 
-    pub fn try_recv_action(&mut self, host: &Host) -> Option<Action> {
+    #[tracing::instrument(skip_all)]
+    pub fn try_recv(&mut self, host: &Host) -> Option<Action> {
+        tracing::trace!(items_in_queue = self.receiver.len());
+
         let plugin_action = self
             .receiver
             .try_recv()
@@ -280,6 +292,8 @@ impl ActionReceiver {
         plugin: &Plugin,
         response: covey_proto::Response,
     ) -> Option<Action> {
+        tracing::trace!(?plugin, ?response, "received plugin response");
+
         match response.response {
             covey_proto::ResponseBody::SetList(list) => {
                 // Check if the latest received id < new id. If so, send the action.
@@ -293,6 +307,7 @@ impl ActionReceiver {
                         list,
                     )))
                 } else {
+                    tracing::trace!("ignoring list response due to outdated request id");
                     None
                 }
             }

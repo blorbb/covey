@@ -308,10 +308,17 @@ impl ActiveProcess {
                 && let Some(inner) = plugin.upgrade()
             {
                 let plugin = Plugin { inner };
-                match serde_json::from_str::<covey_proto::Response>(&line) {
-                    Ok(response) => _ = response_sender.send((plugin, response)),
-                    Err(_) => {
-                        tracing::warn!("plugin {id} (stdout): {line}", id = plugin.id())
+                let Ok(response) = serde_json::from_str::<covey_proto::Response>(&line) else {
+                    tracing::warn!("plugin {id} (stdout): {line}", id = plugin.id());
+                    continue;
+                };
+
+                tracing::trace!("plugin {id} (stdout): {line}", id = plugin.id());
+                match response_sender.send((plugin.clone(), response)) {
+                    Ok(()) => {}
+                    Err(e) => {
+                        tracing::error!(?plugin, "failed to send response through channel: {e:#}");
+                        return;
                     }
                 }
             }

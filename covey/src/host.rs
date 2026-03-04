@@ -242,8 +242,8 @@ impl RequestSender {
         item: ListItem,
         hotkey: Hotkey,
     ) -> Option<impl Future<Output = ()> + use<>> {
-        let command_id = item.activated_command_from_hotkey(&hotkey)?;
-        Some(self.activate(item.id(), command_id.clone()))
+        let command = item.activated_command_from_hotkey(&hotkey)?;
+        Some(self.activate(item.id(), command.id.clone()))
     }
 }
 

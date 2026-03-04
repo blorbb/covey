@@ -2,7 +2,7 @@
 
 use std::{fmt, path::PathBuf};
 
-use covey_schema::{hotkey::Hotkey, id::CommandId, manifest::Command};
+use covey_schema::{hotkey::Hotkey, manifest::Command};
 
 use crate::Plugin;
 
@@ -158,25 +158,24 @@ impl ListItem {
         }
     }
 
+    /// The commands that can be activated on this list item as reported by the
+    /// plugin.
+    ///
+    /// Commands will be given in the returned iterator in the same order as the
+    /// the commands are defined in the plugin's manifest.
     pub fn available_commands(&self) -> impl Iterator<Item = &Command> {
-        // should iterate over the manifest instead of available command ids so that
-        // the order stays consistent!
         self.plugin()
             .manifest()
             .commands
             .iter()
-            .filter(|cmd| self.available_command_ids().contains(&cmd.id))
-    }
-
-    pub fn available_command_ids(&self) -> &[CommandId] {
-        &self.item.available_commands
+            .filter(|cmd| self.item.available_commands.contains(&cmd.id))
     }
 
     /// Gets the command that can be activated from the provided hotkey.
-    pub fn activated_command_from_hotkey(&self, hotkey: &Hotkey) -> Option<&CommandId> {
-        self.available_command_ids().iter().find(|cmd_id| {
+    pub fn activated_command_from_hotkey(&self, hotkey: &Hotkey) -> Option<&Command> {
+        self.available_commands().find(|cmd| {
             self.plugin()
-                .hotkeys_of_cmd(&cmd_id)
+                .hotkeys_of_cmd(&cmd.id)
                 .is_some_and(|hotkeys| hotkeys.contains(&hotkey))
         })
     }

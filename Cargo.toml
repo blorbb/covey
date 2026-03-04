@@ -4,8 +4,6 @@ members = [
     "covey",
     "covey-schema",
     "covey-manifest-macros",
-    # "covey-tauri/src-tauri",
-    # "covey-tauri/covey-tauri-types",
     "covey-proto",
     "covey-egui",
 ]

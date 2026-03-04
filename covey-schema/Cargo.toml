@@ -7,7 +7,12 @@ authors.workspace = true
 repository.workspace = true
 description = "Shared types for Covey's configuration"
 
+[features]
+# Enables generating typescript types of the manifest types.
+ts-rs = ["dep:ts-rs"]
+
 [dependencies]
+hex_color = { workspace = true, features = ["serde"] }
 proc-macro2.workspace = true
 quote.workspace = true
 serde = { workspace = true, features = ["rc"] }
@@ -15,11 +20,6 @@ serde_json.workspace = true
 syn.workspace = true
 toml.workspace = true
 ts-rs = { workspace = true, optional = true, features = ["serde-json-impl"] }
-hex_color = { version = "3", features = ["serde"] }
 
 [lints]
 workspace = true
-
-[features]
-# Enables generating typescript types of the manifest types.
-ts-rs = ["dep:ts-rs"]

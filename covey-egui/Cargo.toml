@@ -6,39 +6,33 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 
-[dependencies]
-egui = { version = "0.33" }
-eframe = "0.33.0"
-# tray-icon = "0.21"
-tracing.workspace = true
-arboard = { version = "3.6.0", features = ["image-data"] }
-tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
-anyhow.workspace = true
-winit = "0.30.12"
-interprocess = "2.2.3"
-parking_lot.workspace = true
-covey = { path = "../covey" }
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
-clap = { version = "4.5.51", features = ["derive"] }
-egui_extras = { version = "0.33", features = ["file", "svg", "all_loaders"] }
-image = { version = "0.25", default-features = false, features = [
-    "jpeg",
-    "png",
-] }
-urlencoding = "2"
-font-kit = { version = "0.14", default-features = false, features = [
-    "source",
-    "source-fontconfig",
-] }
-mimalloc = { version = "0.1", features = ["v3"] }
-
-[lints]
-workspace = true
+[[bin]]
+name = "covey"
+path = "src/main.rs"
 
 [features]
 wayland = []
 x11 = []
 
-[[bin]]
-name = "covey"
-path = "src/main.rs"
+[dependencies]
+anyhow.workspace = true
+arboard = { workspace = true, features = ["image-data"] }
+clap = { workspace = true, features = ["derive"] }
+covey.workspace = true
+eframe.workspace = true
+egui.workspace = true
+egui_extras = { workspace = true, features = ["file", "svg", "all_loaders"] }
+font-kit = { workspace = true, features = ["source", "source-fontconfig"] }
+image = { workspace = true, features = ["jpeg", "png"] }
+interprocess.workspace = true
+mimalloc.workspace = true
+parking_lot.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+urlencoding.workspace = true
+winit.workspace = true
+# tray-icon = "0.21"
+
+[lints]
+workspace = true

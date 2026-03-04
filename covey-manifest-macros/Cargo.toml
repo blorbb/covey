@@ -9,15 +9,15 @@ authors.workspace = true
 repository.workspace = true
 description = "Proc macro export for covey-plugin"
 
-[dependencies]
-proc-macro-error2 = "2"
-syn.workspace = true
-quote.workspace = true
-proc-macro2.workspace = true
-covey-schema = { path = "../covey-schema", version = "0.0.2" }
-
 [lib]
 proc-macro = true
+
+[dependencies]
+covey-schema.workspace = true
+proc-macro-error2.workspace = true
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true
 
 [lints]
 workspace = true

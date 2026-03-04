@@ -8,9 +8,9 @@ repository.workspace = true
 description = "Protocol types and communication for covey"
 
 [dependencies]
+covey-schema.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-covey-schema = { path = "../covey-schema", version = "0.0.2" }
 
 [lints]
 workspace = true

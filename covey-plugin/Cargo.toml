@@ -31,7 +31,6 @@ tokio = { workspace = true, features = [
     "io-std",
     "time",
 ] }
-tokio-stream = { workspace = true, features = ["net"] }
 
 [lints]
 workspace = true

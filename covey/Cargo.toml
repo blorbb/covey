@@ -9,15 +9,12 @@ description = "IO interface for the Covey application"
 
 [dependencies]
 anyhow.workspace = true
-az.workspace = true
 covey-proto.workspace = true
 covey-schema.workspace = true
 dirs.workspace = true
 freedesktop-icons.workspace = true
-parking_lot.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["fs", "process", "sync", "io-util"] }
-tokio-stream.workspace = true
 toml.workspace = true
 tracing.workspace = true
 

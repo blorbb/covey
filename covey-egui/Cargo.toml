@@ -16,7 +16,6 @@ x11 = []
 
 [dependencies]
 anyhow.workspace = true
-arboard = { workspace = true, features = ["image-data"] }
 clap = { workspace = true, features = ["derive"] }
 covey.workspace = true
 eframe.workspace = true
@@ -30,9 +29,11 @@ parking_lot.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
-urlencoding.workspace = true
-winit.workspace = true
 # tray-icon = "0.21"
+
+[package.metadata.cargo-machete]
+# features on image are used by egui_extras for which image loaders to use.
+ignored = ["image"]
 
 [lints]
 workspace = true

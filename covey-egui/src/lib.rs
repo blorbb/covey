@@ -518,10 +518,16 @@ pub enum AppControlFlow {
 }
 
 fn bounded_wrapping_add(x: usize, amount: usize, max_excl: usize) -> usize {
+    if max_excl == 0 {
+        return 0;
+    }
     (x + amount) % max_excl
 }
 
 fn bounded_wrapping_sub(x: usize, amount: usize, max_excl: usize) -> usize {
+    if max_excl == 0 {
+        return 0;
+    }
     (x + max_excl - (amount % max_excl)) % max_excl
 }
 

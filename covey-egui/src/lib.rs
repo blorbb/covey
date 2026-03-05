@@ -300,7 +300,18 @@ impl App {
                 AppControlFlow::Continue
             }
             covey::Action::DisplayError(title, desc) => {
-                todo!("error: {title} {desc}");
+                tokio::spawn(async move {
+                    _ = notify_rust::Notification::new()
+                        .summary(&title)
+                        .body(&desc)
+                        .show_async()
+                        .await
+                        .inspect_err(|e| {
+                            tracing::error!("failed to display error notification: {e:#}");
+                            tracing::error!("notification was:\n{title}\n{desc}");
+                        });
+                });
+                AppControlFlow::Continue
             }
             covey::Action::SetInput(covey::Input {
                 contents,

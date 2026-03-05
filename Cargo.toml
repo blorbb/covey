@@ -37,6 +37,7 @@ hex_color = "3"
 image = { version = "0.25", default-features = false }
 interprocess = "2.2.3"
 mimalloc = { version = "0.1", features = ["v3"] }
+notify-rust = "4"
 parking_lot = "0.12"
 proc-macro-error2 = "2"
 proc-macro2 = "1"

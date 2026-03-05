@@ -30,6 +30,7 @@ font-kit = { workspace = true, features = ["source", "source-fontconfig"] }
 image = { workspace = true, features = ["jpeg", "png"] }
 interprocess.workspace = true
 mimalloc.workspace = true
+notify-rust.workspace = true
 parking_lot.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing.workspace = true

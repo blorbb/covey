@@ -1,27 +1,16 @@
 # Covey
 
-A general-purpose desktop command palette / app launcher.
+Yet another general-purpose desktop command palette / launcher.
 
-[covey-demo.webm](https://github.com/user-attachments/assets/20787700-626e-4342-9777-4436cc85dbe4)
+Extremely WIP and not ready to be used by anyone.
+Perhaps check out [Rofi](https://github.com/davatorium/rofi)/[Ulauncher](https://github.com/Ulauncher/Ulauncher)/[Albert](https://github.com/albertlauncher/albert)/[Vicinae](https://github.com/vicinaehq/vicinae)/[Sherlock](https://github.com/Skxxtz/sherlock)/[Walker](https://github.com/abenz1267/walker)/[Centerpiece](https://github.com/friedow/centerpiece)/[Lucien](https://github.com/Wachamuli/lucien)/... for something a bit more done.
 
-Inspired by tools like [rofi](https://github.com/davatorium/rofi), [Ulauncher](https://github.com/Ulauncher/Ulauncher), [Albert](https://github.com/albertlauncher/albert) and the likes.
+[covey-demo.webm](https://github.com/user-attachments/assets/f8d05b93-eca7-440b-ab09-336eb04e4593)
 
-## Key Features
+## Why does this exist?
 
--   **Instant Feedback**
-    Low latency and highly concurrent interactions with plugins via gRPC.
-
--   **Full Flexibility**
-    _Everything_ is a plugin. Pick your favourites to create your ideal launcher.
-
--   **Simple Plugin System**
-    Powered by [protobuf](https://protobuf.dev/) for cross-language plugin support, with easy-to-use bindings for [Rust](./covey-plugin/) (more in the future!).
-
--   **Customisable UI**
-    UI can be customised with web CSS.
-
--   **Modular Architecture**
-    With a simple backend to interact with plugins, you can easily write another frontend if you so wish to!
+Because I felt like making it.
+The primary goal is for the codebase to have a (somewhat) simple architecture and make it easy to create plugins.
 
 ## Configuration
 
@@ -54,26 +43,28 @@ Example folder structure with default Linux paths:
 Find a collection of plugins at [`blorbb/covey-plugins`](https://github.com/blorbb/covey-plugins).
 To create your own plugin, check out the [`covey-plugin`](./covey-plugin/) documentation.
 
-To install a plugin, place the plugin's binary and `manifest.toml` within the plugin data folder (`<data dir>/covey/plugins/<plugin id>`). See the above folder structure for an example.
+To install a plugin, place the plugin's binary and `manifest.toml` within the plugin data folder (`<data dir>/covey/plugins/<plugin id>`).
+See the above folder structure for an example.
+The plugin needs to be enabled within Covey's `config.toml`.
 
-## Desktop Environment Support
+## Desktop environment support
 
-Covey is built to be cross-platform. If you encounter any problems, please open an issue!
+Covey should hopefully be cross-platform.
 
 ### Wayland
 
-Due to Wayland’s stricter window styling rules, you might need to adjust your compositor settings to ensure Covey displays correctly. The process will likely be similar to the steps outlined for [KDE Plasma](#kde-plasma-6) below. If you discover a solution for your desktop environment, contributions via issues or pull requests are welcome!
+Due to Wayland’s stricter window styling rules, you might need to adjust your compositor settings to ensure Covey displays correctly. The process will likely be similar to the steps outlined for [KDE Plasma](#kde-plasma-6) below.
 
 ### KDE Plasma 6
 
 To ensure the window is correctly placed and focused:
 
--   Go to Settings > Window Management > Window Rules
--   Click `Add New...`
--   Set description: "Covey"
--   Set window class: "covey"
--   Click `Add Property...` and add all of the following:
-    -   Keep above other windows: Apply initially
-    -   Focus stealing prevention: Force, None
-    -   Focus protection: Force, None
--   Click `Apply` to save your changes.
+- Go to Settings > Window Management > Window Rules
+- Click `Add New...`
+- Set description: "Covey"
+- Set window class: "covey"
+- Click `Add Property...` and add all of the following:
+  - Keep above other windows: Apply initially
+  - Focus stealing prevention: Force, None
+  - Focus protection: Force, None
+- Click `Apply` to save your changes.

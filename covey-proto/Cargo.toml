@@ -5,18 +5,12 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
-description = "Generated tonic protobuf types"
+description = "Protocol types and communication for covey"
 
 [dependencies]
-tonic.workspace = true
-prost.workspace = true
-
-[build-dependencies]
-tonic-build = "0.12.3"
+covey-schema.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true
-
-[package.metadata.cargo-machete]
-# prost: used by tonic::include_proto!
-ignored = ["prost"]

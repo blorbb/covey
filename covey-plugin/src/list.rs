@@ -2,6 +2,7 @@ use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
 
 use crate::Menu;
 
+#[non_exhaustive]
 pub struct List {
     pub items: Vec<ListItem>,
     /// The kind of list to show.
@@ -10,16 +11,11 @@ pub struct List {
     /// the user. Plugins should only set one if the content makes the most
     /// sense with one of these styles.
     pub style: Option<ListStyle>,
-    _priv: (),
 }
 
 impl List {
     pub fn new(items: Vec<ListItem>) -> Self {
-        Self {
-            items,
-            style: None,
-            _priv: (),
-        }
+        Self { items, style: None }
     }
 
     #[must_use = "builder method consumes self"]
@@ -49,23 +45,22 @@ pub enum ListStyle {
 }
 
 impl ListStyle {
-    pub(crate) fn into_proto(self) -> covey_proto::query_response::ListStyle {
-        use covey_proto::query_response::ListStyle as Proto;
+    pub(crate) fn into_proto(self) -> covey_proto::ListStyle {
         match self {
-            ListStyle::Rows => Proto::Rows(()),
-            ListStyle::Grid => Proto::Grid(()),
-            ListStyle::GridWithColumns(columns) => Proto::GridWithColumns(columns),
+            Self::Rows => covey_proto::ListStyle::Rows,
+            Self::Grid => covey_proto::ListStyle::Grid,
+            Self::GridWithColumns(columns) => covey_proto::ListStyle::GridWithColumns(columns),
         }
     }
 }
 
-// This should only be converted into a covey_proto::ListItem via the ListItemStore.
+// This should only be converted into a covey_proto::ListItem via the
+// ListItemStore.
 #[derive(Clone)]
 pub struct ListItem {
     pub title: String,
     pub description: String,
     pub icon: Option<Icon>,
-    /// Key is the command's ID.
     pub(crate) commands: ListItemCallbacks,
 }
 
@@ -111,58 +106,35 @@ impl ListItem {
     #[doc(hidden)]
     #[must_use]
     pub fn add_command(mut self, name: &'static str, callback: ActivationFunction) -> Self {
-        self.commands.add_command(name, callback);
+        self.commands
+            .add_command(covey_proto::CommandId::new(name), callback);
         self
     }
 }
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum Icon {
     Name(String),
     Text(String),
 }
 
 impl Icon {
-    pub(crate) fn into_proto(self) -> covey_proto::list_item::Icon {
-        use covey_proto::list_item::Icon as Proto;
+    pub(crate) fn into_proto(self) -> covey_proto::ListItemIcon {
         match self {
-            Self::Name(name) => Proto::Name(name),
-            Self::Text(text) => Proto::Text(text),
+            Self::Name(name) => covey_proto::ListItemIcon::Name(name),
+            Self::Text(text) => covey_proto::ListItemIcon::Text(text),
         }
     }
 }
 
-// TODO: figure out the bounds to put here and on the generated extension trait
-// methods (covey-schema/src/generate/generate_ext.rs#generate_ext_trait).
-//
-// a tonic server requires that all the functions are Send + Sync.
-// this means that all futures called must be Send + Sync.
-//
-// the type of the callback basically has two options:
-// 1) impl AsyncFn() -> T + Send + Sync
-// 2) impl Fn() -> Fut + Send + Sync where Fut: Future<Output = T> + Send + Sync
-//
-// with 1) the returned future can borrow from variables captured by the closure.
-// however, there's no way to write the Send + Sync bound on the future itself.
-//
-// with 2) the returned future requires Send + Sync but cannot borrow from
-// variables captured by the closure.
-//
-// the best option would be once return-type notation is stabilised, to annotate
-// the future of AsyncFn as requiring Send + Sync.
-//
-// Alternatively, use `tokio::task::spawn_local` so that the future does not
-// need to be Send + Sync. This makes 1) work fine, but means that the server
-// cannot be multi-threaded. This is probably fine, as local async executors
-// are easier to work with (https://maciej.codes/2022-06-09-local-async.html).
-
+// ActivationFunction needs Send + Sync for PluginBlocking to work.
 type DynFuture<T> = Pin<Box<dyn Future<Output = T>>>;
 type ActivationFunction = Arc<dyn Fn(Menu) -> DynFuture<()> + Send + Sync>;
 
 #[derive(Clone)]
 pub(crate) struct ListItemCallbacks {
-    /// Key is the command's ID.
-    commands: HashMap<&'static str, ActivationFunction>,
+    commands: HashMap<covey_proto::CommandId, ActivationFunction>,
     item_title: String,
 }
 
@@ -174,19 +146,23 @@ impl ListItemCallbacks {
         }
     }
 
-    pub(crate) fn add_command(&mut self, name: &'static str, callback: ActivationFunction) {
-        self.commands.insert(name, callback);
+    pub(crate) fn add_command(
+        &mut self,
+        command_id: covey_proto::CommandId,
+        callback: ActivationFunction,
+    ) {
+        self.commands.insert(command_id, callback);
     }
 
     /// Calls a command by name, doing nothing if the command is not found.
-    pub(crate) async fn call_command(&self, name: &str, menu: Menu) {
+    pub(crate) async fn call_command(&self, name: &covey_proto::CommandId, menu: Menu) {
         if let Some(cmd) = self.commands.get(name) {
             crate::rank::register_usage(&self.item_title);
             cmd(menu).await;
         }
     }
 
-    pub(crate) fn ids(&self) -> impl Iterator<Item = &'static str> + use<'_> {
-        self.commands.keys().copied()
+    pub(crate) fn ids(&self) -> impl Iterator<Item = &covey_proto::CommandId> {
+        self.commands.keys()
     }
 }

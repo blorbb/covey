@@ -1,60 +1,13 @@
 //! Actions returned by a plugin.
 
-use core::fmt;
-use std::path::PathBuf;
+use std::{fmt, path::PathBuf};
 
-use az::SaturatingAs as _;
+use covey_schema::{hotkey::Hotkey, manifest::Command};
 
 use crate::Plugin;
 
-/// Action response returned by a plugin.
-///
-/// May contain some extra pieces of information that should not
-/// be exposed to users.
-pub(crate) enum InternalAction {
-    /// Set the displayed list.
-    SetList {
-        list: List,
-        /// The action number this is associated with.
-        ///
-        /// If set list is called with an index older than the latest list,
-        /// this event will be ignored.
-        index: u64,
-    },
-    Close,
-    Copy(String),
-    SetInput(Input),
-    DisplayError(String),
-}
-
-impl fmt::Debug for InternalAction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::SetList { list, index: _ } => f
-                .debug_tuple("SetList")
-                .field(&format!("{} items", list.len()))
-                .finish(),
-            Self::Close => write!(f, "Close"),
-            Self::Copy(arg0) => f.debug_tuple("Copy").field(arg0).finish(),
-            Self::SetInput(arg0) => f.debug_tuple("SetInput").field(arg0).finish(),
-            Self::DisplayError(arg0) => f.debug_tuple("DisplayError").field(arg0).finish(),
-        }
-    }
-}
-
-impl InternalAction {
-    pub(crate) fn from_proto_action(plugin: &Plugin, action: covey_proto::action::Action) -> Self {
-        use covey_proto::action::Action as PrAction;
-        match action {
-            PrAction::Close(()) => Self::Close,
-            PrAction::Copy(str) => Self::Copy(str),
-            PrAction::SetInput(input) => Self::SetInput(Input::from_proto(plugin, input)),
-            PrAction::DisplayError(err) => Self::DisplayError(err),
-        }
-    }
-}
-
 /// An action that should be performed by the frontend.
+#[derive(Debug)]
 pub enum Action {
     Close,
     SetList(List),
@@ -68,14 +21,13 @@ pub enum Action {
 pub struct Input {
     pub contents: String,
     /// Range in terms of chars, not bytes
-    pub selection: (u16, u16),
+    pub selection: (usize, usize),
 }
 
 impl Input {
     pub(crate) fn prefix_with(&mut self, prefix: &str) {
         self.contents.insert_str(0, prefix);
-        let prefix_len =
-            u16::try_from(prefix.chars().count()).expect("prefix should not be insanely long");
+        let prefix_len = prefix.chars().count();
 
         let (a, b) = self.selection;
         self.selection = (a.saturating_add(prefix_len), b.saturating_add(prefix_len));
@@ -84,7 +36,7 @@ impl Input {
     pub(crate) fn from_proto(plugin: &Plugin, il: covey_proto::Input) -> Self {
         let mut input = Self {
             contents: il.query,
-            selection: (il.range_lb.saturating_as(), il.range_ub.saturating_as()),
+            selection: (il.selection.start, il.selection.end),
         };
         input.prefix_with(
             plugin
@@ -96,11 +48,28 @@ impl Input {
 }
 
 /// A list of results to show provided by a plugin.
-#[derive(Debug)]
 pub struct List {
     pub items: Vec<ListItem>,
     pub style: Option<ListStyle>,
     pub plugin: Plugin,
+}
+
+impl fmt::Debug for List {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("List")
+            .field(
+                "items",
+                &self
+                    .items
+                    .iter()
+                    .take(3)
+                    .map(|item| item.title())
+                    .collect::<Box<[_]>>(),
+            )
+            .field("style", &self.style)
+            .field("plugin", &self.plugin)
+            .finish()
+    }
 }
 
 impl List {
@@ -115,9 +84,9 @@ impl List {
     pub(crate) fn from_proto(
         plugin: &Plugin,
         icon_themes: &[String],
-        proto: covey_proto::QueryResponse,
+        proto: covey_proto::List,
     ) -> Self {
-        let style = proto.list_style.map(ListStyle::from_proto);
+        let style = proto.style.map(ListStyle::from_proto);
         let list: Vec<_> = proto
             .items
             .into_iter()
@@ -148,12 +117,11 @@ pub enum ListStyle {
 }
 
 impl ListStyle {
-    pub(crate) fn from_proto(proto: covey_proto::query_response::ListStyle) -> Self {
-        use covey_proto::query_response::ListStyle as Ls;
+    pub(crate) fn from_proto(proto: covey_proto::ListStyle) -> Self {
         match proto {
-            Ls::Rows(()) => Self::Rows,
-            Ls::Grid(()) => Self::Grid,
-            Ls::GridWithColumns(columns) => Self::GridWithColumns(columns),
+            covey_proto::ListStyle::Rows => Self::Rows,
+            covey_proto::ListStyle::Grid => Self::Grid,
+            covey_proto::ListStyle::GridWithColumns(columns) => Self::GridWithColumns(columns),
         }
     }
 }
@@ -190,8 +158,26 @@ impl ListItem {
         }
     }
 
-    pub fn available_commands(&self) -> &[String] {
-        &self.item.available_commands
+    /// The commands that can be activated on this list item as reported by the
+    /// plugin.
+    ///
+    /// Commands will be given in the returned iterator in the same order as the
+    /// the commands are defined in the plugin's manifest.
+    pub fn available_commands(&self) -> impl Iterator<Item = &Command> {
+        self.plugin()
+            .manifest()
+            .commands
+            .iter()
+            .filter(|cmd| self.item.available_commands.contains(&cmd.id))
+    }
+
+    /// Gets the command that can be activated from the provided hotkey.
+    pub fn activated_command_from_hotkey(&self, hotkey: &Hotkey) -> Option<&Command> {
+        self.available_commands().find(|cmd| {
+            self.plugin()
+                .hotkeys_of_cmd(&cmd.id)
+                .is_some_and(|hotkeys| hotkeys.contains(&hotkey))
+        })
     }
 }
 
@@ -217,7 +203,7 @@ impl fmt::Debug for ListItem {
 pub struct ListItemId {
     pub plugin: Plugin,
     /// ID unique within the plugin.
-    pub local_id: u64,
+    pub local_id: covey_proto::ListItemId,
 }
 
 /// Icon with named system icons resolved to a file path.
@@ -229,12 +215,17 @@ pub enum ResolvedIcon {
 
 impl ResolvedIcon {
     pub(crate) fn resolve(
-        proto: covey_proto::list_item::Icon,
+        proto: covey_proto::ListItemIcon,
         icon_themes: &[String],
     ) -> Option<Self> {
-        use covey_proto::list_item::Icon as Proto;
+        // `freedesktop_icons::lookup` can do filesystem reads, which is blocking.
+        // Maybe this function should be async. But this is used on the path of turning
+        // responses to actions, which is tricky to turn async.
+        //
+        // Only new icons will need to perform a filesystem lookup. Most icons should be
+        // cached, which is a fast lookup and doesn't block.
         match proto {
-            Proto::Name(name) => icon_themes
+            covey_proto::ListItemIcon::Name(name) => icon_themes
                 .iter()
                 .find_map(|theme| {
                     let path = freedesktop_icons::lookup(&name)
@@ -261,7 +252,7 @@ impl ResolvedIcon {
                     }
                 })
                 .map(Self::File),
-            Proto::Text(text) => Some(Self::Text(text)),
+            covey_proto::ListItemIcon::Text(text) => Some(Self::Text(text)),
         }
     }
 }

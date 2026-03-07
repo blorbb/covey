@@ -13,7 +13,8 @@ use serde::{
 
 use crate::{
     hotkey::Hotkey,
-    keyed_list::{Id, Identify, KeyedList},
+    id::{CommandId, PluginId},
+    keyed_list::{Identify, KeyedList},
 };
 
 /// A manifest for a single plugin.
@@ -58,14 +59,15 @@ impl PluginManifest {
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub struct Command {
-    pub id: Id,
+    pub id: CommandId,
     pub title: String,
     pub description: Option<String>,
     pub default_hotkeys: Option<Vec<Hotkey>>,
 }
 
 impl Identify for Command {
-    fn id(&self) -> &Id {
+    type Id = CommandId;
+    fn id(&self) -> &Self::Id {
         &self.id
     }
 }
@@ -73,19 +75,19 @@ impl Identify for Command {
 fn default_commands() -> KeyedList<Command> {
     KeyedList::new(vec![
         Command {
-            id: Id::new("activate"),
+            id: CommandId::new("activate"),
             title: String::from("Activate"),
             description: None,
             default_hotkeys: Some(vec!["enter".parse().expect("enter should be a hotkey")]),
         },
         Command {
-            id: Id::new("complete"),
+            id: CommandId::new("complete"),
             title: String::from("Complete"),
             description: None,
             default_hotkeys: Some(vec!["tab".parse().expect("tab should be a hotkey")]),
         },
         Command {
-            id: Id::new("alt-activate"),
+            id: CommandId::new("alt-activate"),
             title: String::from("Alt activate"),
             description: None,
             default_hotkeys: Some(vec![
@@ -100,14 +102,15 @@ fn default_commands() -> KeyedList<Command> {
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[non_exhaustive]
 pub struct PluginConfigSchema {
-    pub id: Id,
+    pub id: PluginId,
     pub title: String,
     pub description: Option<String>,
     pub r#type: SchemaType,
 }
 
 impl Identify for PluginConfigSchema {
-    fn id(&self) -> &Id {
+    type Id = PluginId;
+    fn id(&self) -> &Self::Id {
         &self.id
     }
 }
@@ -358,7 +361,8 @@ mod tests {
         SchemaType,
     };
     use crate::{
-        keyed_list::{Id, KeyedList},
+        id::PluginId,
+        keyed_list::KeyedList,
         manifest::{SchemaSelection, default_commands},
     };
 
@@ -383,7 +387,7 @@ mod tests {
                 authors: vec![],
                 default_prefix: None,
                 schema: KeyedList::new([PluginConfigSchema {
-                    id: Id::new("first-option"),
+                    id: PluginId::new("first-option"),
                     title: "first option".to_string(),
                     description: None,
                     r#type: SchemaType::Int(SchemaInt::default())
@@ -422,7 +426,7 @@ mod tests {
         assert_eq!(
             output,
             PluginConfigSchema {
-                id: Id::new("thing-id"),
+                id: PluginId::new("thing-id"),
                 title: "thing".to_string(),
                 description: None,
                 r#type: SchemaType::List(SchemaList {
@@ -457,7 +461,7 @@ mod tests {
                 authors: vec!["blorbb".to_string()],
                 default_prefix: Some("@".to_string()),
                 schema: KeyedList::new([PluginConfigSchema {
-                    id: Id::new("urls"),
+                    id: PluginId::new("urls"),
                     title: "List of URLs to show".to_string(),
                     description: None,
                     r#type: SchemaType::Map(SchemaMap {

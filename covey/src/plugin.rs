@@ -1,11 +1,23 @@
 use core::fmt;
-use std::{hash::Hash, path::PathBuf, sync::Arc};
+use std::{
+    hash::Hash,
+    io,
+    path::PathBuf,
+    process::Stdio,
+    sync::{Arc, Weak},
+};
 
-use color_eyre::eyre::Result;
 use covey_schema::{
     config::PluginEntry,
-    keyed_list::{Id, Identify},
+    hotkey::Hotkey,
+    id::{CommandId, PluginId, StringId as _},
+    keyed_list::Identify,
     manifest::PluginManifest,
+};
+use tokio::{
+    io::{AsyncBufReadExt as _, AsyncWriteExt as _, BufReader},
+    process::{Child, ChildStdin, Command},
+    sync::{Mutex, mpsc},
 };
 
 use crate::DATA_DIR;
@@ -14,36 +26,79 @@ use crate::DATA_DIR;
 ///
 /// Comparison traits ([`Eq`], [`Hash`], etc) are in terms of
 /// this plugin's name.
+///
+/// When this plugin is constructed, only the manifest is loaded.
+/// The plugin process is not spawned until a request is made.
+/// We handle killed plugin processes by re-spawning the process then
+/// retrying the request.
 #[derive(Clone)]
 pub struct Plugin {
-    plugin: Arc<implementation::LazyPlugin>,
+    inner: Arc<PluginInner>,
 }
 
 impl Plugin {
-    /// Initialises a plugin from it's configuration.
-    pub(crate) fn new(config: PluginEntry) -> Result<Self> {
-        Ok(Self {
-            plugin: Arc::new(implementation::LazyPlugin::new(config)?),
-        })
+    pub(crate) fn new_read_manifest(
+        entry: PluginEntry,
+        response_sender: mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
+    ) -> anyhow::Result<Self> {
+        let toml = std::fs::read_to_string(manifest_path(entry.id.as_str()))?;
+        let manifest: PluginManifest = toml::from_str(&toml)?;
+
+        Ok(Self::new(entry, manifest, response_sender))
     }
 
-    pub fn id(&self) -> &Id {
-        &self.plugin.entry.id
+    pub(crate) fn new(
+        entry: PluginEntry,
+        manifest: PluginManifest,
+        response_sender: mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
+    ) -> Self {
+        Self {
+            inner: Arc::new(PluginInner {
+                manifest,
+                entry,
+                response_sender,
+                process: Mutex::new(None),
+            }),
+        }
+    }
+
+    pub fn id(&self) -> &PluginId {
+        &self.inner.entry.id
     }
 
     /// Gets the prefix used to activate this plugin, either the user-defined or
     /// default prefix.
     pub fn prefix(&self) -> Option<&str> {
-        self.plugin
+        self.inner
             .entry
             .prefix
             .as_ref()
-            .or(self.plugin.manifest.default_prefix.as_ref())
+            .or(self.inner.manifest.default_prefix.as_ref())
             .map(String::as_str)
     }
 
+    /// Get the hotkeys that a command can accept, either from user config
+    /// or the default from the manifest.
+    pub fn hotkeys_of_cmd(&self, cmd_id: &CommandId) -> Option<&[Hotkey]> {
+        Some(
+            &**self
+                .config_entry()
+                .commands
+                .get(cmd_id)?
+                .hotkeys
+                .as_ref()
+                .or_else(|| {
+                    self.manifest()
+                        .commands
+                        .get(cmd_id)?
+                        .default_hotkeys
+                        .as_ref()
+                })?,
+        )
+    }
+
     pub fn config_entry(&self) -> &PluginEntry {
-        &self.plugin.entry
+        &self.inner.entry
     }
 
     /// Returns the path to the provided plugin's directory.
@@ -63,26 +118,73 @@ impl Plugin {
     }
 
     pub fn manifest(&self) -> &PluginManifest {
-        &self.plugin.manifest
+        &self.inner.manifest
     }
 
-    pub(crate) async fn query(
-        &self,
-        query: impl Into<String>,
-    ) -> Result<covey_proto::QueryResponse> {
-        self.plugin
-            .get_then(async |plugin| plugin.call_query(query.into()).await)
-            .await?
+    pub(crate) async fn query(&self, id: covey_proto::RequestId, text: String) {
+        self.send_request_or_display_error(&covey_proto::Request::query(id, text))
+            .await
     }
-
     pub(crate) async fn activate(
         &self,
-        selection_id: u64,
-        command_name: String,
-    ) -> Result<tonic::Streaming<covey_proto::ActivationResponse>> {
-        self.plugin
-            .get_then(async |plugin| plugin.call_activate(selection_id, command_name).await)
-            .await?
+        id: covey_proto::RequestId,
+        item_id: covey_proto::ListItemId,
+        command_id: CommandId,
+    ) {
+        self.send_request_or_display_error(&covey_proto::Request::activate(id, item_id, command_id))
+            .await
+    }
+
+    async fn start_process(&self) -> io::Result<ActiveProcess> {
+        let bin_path = self.binary_path();
+        ActiveProcess::new(
+            Arc::downgrade(&self.inner),
+            bin_path,
+            &self.config_entry().settings,
+            self.inner.response_sender.clone(),
+        )
+        .await
+    }
+
+    /// Sends a request to the plugin process, retrying once if the process has
+    /// been killed.
+    async fn send_request_with_retry(&self, request: &covey_proto::Request) -> io::Result<()> {
+        let mut guard = self.inner.process.lock().await;
+        match &mut *guard {
+            Some(process) => {
+                match process.send_request(request).await {
+                    Ok(()) => Ok(()),
+                    Err(e) => {
+                        // TODO: remove this log, only restart if the right error kind is reached
+                        tracing::warn!("failed to write request: {e:#}");
+                        tracing::warn!("restarting killed plugin {:?}", self.id());
+                        *process = self.start_process().await?;
+                        process.send_request(request).await?;
+                        Ok(())
+                    }
+                }
+            }
+            None => {
+                tracing::info!("initialising plugin {}", self.id());
+                let mut process = self.start_process().await?;
+                // Set the guard even if the request fails for some reason
+                let request_result = process.send_request(request).await;
+                *guard = Some(process);
+                request_result
+            }
+        }
+    }
+
+    async fn send_request_or_display_error(&self, request: &covey_proto::Request) {
+        match self.send_request_with_retry(request).await {
+            Ok(()) => {}
+            Err(e) => {
+                _ = self.inner.response_sender.send((
+                    self.clone(),
+                    covey_proto::Response::display_error(request.id, format!("{e:#}")),
+                ))
+            }
+        }
     }
 }
 
@@ -122,13 +224,11 @@ impl Hash for Plugin {
 }
 
 impl Identify for Plugin {
-    fn id(&self) -> &covey_schema::keyed_list::Id {
+    type Id = PluginId;
+    fn id(&self) -> &Self::Id {
         self.id()
     }
 }
-
-// Do not implement serde traits. Can be serialized as a string but it can't
-// be properly deserialized.
 
 fn data_directory_path(plugin_name: &str) -> PathBuf {
     DATA_DIR.join("plugins").join(plugin_name)
@@ -142,201 +242,103 @@ fn manifest_path(plugin_name: &str) -> PathBuf {
     data_directory_path(plugin_name).join("manifest.toml")
 }
 
-mod implementation {
-    use std::{mem, path::PathBuf, process::Stdio};
+struct PluginInner {
+    manifest: PluginManifest,
+    entry: PluginEntry,
+    response_sender: mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
+    process: Mutex<Option<ActiveProcess>>,
+}
 
-    use color_eyre::eyre::{Context as _, Result};
-    use covey_proto::plugin_client::PluginClient;
-    use covey_schema::{config::PluginEntry, manifest::PluginManifest};
-    use tokio::{
-        io::{AsyncBufReadExt as _, BufReader},
-        process::{Child, Command},
-        sync::Mutex,
-    };
-    use tonic::{Request, Streaming, transport::Channel};
-    use tracing::info;
-
-    use super::{binary_path, manifest_path};
-
-    /// A plugin that is not initialised until [`Self::get_then`] is called.
-    ///
-    /// The manifest is loaded on construction.
-    pub(super) struct LazyPlugin {
-        cell: Mutex<Option<PluginInner>>,
-        pub(super) manifest: PluginManifest,
-        pub(super) entry: PluginEntry,
+impl Drop for PluginInner {
+    fn drop(&mut self) {
+        tracing::info!("dropped plugin {}", self.entry.id)
     }
+}
 
-    impl LazyPlugin {
-        pub(super) fn new(config: PluginEntry) -> Result<Self> {
-            let id = &config.id;
-            let path = manifest_path(id.as_str());
-            let toml = std::fs::read_to_string(path)
-                .context(format!("error opening manifest file of {}", id.as_str()))?;
-            let manifest: PluginManifest = toml::from_str(&toml)
-                .context(format!("error reading manifest of {}", id.as_str()))?;
+struct ActiveProcess {
+    // killed on drop, need to hold it so that it's dropped when this struct is dropped.
+    _process: Child,
+    child_stdin: ChildStdin,
+}
 
-            Ok(Self {
-                cell: Mutex::new(None),
-                manifest,
-                entry: config,
-            })
-        }
-
-        /// Gets access to a plugin and ensures it is initialised.
-        ///
-        /// Locks exclusive access to the plugin while initialising.
-        pub(super) async fn get_then<T>(
-            &self,
-            f: impl AsyncFnOnce(&mut PluginInner) -> T,
-        ) -> Result<T> {
-            let mut guard = self.cell.lock().await;
-            match &mut *guard {
-                Some(inner) => Ok(f(inner).await),
-                None => {
-                    // initialise
-                    info!("initialising plugin {:?}", self.entry.id);
-                    let config_json = serde_json::to_string(&self.entry.settings)?;
-                    let bin_path = binary_path(self.entry.id.as_str());
-                    let mut plugin = PluginInner::new(bin_path, config_json).await?;
-
-                    let value = f(&mut plugin).await;
-                    *guard = Some(plugin);
-                    Ok(value)
-                }
-            }
-        }
-    }
-
-    /// Internals of a plugin.
-    ///
-    /// Simple wrapper that handles some request-response conversions.
-    /// Also allows the plugin to expire. Will re-initialise the plugin in this case.
-    ///
-    /// This should only be returned to the [`super::Plugin`] in an
-    /// initialised state.
-    pub(super) struct PluginInner {
+impl ActiveProcess {
+    pub(super) async fn new(
+        plugin: Weak<PluginInner>,
         bin_path: PathBuf,
-        config_json: String,
-        channel: PluginClient<Channel>,
-        // killed on drop, need to hold it so that it's dropped when this struct is dropped.
-        _process: Child,
+        initialization_settings: &serde_json::Map<String, serde_json::Value>,
+        response_sender: mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
+    ) -> io::Result<Self> {
+        let initialization_settings = serde_json::to_string(initialization_settings)
+            .expect("plugin init settings should be serializable");
+
+        let mut process = Command::new(&bin_path)
+            .arg(initialization_settings)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .stdin(Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()?;
+
+        let stdout = process.stdout.take().expect("stdout should be captured");
+        let stderr = process.stderr.take().expect("stderr should be captured");
+        let stdin = process.stdin.take().expect("stdin should be captured");
+        let stderr = BufReader::new(stderr);
+        let stdout = BufReader::new(stdout);
+
+        // Forward stderr as logs.
+        tokio::spawn({
+            let plugin = Weak::clone(&plugin);
+            async move {
+                let mut lines = stderr.lines();
+                while let Ok(Some(line)) = lines.next_line().await
+                    && let Some(inner) = plugin.upgrade()
+                {
+                    let plugin = Plugin { inner };
+                    tracing::info!("plugin {id}: {line}", id = plugin.id());
+                }
+            }
+        });
+
+        // Forward child stdout to the response_sender channel.
+        // Any unrecognised lines will be forwarded as logs, but as a warning.
+        // Plugins should not be printing logs to stdout.
+        tokio::spawn(async move {
+            let mut lines = stdout.lines();
+            while let Ok(Some(line)) = lines.next_line().await
+                && let Some(inner) = plugin.upgrade()
+            {
+                let plugin = Plugin { inner };
+                let Ok(response) = serde_json::from_str::<covey_proto::Response>(&line) else {
+                    tracing::warn!("plugin {id} (stdout): {line}", id = plugin.id());
+                    continue;
+                };
+
+                tracing::trace!("plugin {id} (stdout): {line}", id = plugin.id());
+                match response_sender.send((plugin.clone(), response)) {
+                    Ok(()) => {}
+                    Err(e) => {
+                        tracing::error!(?plugin, "failed to send response through channel: {e:#}");
+                        return;
+                    }
+                }
+            }
+        });
+
+        // Must work with child stdin directly instead of a channel so that attempted
+        // requests can fail if the child has been killed.
+
+        Ok(Self {
+            _process: process,
+            child_stdin: stdin,
+        })
     }
 
-    impl PluginInner {
-        /// Starts the plugin binary and calls initialise.
-        async fn new(bin_path: PathBuf, config_json: String) -> Result<Self> {
-            // run process and read first line
-            let mut process = Command::new(&bin_path)
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .kill_on_drop(true)
-                .spawn()
-                .context("failed to spawn plugin server")?;
-
-            let stdout = process.stdout.take().expect("stdout should be captured");
-            let stderr = process.stderr.take().expect("stderr should be captured");
-            let mut stdout = BufReader::new(stdout);
-            let stderr = BufReader::new(stderr);
-
-            let mut first_line = String::new();
-            stdout.read_line(&mut first_line).await.context(
-                "failed to read port or error from plugin: plugin should print to stdout",
-            )?;
-
-            tokio::spawn(async move {
-                let mut lines = stdout.lines();
-                while let Ok(Some(line)) = lines.next_line().await {
-                    tracing::info!("plugin: {line}");
-                }
-            });
-            tokio::spawn(async move {
-                let mut lines = stderr.lines();
-                while let Ok(Some(line)) = lines.next_line().await {
-                    tracing::info!("plugin: {line}");
-                }
-            });
-
-            let port: u16 = first_line
-                .trim()
-                .parse()
-                .context("plugin should print it's connected port number to stdout")?;
-
-            let mut client = PluginClient::connect(format!("http://[::1]:{port}"))
-                .await
-                .context(format!("failed to connect to plugin server on port {port}"))?;
-
-            info!("finished running plugin binary");
-            client
-                .initialise(Request::new(covey_proto::InitialiseRequest {
-                    json: config_json.clone(),
-                }))
-                .await
-                .context("failed to initialise plugin")?;
-            info!("finished initialising plugin");
-
-            Ok(Self {
-                bin_path,
-                config_json,
-                channel: client,
-                _process: process,
-            })
-        }
-
-        /// Calls the RPC function, retrying once if the plugin has been killed.
-        async fn call_or_restart<T>(
-            &mut self,
-            mut f: impl AsyncFnMut(PluginClient<Channel>) -> tonic::Result<T>,
-        ) -> Result<T> {
-            match f(self.channel.clone()).await {
-                Ok(ok) => Ok(ok),
-                Err(status) if status.code() == tonic::Code::Unavailable => {
-                    tracing::warn!("restarting killed plugin {:?}", self.bin_path);
-                    // re-initialise the plugin
-                    *self = Self::new(
-                        mem::take(&mut self.bin_path),
-                        mem::take(&mut self.config_json),
-                    )
-                    .await?;
-                    // retry. do not restart again if this fails though.
-                    Ok(f(self.channel.clone()).await?)
-                }
-                Err(other) => Err(other)?,
-            }
-        }
-
-        pub(super) async fn call_query(
-            &mut self,
-            query: String,
-        ) -> Result<covey_proto::QueryResponse> {
-            let response = self
-                .call_or_restart(async move |mut channel| {
-                    channel
-                        .query(Request::new(covey_proto::QueryRequest {
-                            query: query.clone(),
-                        }))
-                        .await
-                })
-                .await;
-            Ok(response?.into_inner())
-        }
-
-        pub(super) async fn call_activate(
-            &mut self,
-            selection_id: u64,
-            command_name: String,
-        ) -> Result<Streaming<covey_proto::ActivationResponse>> {
-            let response = self
-                .call_or_restart(async move |mut channel| {
-                    channel
-                        .activate(Request::new(covey_proto::ActivationRequest {
-                            selection_id,
-                            command_name: command_name.clone(),
-                        }))
-                        .await
-                })
-                .await;
-            Ok(response?.into_inner())
-        }
+    /// Tries to send the request to the process. Does not retry on failure.
+    pub(super) async fn send_request(&mut self, request: &covey_proto::Request) -> io::Result<()> {
+        let mut json = serde_json::to_string(request).expect("request should be serializable");
+        json.push('\n');
+        self.child_stdin.write_all(json.as_bytes()).await?;
+        self.child_stdin.flush().await?;
+        Ok(())
     }
 }

@@ -13,25 +13,24 @@ repository.workspace = true
 rust-version = "1.85"
 description = "APIs for creating Covey plugins"
 
-[lints]
-workspace = true
-
 [dependencies]
-tokio = { workspace = true, features = ["rt"] }
-tokio-stream = { version = "0.1.16", default-features = false, features = [
-    "net",
-] }
-tonic.workspace = true
+anyhow.workspace = true
 az.workspace = true
-anyhow = "1.0.93"
-sublime_fuzzy = "0.7.0"
-time = { version = "0.3", features = ["serde"] }
+covey-manifest-macros.workspace = true
+covey-proto.workspace = true
+dirs.workspace = true
 parking_lot.workspace = true
-covey-manifest-macros = { path = "../covey-manifest-macros", version = "0.0.2" }
-covey-proto = { path = "../covey-proto", version = "0.0.2" }
 serde.workspace = true
 serde_json.workspace = true
-dirs.workspace = true
+sublime_fuzzy.workspace = true
+time = { workspace = true, features = ["serde"] }
+tokio = { workspace = true, features = [
+    "rt",
+    "macros",
+    "io-util",
+    "io-std",
+    "time",
+] }
 
-[build-dependencies]
-tonic-build = "0.12.3"
+[lints]
+workspace = true

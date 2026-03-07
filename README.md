@@ -5,7 +5,7 @@ Yet another general-purpose desktop command palette / launcher.
 Extremely WIP and not ready to be used by anyone.
 Perhaps check out [Rofi](https://github.com/davatorium/rofi)/[Ulauncher](https://github.com/Ulauncher/Ulauncher)/[Albert](https://github.com/albertlauncher/albert)/[Vicinae](https://github.com/vicinaehq/vicinae)/[Sherlock](https://github.com/Skxxtz/sherlock)/[Walker](https://github.com/abenz1267/walker)/[Centerpiece](https://github.com/friedow/centerpiece)/[Lucien](https://github.com/Wachamuli/lucien)/... for something a bit more done.
 
-[covey-demo.webm](https://github.com/user-attachments/assets/20787700-626e-4342-9777-4436cc85dbe4)
+[covey-demo.webm](https://github.com/user-attachments/assets/f8d05b93-eca7-440b-ab09-336eb04e4593)
 
 ## Why does this exist?
 

@@ -31,8 +31,8 @@ pub static PLUGIN_ID: OnceLock<&'static str> = OnceLock::new();
 
 /// Assigned directory of this plugin, where extra data can be stored.
 ///
-/// This is <data-dir>/covey/plugins/<plugin-id>/. The directory should already
-/// contain this plugin's binary (with the name of <plugin-id>) and
+/// This is `<data-dir>/covey/plugins/<plugin-id>/`. The directory should
+/// already contain this plugin's binary (with the name of `<plugin-id>`) and
 /// a `manifest.toml`.
 ///
 /// [`covey_plugin`](crate) will also add an `activations.json` file. See

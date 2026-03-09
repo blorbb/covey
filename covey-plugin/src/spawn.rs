@@ -8,7 +8,9 @@ use std::{
     process::{Command, Stdio},
 };
 
-pub fn program(
+/// Spawns a command in the background, ignoring stdin/out/err and the exit
+/// code.
+pub fn command(
     program: impl AsRef<OsStr>,
     args: impl IntoIterator<Item: AsRef<OsStr>>,
 ) -> std::io::Result<()> {
@@ -20,9 +22,4 @@ pub fn program(
         .spawn()?;
 
     Ok(())
-}
-
-/// Runs a string as a shell script.
-pub fn script(script: impl AsRef<OsStr>) -> std::io::Result<()> {
-    self::program("sh", ["-c".as_ref(), script.as_ref()])
 }

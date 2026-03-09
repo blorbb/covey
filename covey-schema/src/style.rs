@@ -10,6 +10,7 @@ pub struct Color(HexColor);
 
 impl Color {
     pub const WHITE: Self = Self(HexColor::WHITE);
+    pub const TRANSPARENT: Self = Self(HexColor::CLEAR);
 
     pub fn rgba(r: u8, g: u8, b: u8, a: u8) -> Self {
         Self(HexColor::rgba(r, g, b, a))
@@ -92,10 +93,18 @@ pub struct UserStyle {
     main_component_gap: Option<f32>,
     // list
     list_item_gap: Option<f32>,
-    list_selected_color: Option<Color>,
-    list_hovered_color: Option<Color>,
-    list_rounding: Option<f32>,
-    list_padding: Option<Padding>,
+    list_item_rounding: Option<f32>,
+    list_item_padding: Option<Padding>,
+    list_item_bg: Option<Color>,
+    list_item_hovered_bg: Option<Color>,
+    list_item_active_bg: Option<Color>,
+    // bottom info bar
+    info_button_gap: Option<f32>,
+    info_button_rounding: Option<f32>,
+    info_button_padding: Option<Padding>,
+    info_button_bg: Option<Color>,
+    info_button_hovered_bg: Option<Color>,
+    info_button_active_bg: Option<Color>,
 }
 
 /// Getters with defaults.
@@ -155,29 +164,61 @@ impl UserStyle {
         self.list_item_gap.unwrap_or(8.)
     }
 
-    pub fn list_selected_color(&self) -> Color {
-        self.list_selected_color
-            .unwrap_or(Color::WHITE.multiply_alpha(0.2))
+    pub fn list_item_rounding(&self) -> f32 {
+        self.list_item_rounding.unwrap_or(4.)
     }
 
-    pub fn list_hovered_color(&self) -> Color {
-        self.list_hovered_color
+    pub fn list_item_padding(&self) -> Padding {
+        self.list_item_padding.unwrap_or(Padding::splat(4.))
+    }
+
+    pub fn list_item_bg(&self) -> Color {
+        self.list_item_bg.unwrap_or(Color::TRANSPARENT)
+    }
+
+    pub fn list_item_hovered_bg(&self) -> Color {
+        self.list_item_hovered_bg
             .unwrap_or(Color::WHITE.multiply_alpha(0.1))
     }
 
-    pub fn list_rounding(&self) -> f32 {
-        self.list_rounding.unwrap_or(4.)
+    pub fn list_item_active_bg(&self) -> Color {
+        self.list_item_active_bg
+            .unwrap_or(Color::WHITE.multiply_alpha(0.2))
     }
 
-    pub fn list_padding(&self) -> Padding {
-        self.list_padding.unwrap_or(Padding::new(4., 4.))
+    pub fn info_button_gap(&self) -> f32 {
+        self.info_button_gap.unwrap_or(self.list_item_gap())
+    }
+
+    pub fn info_button_rounding(&self) -> f32 {
+        self.info_button_rounding
+            .unwrap_or(self.list_item_rounding())
+    }
+
+    pub fn info_button_padding(&self) -> Padding {
+        self.info_button_padding.unwrap_or(Padding::splat(4.))
+    }
+
+    pub fn info_button_bg(&self) -> Color {
+        self.info_button_bg
+            .unwrap_or(Color::WHITE.multiply_alpha(0.1))
+    }
+
+    pub fn info_button_hovered_bg(&self) -> Color {
+        self.info_button_hovered_bg
+            .unwrap_or(Color::WHITE.multiply_alpha(0.15))
+    }
+
+    pub fn info_button_active_bg(&self) -> Color {
+        self.info_button_active_bg
+            .unwrap_or(Color::WHITE.multiply_alpha(0.2))
     }
 
     // TODO: this isn't completely accurate, the height should be the "row height".
     // but this can only be computed from egui with a known font.
     /// Computed property.
     pub fn bottom_bar_height(&self) -> f32 {
-        self.font_size() + self.list_padding().block * 2.0
+        self.font_size() + self.list_item_padding().block * 2.0
     }
 
     /// Computed property.

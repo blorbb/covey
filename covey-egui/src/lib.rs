@@ -10,8 +10,9 @@ use egui::{
     TextStyle, Ui, Vec2, Vec2b, style::ScrollAnimation, text::CCursor, text_edit::TextEditOutput,
 };
 
-use crate::row::ListRow;
+use crate::{button::ButtonFrame, row::ListRow};
 
+mod button;
 pub mod cli;
 mod conv;
 mod hotkeys;
@@ -422,14 +423,17 @@ impl App {
                 .auto_shrink(Vec2b::new(false, true))
                 .max_height(s.max_list_height())
                 .show(ui, |ui| {
+                    // TODO: use ButtonFrame component within ListRow.
                     let v = &mut ui.style_mut().visuals;
-                    v.selection.bg_fill = s.list_selected_color().as_egui();
-                    v.widgets.active.weak_bg_fill = s.list_selected_color().as_egui();
-                    v.widgets.hovered.weak_bg_fill = s.list_hovered_color().as_egui();
-                    v.widgets
-                        .set_corner_radius(CornerRadius::same(s.list_rounding().round() as u8));
-                    ui.style_mut().spacing.button_padding = s.list_padding().as_egui();
-                    ui.style_mut().spacing.icon_spacing = s.list_padding().block;
+                    v.selection.bg_fill = s.list_item_active_bg().as_egui();
+                    v.widgets.active.weak_bg_fill = s.list_item_active_bg().as_egui();
+                    v.widgets.hovered.weak_bg_fill = s.list_item_hovered_bg().as_egui();
+                    v.widgets.inactive.weak_bg_fill = s.list_item_bg().as_egui();
+                    v.widgets.set_corner_radius(CornerRadius::same(
+                        s.list_item_rounding().round() as u8
+                    ));
+                    ui.style_mut().spacing.button_padding = s.list_item_padding().as_egui();
+                    ui.style_mut().spacing.icon_spacing = s.list_item_padding().block;
                     ui.style_mut().spacing.item_spacing = Vec2::splat(s.list_item_gap());
 
                     for (i, item) in list.items.iter().enumerate() {
@@ -448,20 +452,6 @@ impl App {
     }
 
     fn show_buttom_bar(&mut self, ui: &mut Ui) {
-        // TODO: fully custom button component that takes in a style + ui.
-        // remove uses of modifying ui style.
-        let v = &mut ui.style_mut().visuals;
-        let s = self.style();
-        v.selection.bg_fill = s.list_selected_color().as_egui();
-        v.widgets.active.weak_bg_fill = s.list_selected_color().as_egui();
-        v.widgets.hovered.weak_bg_fill = s.list_selected_color().as_egui();
-        v.widgets.inactive.weak_bg_fill = s.list_hovered_color().as_egui();
-        v.widgets
-            .set_corner_radius(CornerRadius::same(s.list_rounding().round() as u8));
-        ui.style_mut().spacing.button_padding = s.list_padding().as_egui();
-        ui.style_mut().spacing.icon_spacing = s.list_padding().block;
-        ui.style_mut().spacing.item_spacing = Vec2::splat(s.list_item_gap());
-
         ui.horizontal(|ui| {
             match &self.list {
                 None => {
@@ -474,18 +464,36 @@ impl App {
                         // subsequent commands.
                         let mut used_hotkeys = HashSet::new();
                         for command in selected_item.available_commands() {
-                            let mut button = egui::Button::new(&command.title);
+                            let s = &self.host.config().style;
+                            ui.style_mut().spacing.item_spacing = Vec2::splat(s.info_button_gap());
 
-                            if let Some(hotkeys) =
-                                selected_item.plugin().hotkeys_of_cmd(&command.id)
-                                && let Some(new_hotkey) =
-                                    hotkeys.iter().find(|hotkey| !used_hotkeys.contains(hotkey))
-                            {
-                                button = button.shortcut_text(new_hotkey.to_short_string());
-                                used_hotkeys.extend(hotkeys);
-                            }
+                            let button = ButtonFrame::new()
+                                .inner_margin(s.info_button_padding().as_egui())
+                                .corner_radius(s.info_button_rounding().into())
+                                .fill(s.info_button_bg().as_egui())
+                                .hover_fill(s.info_button_hovered_bg().as_egui())
+                                .active_fill(s.info_button_active_bg().as_egui())
+                                .show_horizontal(ui, |ui| {
+                                    ui.style_mut().spacing.item_spacing =
+                                        s.info_button_padding().as_egui();
+                                    ui.style_mut().interaction.selectable_labels = false;
+                                    ui.label(&command.title);
 
-                            if ui.add(button).clicked() {
+                                    if let Some(hotkeys) =
+                                        selected_item.plugin().hotkeys_of_cmd(&command.id)
+                                        && let Some(new_hotkey) = hotkeys
+                                            .iter()
+                                            .find(|hotkey| !used_hotkeys.contains(hotkey))
+                                    {
+                                        ui.colored_label(
+                                            s.weak_text_color().as_egui(),
+                                            new_hotkey.to_short_string(),
+                                        );
+                                        used_hotkeys.extend(hotkeys);
+                                    }
+                                });
+
+                            if button.response.clicked() {
                                 tokio::spawn(
                                     self.host.activate(selected_item.id(), command.id.clone()),
                                 );

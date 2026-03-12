@@ -12,7 +12,7 @@ use egui::{
 
 use crate::{button::ButtonFrame, row::ListRow};
 
-mod button;
+pub mod button;
 pub mod cli;
 mod conv;
 mod hotkeys;
@@ -423,21 +423,9 @@ impl App {
                 .auto_shrink(Vec2b::new(false, true))
                 .max_height(s.max_list_height())
                 .show(ui, |ui| {
-                    // TODO: use ButtonFrame component within ListRow.
-                    let v = &mut ui.style_mut().visuals;
-                    v.selection.bg_fill = s.list_item_active_bg().as_egui();
-                    v.widgets.active.weak_bg_fill = s.list_item_active_bg().as_egui();
-                    v.widgets.hovered.weak_bg_fill = s.list_item_hovered_bg().as_egui();
-                    v.widgets.inactive.weak_bg_fill = s.list_item_bg().as_egui();
-                    v.widgets.set_corner_radius(CornerRadius::same(
-                        s.list_item_rounding().round() as u8
-                    ));
-                    ui.style_mut().spacing.button_padding = s.list_item_padding().as_egui();
-                    ui.style_mut().spacing.icon_spacing = s.list_item_padding().block;
-                    ui.style_mut().spacing.item_spacing = Vec2::splat(s.list_item_gap());
-
+                    ui.spacing_mut().item_spacing = Vec2::splat(s.list_item_gap());
                     for (i, item) in list.items.iter().enumerate() {
-                        let response = ui.add(ListRow::new(&mut self.list_selection, i, item));
+                        let response = ListRow::new(&mut self.list_selection, i, item).show(ui, s);
 
                         if rendering_state.list_selection_changed && i == self.list_selection {
                             tracing::info!("list selection changed");
@@ -474,6 +462,7 @@ impl App {
                                 .hover_fill(s.info_button_hovered_bg().as_egui())
                                 .active_fill(s.info_button_active_bg().as_egui())
                                 .show_horizontal(ui, |ui| {
+                                    // space between command and shortcut
                                     ui.style_mut().spacing.item_spacing =
                                         s.info_button_padding().as_egui();
                                     ui.style_mut().interaction.selectable_labels = false;

@@ -1,5 +1,6 @@
 use egui::{
-    Color32, CornerRadius, Frame, InnerResponse, Margin, Sense, Stroke, Ui, epaint::MarginF32,
+    Color32, CornerRadius, InnerResponse, Margin, NumExt, Sense, Stroke, Ui, Vec2,
+    epaint::MarginF32,
 };
 
 // maybe make the hover and active states just more frames?
@@ -15,6 +16,7 @@ pub struct ButtonStyle {
     // "active" is when the button is being pressed / focused / selected.
     active_fill: Option<Color32>,
     active_stroke: Option<Stroke>,
+    min_size: Vec2,
 }
 
 pub struct ButtonFrame {
@@ -22,7 +24,6 @@ pub struct ButtonFrame {
     selected: bool,
 }
 
-#[expect(dead_code, reason = "consistent api")]
 impl ButtonFrame {
     pub fn new() -> Self {
         Self {
@@ -32,6 +33,7 @@ impl ButtonFrame {
                 hover_stroke: None,
                 active_fill: None,
                 active_stroke: None,
+                min_size: Vec2::ZERO,
             },
             selected: false,
         }
@@ -45,12 +47,11 @@ impl ButtonFrame {
     //     self
     // }
 
-    // /// Set the minimum size of the button.
-    // #[inline]
-    // pub fn min_size(mut self, min_size: Vec2) -> Self {
-    //     self.min_size = min_size;
-    //     self
-    // }
+    #[inline]
+    pub fn min_size(mut self, min_size: Vec2) -> Self {
+        self.style.min_size = min_size;
+        self
+    }
 
     pub fn inner_margin(mut self, margin: Margin) -> Self {
         self.style.frame.inner_margin = margin;
@@ -128,17 +129,24 @@ impl ButtonFrame {
     ) -> InnerResponse<R> {
         let mut frame = self.style.frame.begin(ui);
 
+        // must subtract the same amount that is added to the rect below
+        frame.content_ui.set_min_size(
+            (self.style.min_size
+                - frame.frame.inner_margin.sum()
+                - Vec2::splat(frame.frame.stroke.width)
+                - frame.frame.outer_margin.sum())
+            .at_least(Vec2::ZERO),
+        );
         let inner_response = add_contents(&mut frame.content_ui);
 
         // allocate_space only supports sensing hovers and can't be customized.
         // this is a copy of allocate_space but with extra senses.
-        let response = ui.allocate_rect(
-            frame.content_ui.min_rect()
-                + frame.frame.inner_margin
-                + MarginF32::from(frame.frame.stroke.width)
-                + frame.frame.outer_margin,
-            Sense::click(),
-        );
+        // also the min size.
+        let outer_rect = frame.content_ui.min_rect()
+            + frame.frame.inner_margin
+            + MarginF32::from(frame.frame.stroke.width)
+            + frame.frame.outer_margin;
+        let response = ui.allocate_rect(outer_rect, Sense::click());
 
         if response.has_focus() || response.is_pointer_button_down_on() || self.selected {
             frame.frame.fill = self

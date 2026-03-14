@@ -1,6 +1,7 @@
 use std::{
     io::{self, BufRead as _, Read as _, Write as _},
     thread,
+    time::Duration,
 };
 
 use clap::{Parser, Subcommand};
@@ -75,7 +76,7 @@ pub fn listener() -> io::Result<Option<(GuiSettings, Receiver)>> {
         // Another instance already open, send message to that instance
         Err(e) if e.kind() == io::ErrorKind::AddrInUse => {
             tracing::info!("address in use");
-            let mut conn = Stream::connect(name)?;
+            let mut conn = Stream::connect(name.clone())?;
 
             let msg = match cmd {
                 CliCommands::Open { stay_open: false } => {
@@ -86,7 +87,7 @@ pub fn listener() -> io::Result<Option<(GuiSettings, Receiver)>> {
                     tracing::info!("opening existing instance and keeping open");
                     b"open stay\n"
                 }
-                CliCommands::Exit => {
+                CliCommands::Exit | CliCommands::Reload { stay_open: _ } => {
                     tracing::info!("closing existing instance");
                     b"exit\n"
                 }
@@ -97,14 +98,22 @@ pub fn listener() -> io::Result<Option<(GuiSettings, Receiver)>> {
             conn.read_to_end(&mut Vec::new())?;
             tracing::info!("confirmation received");
 
-            return Ok(None);
+            match cmd {
+                CliCommands::Open { stay_open: _ } | CliCommands::Exit => return Ok(None),
+                CliCommands::Reload { stay_open: _ } => {
+                    // retry a few times as it might take a bit for the socket to close
+                    run_with_retry(10, || {
+                        ListenerOptions::new().name(name.clone()).create_sync()
+                    })?
+                }
+            }
         }
         x => x?,
     };
 
     // This is the primary instance, initialise.
     match cmd {
-        CliCommands::Open { stay_open } => {
+        CliCommands::Open { stay_open } | CliCommands::Reload { stay_open } => {
             let (tx, rx) = mpsc::unbounded_channel::<Action>();
             thread::spawn(move || {
                 for msg in listener.incoming() {
@@ -161,6 +170,26 @@ pub fn listener() -> io::Result<Option<(GuiSettings, Receiver)>> {
     }
 }
 
+fn run_with_retry<T, E: std::error::Error>(
+    tries: u64,
+    mut f: impl FnMut() -> Result<T, E>,
+) -> Result<T, E> {
+    let mut attempt = 1;
+    loop {
+        match f() {
+            Ok(t) => return Ok(t),
+            Err(e) => {
+                tracing::debug!("running with retry attempt {attempt}/{tries} failed: {e}");
+                attempt += 1;
+                if attempt > tries {
+                    return Err(e);
+                }
+                thread::sleep(Duration::from_millis(10));
+            }
+        }
+    }
+}
+
 #[derive(Parser)]
 struct Args {
     #[command(subcommand)]
@@ -174,6 +203,11 @@ enum CliCommands {
         stay_open: bool,
     },
     Exit,
+    /// Exit any existing instance and open a new one.
+    Reload {
+        #[arg(short, long)]
+        stay_open: bool,
+    },
 }
 
 impl Default for CliCommands {

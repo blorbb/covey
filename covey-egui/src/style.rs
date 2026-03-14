@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc};
 
+use anyhow::Context;
 use egui::{
     Color32, CornerRadius, Margin, Shadow, Spacing, Stroke, Vec2, Visuals,
     style::{
@@ -115,57 +116,60 @@ pub fn load_system_fonts() -> egui::FontDefinitions {
     // https://github.com/emilk/egui/discussions/1344#discussioncomment-6432960
 
     let mut fonts = egui::FontDefinitions::default();
-    insert_font(
+    insert_fonts(
         &mut fonts,
         egui::FontFamily::Proportional,
-        SystemSource::new()
-            .select_best_match(&[FamilyName::SansSerif], &Properties::new())
-            .unwrap()
-            .load()
-            .unwrap(),
+        &["Inter", "system-ui", "Noto Sans Math"],
     );
-    insert_font(
-        &mut fonts,
-        egui::FontFamily::Monospace,
-        SystemSource::new()
-            .select_best_match(&[FamilyName::Monospace], &Properties::new())
-            .unwrap()
-            .load()
-            .unwrap(),
-    );
-    insert_font(
-        &mut fonts,
-        egui::FontFamily::Proportional,
-        SystemSource::new()
-            .select_family_by_name("Inter")
-            .unwrap()
-            .fonts()[0]
-            .load()
-            .unwrap(),
-    );
+    insert_fonts(&mut fonts, egui::FontFamily::Monospace, &["ui-monospace"]);
 
     fonts
 }
 
-fn insert_font(
+fn insert_fonts(
     fonts: &mut egui::FontDefinitions,
     egui_family: egui::FontFamily,
-    font: font_kit::font::Font,
+    font_families: &[&str],
 ) {
-    tracing::info!("loaded font {:?}", font.full_name());
+    for ff in font_families.iter().rev() {
+        let font = match find_font_from_system(ff) {
+            Ok(font) => font,
+            Err(e) => {
+                tracing::warn!("failed to load font family {ff:?} from system: {e:#}");
+                continue;
+            }
+        };
 
-    fonts.font_data.insert(
-        font.full_name(),
-        Arc::new(egui::FontData::from_owned(
-            font.copy_font_data()
-                .expect("copy_font_data never returns none")
-                .to_vec(),
-        )),
-    );
+        fonts.font_data.insert(
+            ff.to_string(),
+            Arc::new(egui::FontData::from_owned(
+                font.copy_font_data()
+                    .expect("copy_font_data never returns none")
+                    .to_vec(),
+            )),
+        );
+    }
 
     fonts
         .families
         .entry(egui_family)
         .or_default()
-        .insert(0, font.full_name());
+        .splice(0..0, font_families.iter().map(|s| s.to_string()));
+}
+
+fn find_font_from_system(font_family: &str) -> anyhow::Result<font_kit::font::Font> {
+    Ok(match font_family {
+        "system-ui" => SystemSource::new()
+            .select_best_match(&[FamilyName::SansSerif], &Properties::new())?
+            .load()?,
+        "ui-monospace" => SystemSource::new()
+            .select_best_match(&[FamilyName::Monospace], &Properties::new())?
+            .load()?,
+        _ => SystemSource::new()
+            .select_family_by_name(font_family)?
+            .fonts()
+            .first()
+            .context("no font handles found in font")?
+            .load()?,
+    })
 }

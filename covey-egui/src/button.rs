@@ -114,6 +114,15 @@ impl ButtonFrame {
         self.show_dyn(ui, Box::new(add_contents))
     }
 
+    pub fn show_with_layout<R>(
+        self,
+        ui: &mut Ui,
+        layout: egui::Layout,
+        add_contents: impl FnOnce(&mut Ui) -> R,
+    ) -> InnerResponse<R> {
+        self.show(ui, |ui| ui.with_layout(layout, add_contents).inner)
+    }
+
     pub fn show_horizontal<R>(
         self,
         ui: &mut Ui,

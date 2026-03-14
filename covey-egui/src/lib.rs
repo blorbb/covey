@@ -10,7 +10,7 @@ use egui::{
     TextStyle, Ui, Vec2, Vec2b, style::ScrollAnimation, text::CCursor, text_edit::TextEditOutput,
 };
 
-use crate::{button::ButtonFrame, row::ListRow};
+use crate::{button::ButtonFrame, row::ListCell};
 
 pub mod button;
 pub mod cli;
@@ -21,6 +21,7 @@ mod style;
 
 static ICON_TEXT_STYLE: LazyLock<TextStyle> = LazyLock::new(|| TextStyle::Name(Arc::from("icon")));
 static FONTS: LazyLock<egui::FontDefinitions> = LazyLock::new(style::load_system_fonts);
+const GRID_COLS: usize = 4;
 
 pub struct App {
     pub host: covey::Host,
@@ -108,8 +109,8 @@ impl App {
     }
 
     fn set_ctx_style(&self, cc: &CreationContext) {
-        cc.egui_ctx.set_fonts(FONTS.clone());
         cc.egui_ctx.set_style(style::style_reset());
+        cc.egui_ctx.set_fonts(FONTS.clone());
         cc.egui_ctx.all_styles_mut(|style| {
             let ss = self.style();
 
@@ -215,6 +216,7 @@ impl App {
         // The UI
         self.show_input(ui, &rendering_state);
         ui.add_space(self.style().main_component_gap());
+        ui.style_mut().interaction.selectable_labels = false;
         self.show_list(ui, &rendering_state);
         ui.add_space(self.style().main_component_gap());
         self.show_buttom_bar(ui);
@@ -344,6 +346,8 @@ impl App {
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
         }
 
+        // TODO: how to handle moving around a grid? pressing left/right still needs to
+        // work with the text input somehow.
         if let Some(list) = &self.list {
             if hotkeys::key_pressed_consume(ui, Key::ArrowDown) {
                 self.list_selection = bounded_wrapping_add(self.list_selection, 1, list.len());
@@ -424,15 +428,42 @@ impl App {
                 .max_height(s.max_list_height())
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing = Vec2::splat(s.list_item_gap());
-                    for (i, item) in list.items.iter().enumerate() {
-                        let response = ListRow::new(&mut self.list_selection, i, item).show(ui, s);
+                    let list_style = list.style.unwrap_or(covey::ListStyle::Rows);
 
-                        if rendering_state.list_selection_changed && i == self.list_selection {
-                            tracing::info!("list selection changed");
-                            response.scroll_to_me_animation(
-                                None, // Don't scroll if already visible.
-                                ScrollAnimation::duration(0.2),
+                    let mut show_cells = |ui: &mut Ui| {
+                        for (i, item) in list.items.iter().enumerate() {
+                            let response = ListCell::new(&mut self.list_selection, i, item).show(
+                                ui,
+                                s,
+                                &list_style,
                             );
+
+                            if i % GRID_COLS == 3 {
+                                ui.end_row();
+                            }
+
+                            if rendering_state.list_selection_changed && i == self.list_selection {
+                                tracing::info!("list selection changed");
+                                response.scroll_to_me_animation(
+                                    None, // Don't scroll if already visible.
+                                    ScrollAnimation::duration(0.2),
+                                );
+                            }
+                        }
+                    };
+
+                    match list_style {
+                        covey::ListStyle::Rows => {
+                            show_cells(ui);
+                        }
+                        covey::ListStyle::Grid | covey::ListStyle::GridWithColumns(_) => {
+                            let col_width = (ui.available_width()
+                                - (GRID_COLS as f32 - 1.0) * s.list_item_gap())
+                                / (GRID_COLS as f32);
+                            egui::Grid::new("list grid")
+                                .min_col_width(col_width)
+                                .max_col_width(col_width)
+                                .show(ui, show_cells);
                         }
                     }
                 })
@@ -465,7 +496,6 @@ impl App {
                                     // space between command and shortcut
                                     ui.style_mut().spacing.item_spacing =
                                         s.info_button_padding().as_egui();
-                                    ui.style_mut().interaction.selectable_labels = false;
                                     ui.label(&command.title);
 
                                     if let Some(hotkeys) =

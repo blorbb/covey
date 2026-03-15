@@ -59,6 +59,7 @@ pub fn channel() -> Result<(Host, ActionReceiver)> {
                 plugins,
                 // must be greater than the initial `latest_received_query_request_id`
                 next_request_id: 1,
+                latest_sent_query_request_id: covey_proto::RequestId(0),
             },
         },
         ActionReceiver {
@@ -160,11 +161,22 @@ impl Host {
             .other_actions
             .send(Action::DisplayError(title.into(), description.into()))
     }
+
+    pub(crate) fn query_request_id_is_latest(&self, id: covey_proto::RequestId) -> bool {
+        debug_assert!(
+            self.requester.latest_sent_query_request_id.0 >= id.0,
+            "found {id:?} when latest should be {:?}",
+            self.requester.latest_sent_query_request_id
+        );
+
+        self.requester.latest_sent_query_request_id.0 == id.0
+    }
 }
 
 struct RequestSender {
     plugins: KeyedList<Plugin>,
     next_request_id: u64,
+    latest_sent_query_request_id: covey_proto::RequestId,
 }
 
 pub struct ActionReceiver {
@@ -183,6 +195,7 @@ impl RequestSender {
         debug!("setting input to {query:?}");
 
         let request_id = covey_proto::RequestId(self.next_request_id);
+        self.latest_sent_query_request_id = request_id;
         self.next_request_id += 1;
         let plugins = self.plugins.clone();
 
@@ -302,7 +315,10 @@ impl ActionReceiver {
                 if self.latest_received_query_request_id < new {
                     self.latest_received_query_request_id = new;
                     Some(Action::SetList(crate::List::from_proto(
-                        &host, plugin, list,
+                        &host,
+                        plugin,
+                        list,
+                        response.request_id,
                     )))
                 } else {
                     tracing::trace!("ignoring list response due to outdated request id");

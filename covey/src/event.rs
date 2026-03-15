@@ -48,14 +48,16 @@ impl Input {
 }
 
 /// A list of results to show provided by a plugin.
+#[non_exhaustive]
 pub struct List {
     pub items: Vec<ListItem>,
     pub style: Option<ListStyle>,
     pub plugin: Plugin,
+    request_id: covey_proto::RequestId,
 }
 
 impl fmt::Debug for List {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("List")
             .field(
                 "items",
@@ -81,7 +83,16 @@ impl List {
         self.items.is_empty()
     }
 
-    pub(crate) fn from_proto(host: &Host, plugin: &Plugin, proto: covey_proto::List) -> Self {
+    pub fn is_response_of_latest_query(&self, host: &Host) -> bool {
+        host.query_request_id_is_latest(self.request_id)
+    }
+
+    pub(crate) fn from_proto(
+        host: &Host,
+        plugin: &Plugin,
+        proto: covey_proto::List,
+        request_id: covey_proto::RequestId,
+    ) -> Self {
         let style = proto.style.map(ListStyle::from_proto);
         let list: Vec<_> = proto
             .items
@@ -100,6 +111,7 @@ impl List {
             style,
             items: list,
             plugin: plugin.clone(),
+            request_id,
         }
     }
 }
@@ -178,7 +190,7 @@ impl ListItem {
 }
 
 impl fmt::Debug for ListItem {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ListItem")
             .field("plugin", &self.plugin())
             .field("title", &self.item.title)

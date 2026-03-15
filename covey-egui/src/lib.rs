@@ -395,21 +395,49 @@ impl App {
             ))
             .sense(Sense::empty())
             .show_with_layout(ui, Layout::left_to_right(Align::Center), |ui| {
-                // need disjoint borrows
-                let style = &self.host.config().style;
+                ui.spacing_mut().item_spacing = self.style().list_item_padding().as_egui();
 
-                if let Some(icon) = ImageIcon::from_icon_name(
-                    &self.host,
-                    "search",
-                    Vec2::splat(crate::icon_size(ui.ctx())),
-                ) {
-                    ui.add(icon);
-                    ui.add_space(style.list_item_padding().inline);
+                // search or loading icon
+                let icon_size = crate::icon_size(ui.ctx());
+                if self
+                    .list
+                    .as_ref()
+                    .is_none_or(|l| l.is_response_of_latest_query(&self.host))
+                {
+                    // TODO: cache None icons as well, otherwise this constantly searches for a
+                    // non-existent icon.
+                    if let Some(icon) =
+                        ImageIcon::from_icon_name(&self.host, "search", Vec2::splat(icon_size))
+                    {
+                        ui.add(icon);
+                    } else {
+                        // leave a gap so the loading icon doesn't move the input around.
+                        Container::new()
+                            .exact_size(Vec2::splat(icon_size))
+                            .sense(Sense::empty())
+                            .show(ui, |_| {});
+                    }
+                } else {
+                    // spinner that encompasses the entire icon rect looks too big
+                    let spinner_scale = 0.6;
+                    Container::new()
+                        .exact_size(Vec2::splat(icon_size))
+                        .inner_margin(Margin::same((icon_size * (1.0 - spinner_scale) / 2.0) as _))
+                        .sense(Sense::empty())
+                        .show(ui, |ui| {
+                            ui.add(
+                                egui::Spinner::new()
+                                    .size(icon_size * spinner_scale)
+                                    .color(self.style().text_color().as_egui()),
+                            )
+                        });
                 }
 
+                // a stable id is needed or else the changing icons above makes this buggy
+                let hint_text_color = self.style().weak_text_color().as_egui();
                 TextEdit::singleline(&mut self.input)
-                    // Color is not being set correctly for some reason
-                    .hint_text(RichText::new("Search...").color(style.weak_text_color().as_egui()))
+                    .id_salt("covey main input")
+                    .hint_text(RichText::new("Search...").color(hint_text_color))
                     .margin(Margin::ZERO)
                     .desired_width(f32::INFINITY)
                     .return_key(None)

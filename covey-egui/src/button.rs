@@ -22,6 +22,7 @@ pub struct ButtonStyle {
 pub struct ButtonFrame {
     style: ButtonStyle,
     selected: bool,
+    sense: Sense,
 }
 
 impl ButtonFrame {
@@ -36,16 +37,17 @@ impl ButtonFrame {
                 min_size: Vec2::ZERO,
             },
             selected: false,
+            sense: Sense::click(),
         }
     }
 
-    // /// By default, buttons senses clicks.
-    // /// Change this to a drag-button with `Sense::drag()`.
-    // #[inline]
-    // pub fn sense(mut self, sense: Sense) -> Self {
-    //     self.layout = self.layout.sense(sense);
-    //     self
-    // }
+    /// By default, buttons senses clicks.
+    /// Change this to a drag-button with `Sense::drag()`.
+    #[inline]
+    pub fn sense(mut self, sense: Sense) -> Self {
+        self.sense = sense;
+        self
+    }
 
     #[inline]
     pub fn min_size(mut self, min_size: Vec2) -> Self {
@@ -155,7 +157,7 @@ impl ButtonFrame {
             + frame.frame.inner_margin
             + MarginF32::from(frame.frame.stroke.width)
             + frame.frame.outer_margin;
-        let response = ui.allocate_rect(outer_rect, Sense::click());
+        let response = ui.allocate_rect(outer_rect, self.sense);
 
         if response.has_focus() || response.is_pointer_button_down_on() || self.selected {
             frame.frame.fill = self

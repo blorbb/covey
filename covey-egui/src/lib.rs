@@ -10,14 +10,14 @@ use egui::{
     TextStyle, Ui, Vec2, Vec2b, style::ScrollAnimation, text::CCursor, text_edit::TextEditOutput,
 };
 
-use crate::{button::ButtonFrame, row::ListCell};
+use crate::{row::ListCell, widgets::Container};
 
-pub mod button;
 pub mod cli;
 mod conv;
 mod hotkeys;
 mod row;
 mod style;
+pub mod widgets;
 
 static ICON_TEXT_STYLE: LazyLock<TextStyle> = LazyLock::new(|| TextStyle::Name(Arc::from("icon")));
 static FONTS: LazyLock<egui::FontDefinitions> = LazyLock::new(style::load_system_fonts);
@@ -486,7 +486,7 @@ impl App {
                             let s = &self.host.config().style;
                             ui.style_mut().spacing.item_spacing = Vec2::splat(s.info_button_gap());
 
-                            let button = ButtonFrame::new()
+                            let button = Container::new()
                                 .inner_margin(s.info_button_padding().as_egui())
                                 .corner_radius(s.info_button_rounding().into())
                                 .fill(s.info_button_bg().as_egui())

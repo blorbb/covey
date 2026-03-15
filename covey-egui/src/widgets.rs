@@ -7,7 +7,7 @@ use egui::{
 // margins cannot change after the frame is allocated though, which is when the
 // state of the button is known.
 
-pub struct ButtonStyle {
+pub struct ContainerStyle {
     frame: egui::Frame,
     // `None` means use the existing frame.
     hover_fill: Option<Color32>,
@@ -19,16 +19,16 @@ pub struct ButtonStyle {
     min_size: Vec2,
 }
 
-pub struct ButtonFrame {
-    style: ButtonStyle,
+pub struct Container {
+    style: ContainerStyle,
     selected: bool,
     sense: Sense,
 }
 
-impl ButtonFrame {
+impl Container {
     pub fn new() -> Self {
         Self {
-            style: ButtonStyle {
+            style: ContainerStyle {
                 frame: egui::Frame::new(),
                 hover_fill: None,
                 hover_stroke: None,

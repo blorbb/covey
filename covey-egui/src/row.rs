@@ -1,7 +1,7 @@
 use covey::{ListItem, covey_schema::style::UserStyle};
 use egui::{Align, Layout, TextStyle, Ui, Vec2};
 
-use crate::{AsEgui, ICON_TEXT_STYLE, button::ButtonFrame};
+use crate::{AsEgui, ICON_TEXT_STYLE, widgets::Container};
 
 pub struct ListCell<'sel, 'item, Value> {
     current_value: &'sel mut Value,
@@ -41,7 +41,7 @@ impl<'sel, 'item, Value: PartialEq> ListCell<'sel, 'item, Value> {
             }
         };
 
-        let mut button = ButtonFrame::new()
+        let mut button = Container::new()
             .fill(style.list_item_bg().as_egui())
             .hover_fill(style.list_item_hovered_bg().as_egui())
             .active_fill(style.list_item_active_bg().as_egui())

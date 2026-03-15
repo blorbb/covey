@@ -1,7 +1,10 @@
 use covey::{ListItem, covey_schema::style::UserStyle};
 use egui::{Align, Layout, TextStyle, Ui, Vec2};
 
-use crate::{AsEgui, ICON_TEXT_STYLE, widgets::Container};
+use crate::{
+    AsEgui, ICON_TEXT_STYLE,
+    widgets::{Container, ImageIcon},
+};
 
 pub struct ListCell<'sel, 'item, Value> {
     current_value: &'sel mut Value,
@@ -52,36 +55,20 @@ impl<'sel, 'item, Value: PartialEq> ListCell<'sel, 'item, Value> {
             .show_with_layout(ui, icon_text_layout, |ui| {
                 ui.spacing_mut().item_spacing = style.list_item_padding().as_egui();
 
-                // let body_font = TextStyle::Body.resolve(ui.style());
-                let desc_font = TextStyle::Small.resolve(ui.style());
-                let icon_font = ICON_TEXT_STYLE.resolve(ui.style());
-                let icon_size = Vec2::splat(ui.fonts_mut(|f| f.row_height(&icon_font)));
-
-                match self.item.icon() {
-                    Some(covey::ResolvedIcon::File(file_path)) => {
-                        let image = egui::Image::new(format!(
-                            "file://{}",
-                            file_path.as_os_str().to_string_lossy()
-                        ));
-                        ui.add_sized(icon_size, image.fit_to_exact_size(icon_size));
-                    }
-                    Some(covey::ResolvedIcon::Text(text)) => {
-                        ui.add_sized(
-                            icon_size,
-                            egui::Label::new(egui::RichText::new(text).font(icon_font)),
-                        );
-                    }
-                    None => {}
-                };
+                if let Some(icon) = self.item.icon() {
+                    ui.add(CellIcon::new(icon.clone()));
+                }
 
                 ui.with_layout(title_desc_layout, |ui| {
                     ui.spacing_mut().item_spacing = Vec2::ZERO;
+
                     ui.label(self.item.title());
+
                     if !self.item.description().is_empty() {
                         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
                         ui.label(
                             egui::RichText::new(self.item.description())
-                                .font(desc_font)
+                                .font(TextStyle::Small.resolve(ui.style()))
                                 .color(style.weak_text_color().as_egui()),
                         );
                     }
@@ -96,5 +83,33 @@ impl<'sel, 'item, Value: PartialEq> ListCell<'sel, 'item, Value> {
         }
 
         button
+    }
+}
+
+struct CellIcon {
+    icon: covey::ResolvedIcon,
+}
+
+impl CellIcon {
+    fn new(icon: covey::ResolvedIcon) -> Self {
+        Self { icon }
+    }
+}
+
+impl egui::Widget for CellIcon {
+    fn ui(self, ui: &mut Ui) -> egui::Response {
+        let icon_size = Vec2::splat(crate::icon_size(ui.ctx()));
+
+        match self.icon {
+            covey::ResolvedIcon::File(file_path) => {
+                ui.add(ImageIcon::from_file_path(file_path, icon_size))
+            }
+            covey::ResolvedIcon::Text(text) => ui.add_sized(
+                icon_size,
+                egui::Label::new(
+                    egui::RichText::new(text).font(ICON_TEXT_STYLE.resolve(&ui.ctx().style())),
+                ),
+            ),
+        }
     }
 }

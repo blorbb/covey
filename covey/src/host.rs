@@ -302,9 +302,7 @@ impl ActionReceiver {
                 if self.latest_received_query_request_id < new {
                     self.latest_received_query_request_id = new;
                     Some(Action::SetList(crate::List::from_proto(
-                        plugin,
-                        &host.config.app.icon_themes,
-                        list,
+                        &host, plugin, list,
                     )))
                 } else {
                     tracing::trace!("ignoring list response due to outdated request id");

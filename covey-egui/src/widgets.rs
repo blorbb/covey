@@ -1,6 +1,7 @@
+use std::path::PathBuf;
+
 use egui::{
-    Color32, CornerRadius, InnerResponse, Margin, NumExt, Sense, Stroke, Ui, Vec2,
-    epaint::MarginF32,
+    Color32, CornerRadius, Image, InnerResponse, Margin, NumExt, Sense, Stroke, Ui, Vec2, Widget,
 };
 
 // maybe make the hover and active states just more frames?
@@ -17,6 +18,7 @@ pub struct ContainerStyle {
     active_fill: Option<Color32>,
     active_stroke: Option<Stroke>,
     min_size: Vec2,
+    max_size: Vec2,
 }
 
 pub struct Container {
@@ -35,6 +37,7 @@ impl Container {
                 active_fill: None,
                 active_stroke: None,
                 min_size: Vec2::ZERO,
+                max_size: Vec2::INFINITY,
             },
             selected: false,
             sense: Sense::click(),
@@ -43,16 +46,52 @@ impl Container {
 
     /// By default, buttons senses clicks.
     /// Change this to a drag-button with `Sense::drag()`.
-    #[inline]
+
     pub fn sense(mut self, sense: Sense) -> Self {
         self.sense = sense;
         self
     }
 
-    #[inline]
     pub fn min_size(mut self, min_size: Vec2) -> Self {
         self.style.min_size = min_size;
         self
+    }
+
+    pub fn min_width(mut self, min_width: f32) -> Self {
+        self.style.min_size.x = min_width;
+        self
+    }
+
+    pub fn min_height(mut self, min_height: f32) -> Self {
+        self.style.min_size.y = min_height;
+        self
+    }
+
+    pub fn max_size(mut self, max_size: Vec2) -> Self {
+        self.style.max_size = max_size;
+        self
+    }
+
+    pub fn max_width(mut self, max_width: f32) -> Self {
+        self.style.max_size.x = max_width;
+        self
+    }
+
+    pub fn max_height(mut self, max_height: f32) -> Self {
+        self.style.max_size.y = max_height;
+        self
+    }
+
+    pub fn exact_size(self, size: Vec2) -> Self {
+        self.min_size(size).max_size(size)
+    }
+
+    pub fn exact_width(self, width: f32) -> Self {
+        self.min_width(width).max_width(width)
+    }
+
+    pub fn exact_height(self, height: f32) -> Self {
+        self.min_height(height).max_height(height)
     }
 
     pub fn inner_margin(mut self, margin: Margin) -> Self {
@@ -70,43 +109,36 @@ impl Container {
         self
     }
 
-    #[inline]
     pub fn fill(mut self, fill: Color32) -> Self {
         self.style.frame.fill = fill;
         self
     }
 
-    #[inline]
     pub fn stroke(mut self, stroke: Stroke) -> Self {
         self.style.frame.stroke = stroke;
         self
     }
 
-    #[inline]
     pub fn hover_fill(mut self, fill: Color32) -> Self {
         self.style.hover_fill = Some(fill);
         self
     }
 
-    #[inline]
     pub fn hover_stroke(mut self, stroke: Stroke) -> Self {
         self.style.hover_stroke = Some(stroke);
         self
     }
 
-    #[inline]
     pub fn active_fill(mut self, fill: Color32) -> Self {
         self.style.active_fill = Some(fill);
         self
     }
 
-    #[inline]
     pub fn active_stroke(mut self, stroke: Stroke) -> Self {
         self.style.active_stroke = Some(stroke);
         self
     }
 
-    #[inline]
     pub fn selected(mut self, selected: bool) -> Self {
         self.selected = selected;
         self
@@ -141,22 +173,26 @@ impl Container {
         let mut frame = self.style.frame.begin(ui);
 
         // must subtract the same amount that is added to the rect below
-        frame.content_ui.set_min_size(
-            (self.style.min_size
-                - frame.frame.inner_margin.sum()
-                - Vec2::splat(frame.frame.stroke.width)
-                - frame.frame.outer_margin.sum())
-            .at_least(Vec2::ZERO),
-        );
+        let min_size =
+            (self.style.min_size - frame.frame.total_margin().sum()).at_least(Vec2::ZERO);
+        frame.content_ui.set_min_size(min_size);
+
+        // egui doesn't handle infinities well
+        let max_size =
+            (self.style.max_size - frame.frame.total_margin().sum()).at_least(Vec2::ZERO);
+        if max_size.x.is_finite() {
+            frame.content_ui.set_max_width(max_size.x);
+        }
+        if max_size.y.is_finite() {
+            frame.content_ui.set_max_height(max_size.y);
+        }
+
         let inner_response = add_contents(&mut frame.content_ui);
 
         // allocate_space only supports sensing hovers and can't be customized.
         // this is a copy of allocate_space but with extra senses.
         // also the min size.
-        let outer_rect = frame.content_ui.min_rect()
-            + frame.frame.inner_margin
-            + MarginF32::from(frame.frame.stroke.width)
-            + frame.frame.outer_margin;
+        let outer_rect = frame.content_ui.min_rect() + frame.frame.total_margin();
         let response = ui.allocate_rect(outer_rect, self.sense);
 
         if response.has_focus() || response.is_pointer_button_down_on() || self.selected {
@@ -181,5 +217,32 @@ impl Container {
             inner: inner_response,
             response,
         }
+    }
+}
+
+pub struct ImageIcon {
+    file_path: PathBuf,
+    size: Vec2,
+}
+
+impl ImageIcon {
+    pub fn from_file_path(file_path: PathBuf, size: Vec2) -> Self {
+        Self { file_path, size }
+    }
+
+    pub fn from_icon_name(host: &covey::Host, icon_name: &str, size: Vec2) -> Option<Self> {
+        Some(Self::from_file_path(
+            covey::ResolvedIcon::resolve_icon_name(host, icon_name)?,
+            size,
+        ))
+    }
+}
+
+impl Widget for ImageIcon {
+    fn ui(self, ui: &mut Ui) -> egui::Response {
+        ui.add_sized(
+            self.size,
+            Image::new(format!("file://{}", self.file_path.display())).fit_to_exact_size(self.size),
+        )
     }
 }

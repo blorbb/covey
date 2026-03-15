@@ -6,11 +6,15 @@ use std::{
 use covey::covey_schema::style::UserStyle;
 use eframe::CreationContext;
 use egui::{
-    Color32, CornerRadius, FontFamily, FontId, Key, Margin, RichText, ScrollArea, Stroke, TextEdit,
-    TextStyle, Ui, Vec2, Vec2b, style::ScrollAnimation, text::CCursor, text_edit::TextEditOutput,
+    Align, Color32, CornerRadius, FontFamily, FontId, Key, Layout, Margin, RichText, ScrollArea,
+    Sense, Stroke, TextEdit, TextStyle, Ui, Vec2, Vec2b, style::ScrollAnimation, text::CCursor,
+    text_edit::TextEditOutput,
 };
 
-use crate::{row::ListCell, widgets::Container};
+use crate::{
+    row::ListCell,
+    widgets::{Container, ImageIcon},
+};
 
 pub mod cli;
 mod conv;
@@ -22,6 +26,11 @@ pub mod widgets;
 static ICON_TEXT_STYLE: LazyLock<TextStyle> = LazyLock::new(|| TextStyle::Name(Arc::from("icon")));
 static FONTS: LazyLock<egui::FontDefinitions> = LazyLock::new(style::load_system_fonts);
 const GRID_COLS: usize = 4;
+
+fn icon_size(ctx: &egui::Context) -> f32 {
+    let icon_font = ICON_TEXT_STYLE.resolve(&ctx.style());
+    ctx.fonts_mut(|f| f.row_height(&icon_font))
+}
 
 pub struct App {
     pub host: covey::Host,
@@ -377,23 +386,36 @@ impl App {
     }
 
     fn show_input(&mut self, ui: &mut Ui, rendering_state: &RenderingState) {
-        let row_height = ui.fonts_mut(|f| f.row_height(&egui::TextStyle::Body.resolve(ui.style())));
-
-        let mut text_edit = scope_style(
-            ui,
-            |style| style.visuals.selection.stroke = Stroke::NONE,
-            |ui| {
+        ui.spacing_mut().item_spacing = Vec2::ZERO;
+        let mut text_edit = Container::new()
+            .exact_height(self.style().input_height())
+            .inner_margin(Margin::symmetric(
+                self.style().list_item_padding().inline as _,
+                0,
+            ))
+            .sense(Sense::empty())
+            .show_with_layout(ui, Layout::left_to_right(Align::Center), |ui| {
                 // need disjoint borrows
                 let style = &self.host.config().style;
+
+                if let Some(icon) = ImageIcon::from_icon_name(
+                    &self.host,
+                    "search",
+                    Vec2::splat(crate::icon_size(ui.ctx())),
+                ) {
+                    ui.add(icon);
+                    ui.add_space(style.list_item_padding().inline);
+                }
+
                 TextEdit::singleline(&mut self.input)
                     // Color is not being set correctly for some reason
                     .hint_text(RichText::new("Search...").color(style.weak_text_color().as_egui()))
-                    .margin((style.input_height() - row_height) / 2.0)
+                    .margin(Margin::ZERO)
                     .desired_width(f32::INFINITY)
                     .return_key(None)
                     .show(ui)
-            },
-        );
+            })
+            .inner;
 
         // Misc state changes
         if !self.app_has_been_focused {
@@ -521,7 +543,7 @@ impl App {
                     };
 
                     // TODO: make clicking this go to a settings window
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
                         ui.add(egui::Button::new(&list.plugin.manifest().name));
                     });
                 }
@@ -580,18 +602,6 @@ impl TextEditExt for TextEditOutput {
             .set_char_range(Some(egui::text::CCursorRange::select_all(&self.galley)));
         self.state.clone().store(ui.ctx(), self.response.id);
     }
-}
-
-fn scope_style<R>(
-    ui: &mut Ui,
-    mut mutate_style: impl FnMut(&mut egui::Style),
-    add_contents: impl FnOnce(&mut Ui) -> R,
-) -> R {
-    let old_style = Arc::clone(ui.style());
-    mutate_style(ui.style_mut());
-    let result = add_contents(ui);
-    ui.set_style(old_style);
-    result
 }
 
 #[expect(dead_code)]

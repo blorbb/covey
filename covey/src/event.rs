@@ -4,7 +4,7 @@ use std::{fmt, path::PathBuf};
 
 use covey_schema::{hotkey::Hotkey, manifest::Command};
 
-use crate::Plugin;
+use crate::{Host, Plugin};
 
 /// An action that should be performed by the frontend.
 #[derive(Debug)]
@@ -81,11 +81,7 @@ impl List {
         self.items.is_empty()
     }
 
-    pub(crate) fn from_proto(
-        plugin: &Plugin,
-        icon_themes: &[String],
-        proto: covey_proto::List,
-    ) -> Self {
+    pub(crate) fn from_proto(host: &Host, plugin: &Plugin, proto: covey_proto::List) -> Self {
         let style = proto.style.map(ListStyle::from_proto);
         let list: Vec<_> = proto
             .items
@@ -95,7 +91,7 @@ impl List {
                 icon: li
                     .icon
                     .clone()
-                    .and_then(|icon| ResolvedIcon::resolve(icon, icon_themes)),
+                    .and_then(|icon| ResolvedIcon::resolve(host, icon)),
                 item: li,
             })
             .collect();
@@ -214,10 +210,34 @@ pub enum ResolvedIcon {
 }
 
 impl ResolvedIcon {
-    pub(crate) fn resolve(
-        proto: covey_proto::ListItemIcon,
-        icon_themes: &[String],
-    ) -> Option<Self> {
+    pub fn resolve_icon_name(host: &Host, name: &str) -> Option<PathBuf> {
+        host.config().app.icon_themes.iter().find_map(|theme| {
+            let path = freedesktop_icons::lookup(name)
+                .with_theme(theme)
+                .with_size(48)
+                .with_cache()
+                .find()
+                .inspect(|path| {
+                    tracing::trace!("found icon {name:?} with theme {theme:?} at {path:?}")
+                });
+
+            // lookup automatically goes through several backup options, including hicolor
+            // and other paths. do not count an icon as being found if a backup is used.
+            // To check whether a backup is used, see if the path contains the theme name.
+            // But special case hicolor to allow the backup paths to be used.
+            if theme == "hicolor"
+                || path
+                    .as_ref()
+                    .is_some_and(|path| path.to_str().is_some_and(|str| str.contains(theme)))
+            {
+                path
+            } else {
+                None
+            }
+        })
+    }
+
+    pub(crate) fn resolve(host: &Host, proto: covey_proto::ListItemIcon) -> Option<Self> {
         // `freedesktop_icons::lookup` can do filesystem reads, which is blocking.
         // Maybe this function should be async. But this is used on the path of turning
         // responses to actions, which is tricky to turn async.
@@ -225,33 +245,9 @@ impl ResolvedIcon {
         // Only new icons will need to perform a filesystem lookup. Most icons should be
         // cached, which is a fast lookup and doesn't block.
         match proto {
-            covey_proto::ListItemIcon::Name(name) => icon_themes
-                .iter()
-                .find_map(|theme| {
-                    let path = freedesktop_icons::lookup(&name)
-                        .with_theme(theme)
-                        .with_size(48)
-                        .with_cache()
-                        .find()
-                        .inspect(|path| {
-                            tracing::trace!("found icon {name:?} with theme {theme:?} at {path:?}")
-                        });
-
-                    // lookup automatically goes through several backup options, including hicolor
-                    // and other paths. do not count an icon as being found if a backup is used.
-                    // To check whether a backup is used, see if the path contains the theme name.
-                    // But special case hicolor to allow the backup paths to be used.
-                    if theme == "hicolor"
-                        || path.as_ref().is_some_and(|path| {
-                            path.to_str().is_some_and(|str| str.contains(theme))
-                        })
-                    {
-                        path
-                    } else {
-                        None
-                    }
-                })
-                .map(Self::File),
+            covey_proto::ListItemIcon::Name(name) => {
+                Self::resolve_icon_name(host, &name).map(Self::File)
+            }
             covey_proto::ListItemIcon::Text(text) => Some(Self::Text(text)),
         }
     }

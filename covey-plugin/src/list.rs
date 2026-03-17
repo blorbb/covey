@@ -1,6 +1,9 @@
-use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
+use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc, time::SystemTime};
 
-use crate::Menu;
+use crate::{
+    Menu,
+    rank::{self, VisitId},
+};
 
 #[non_exhaustive]
 pub struct List {
@@ -71,7 +74,7 @@ impl ListItem {
             title: title.clone(),
             icon: None,
             description: String::new(),
-            commands: ListItemCallbacks::new(title),
+            commands: ListItemCallbacks::new(VisitId::from(title)),
         }
     }
 
@@ -97,6 +100,43 @@ impl ListItem {
     pub fn with_icon_text(mut self, text: impl Into<String>) -> Self {
         self.icon = Some(Icon::Text(text.into()));
         self
+    }
+
+    pub fn with_usage_id(mut self, id: impl Into<VisitId>) -> Self {
+        self.commands.usage_id = id.into();
+        self
+    }
+
+    /// An ID to identify this list item when keeping track of how many times it
+    /// has been previously used/activated.
+    ///
+    /// If not explicitly set, the usage id will be the list item title.
+    pub fn visit_id(&self) -> &VisitId {
+        &self.commands.usage_id
+    }
+
+    pub fn accuracy(&self, query: &str, weights: rank::Weights) -> f32 {
+        rank::accuracy(query, self, weights)
+    }
+
+    pub fn frecency(&self, visits: &rank::Visits, now: SystemTime) -> rank::Frecency {
+        rank::frecency(self, visits, now)
+    }
+
+    /// Score including both accuracy and frecency.
+    pub fn score(
+        &self,
+        query: &str,
+        visits: &rank::Visits,
+        now: SystemTime,
+        weights: rank::Weights,
+    ) -> f32 {
+        if weights.frecency != 0.0 {
+            self.frecency(visits, now)
+                .combine_with_accuracy(self.accuracy(query, weights), weights)
+        } else {
+            self.accuracy(query, weights)
+        }
     }
 
     /// Adds a command that can be called.
@@ -135,14 +175,14 @@ type ActivationFunction = Arc<dyn Fn(Menu) -> DynFuture<()> + Send + Sync>;
 #[derive(Clone)]
 pub(crate) struct ListItemCallbacks {
     commands: HashMap<covey_proto::CommandId, ActivationFunction>,
-    item_title: String,
+    usage_id: VisitId,
 }
 
 impl ListItemCallbacks {
-    pub(crate) fn new(title: String) -> Self {
+    pub(crate) fn new(title: VisitId) -> Self {
         Self {
             commands: HashMap::default(),
-            item_title: title,
+            usage_id: title,
         }
     }
 
@@ -157,7 +197,7 @@ impl ListItemCallbacks {
     /// Calls a command by name, doing nothing if the command is not found.
     pub(crate) async fn call_command(&self, name: &covey_proto::CommandId, menu: Menu) {
         if let Some(cmd) = self.commands.get(name) {
-            crate::rank::register_usage(&self.item_title);
+            crate::rank::Visits::update_file_with_visit(self.usage_id.clone());
             cmd(menu).await;
         }
     }

@@ -22,8 +22,7 @@ dirs.workspace = true
 parking_lot.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-sublime_fuzzy.workspace = true
-time = { workspace = true, features = ["serde"] }
+skim.workspace = true
 tokio = { workspace = true, features = [
     "rt",
     "macros",

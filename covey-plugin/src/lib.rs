@@ -13,7 +13,7 @@ pub use action::{Action, Actions};
 mod input;
 pub use input::{Input, SelectionRange};
 mod plugin;
-pub use plugin::{Plugin, PluginBlocking};
+pub use plugin::Plugin;
 mod server;
 pub use server::{run_server, run_server_blocking};
 mod menu;

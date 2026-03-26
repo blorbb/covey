@@ -15,26 +15,22 @@ pub trait Plugin: Sized + 'static {
     async fn query(&self, query: String) -> Result<List>;
 }
 
-pub trait PluginBlocking: Sized + Send + Sync + 'static {
-    type Config: ManifestDeserialization;
+/// Private to not expose that [`Arc<Plugin>`] can implement [`Plugin`].
+pub(crate) struct BlockingPluginWrapper<T>(Arc<T>);
 
-    #[expect(async_fn_in_trait, reason = "plugin is single threaded")]
-    async fn new(config: Self::Config) -> Result<Self>;
-
-    fn query(&self, query: String) -> Result<List>;
-}
-
-impl<T: PluginBlocking> Plugin for Arc<T> {
+impl<T: Plugin + Send + Sync> Plugin for BlockingPluginWrapper<T> {
     type Config = T::Config;
 
     async fn new(config: Self::Config) -> Result<Self> {
-        Ok(Arc::new(T::new(config).await?))
+        Ok(BlockingPluginWrapper(Arc::new(T::new(config).await?)))
     }
 
     async fn query(&self, query: String) -> Result<List> {
-        let this = Arc::clone(self);
-        tokio::task::spawn_blocking(move || T::query(&this, query))
-            .await
-            .unwrap()
+        let this = Arc::clone(&self.0);
+        tokio::task::spawn_blocking(move || {
+            tokio::runtime::Handle::current().block_on(T::query(&this, query))
+        })
+        .await
+        .unwrap()
     }
 }

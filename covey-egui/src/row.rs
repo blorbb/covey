@@ -107,7 +107,7 @@ impl egui::Widget for CellIcon {
             covey::ResolvedIcon::Text(text) => ui.add_sized(
                 icon_size,
                 egui::Label::new(
-                    egui::RichText::new(text).font(ICON_TEXT_STYLE.resolve(&ui.ctx().style())),
+                    egui::RichText::new(text).font(ICON_TEXT_STYLE.resolve(ui.style())),
                 ),
             ),
         }

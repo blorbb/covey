@@ -28,7 +28,7 @@ static FONTS: LazyLock<egui::FontDefinitions> = LazyLock::new(style::load_system
 const GRID_COLS: usize = 4;
 
 fn icon_size(ctx: &egui::Context) -> f32 {
-    let icon_font = ICON_TEXT_STYLE.resolve(&ctx.style());
+    let icon_font = ICON_TEXT_STYLE.resolve(&ctx.global_style());
     ctx.fonts_mut(|f| f.row_height(&icon_font))
 }
 
@@ -118,7 +118,7 @@ impl App {
     }
 
     fn set_ctx_style(&self, cc: &CreationContext) {
-        cc.egui_ctx.set_style(style::style_reset());
+        cc.egui_ctx.set_global_style(style::style_reset());
         cc.egui_ctx.set_fonts(FONTS.clone());
         cc.egui_ctx.all_styles_mut(|style| {
             let ss = self.style();
@@ -172,15 +172,15 @@ impl eframe::App for &mut App {
         [0.0; 4]
     }
 
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         // Don't use CentralPanel as it fills up whatever remaining space there is.
         // Changing the window size has a small delay so theres a big blank empty space
         // for a single frame.
         // Top panel only takes up as much space as the UI needs, so it always has
         // the right size.
-        egui::TopBottomPanel::top("main-panel")
-            .frame(egui::Frame::window(&ctx.style()))
-            .show(ctx, |ui| self.show(ui));
+        egui::Panel::top("main-panel")
+            .frame(egui::Frame::window(&ui.style()))
+            .show_inside(ui, |ui| self.show(ui));
     }
 }
 
@@ -231,14 +231,13 @@ impl App {
         self.show_buttom_bar(ui);
 
         // set window size //
-        let existing_height = ui.ctx().content_rect().height();
+        let existing_height = ui.content_rect().height();
         let new_height = ui.cursor().top() + self.style().window_margin().block;
         if (existing_height - new_height).abs() < 1. {
-            ui.ctx()
-                .send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(
-                    self.style().window_width(),
-                    new_height,
-                )));
+            ui.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(
+                self.style().window_width(),
+                new_height,
+            )));
         }
 
         // Close if unfocused
@@ -251,7 +250,7 @@ impl App {
             && !rendering_state.window_is_focused
         {
             tracing::info!("window unfocused");
-            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+            ui.send_viewport_cmd(egui::ViewportCommand::Close);
             self.is_closed = true;
             return;
         }
@@ -268,7 +267,7 @@ impl App {
             cli::Action::Exit => {
                 tracing::info!("received exit message");
                 if let Some(ui) = ui {
-                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                    ui.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
                 self.is_closed = true;
                 AppControlFlow::ExitProcess
@@ -296,14 +295,14 @@ impl App {
             covey::Action::Close => {
                 tracing::info!("received close request");
                 if let Some(ui) = ui {
-                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                    ui.send_viewport_cmd(egui::ViewportCommand::Close);
                 };
                 self.is_closed = true;
                 AppControlFlow::CloseGui
             }
             covey::Action::Copy(str) => {
                 if let Some(ui) = ui {
-                    ui.ctx().copy_text(str);
+                    ui.copy_text(str);
                 } else {
                     _ = arboard::Clipboard::new()
                         .and_then(|mut c| c.set_text(str))
@@ -352,7 +351,7 @@ impl App {
         // global hotkeys
 
         if hotkeys::key_pressed_consume(ui, Key::Escape) {
-            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+            ui.send_viewport_cmd(egui::ViewportCommand::Close);
         }
 
         // TODO: how to handle moving around a grid? pressing left/right still needs to
@@ -398,40 +397,40 @@ impl App {
                 ui.spacing_mut().item_spacing = self.style().list_item_padding().as_egui();
 
                 // search or loading icon
-                let icon_size = crate::icon_size(ui.ctx());
-                if self
-                    .list
-                    .as_ref()
-                    .is_none_or(|l| l.is_response_of_latest_query(&self.host))
-                {
-                    // TODO: cache None icons as well, otherwise this constantly searches for a
-                    // non-existent icon.
-                    if let Some(icon) =
-                        ImageIcon::from_icon_name(&self.host, "search", Vec2::splat(icon_size))
-                    {
-                        ui.add(icon);
-                    } else {
-                        // leave a gap so the loading icon doesn't move the input around.
-                        Container::new()
-                            .exact_size(Vec2::splat(icon_size))
-                            .sense(Sense::empty())
-                            .show(ui, |_| {});
-                    }
-                } else {
-                    // spinner that encompasses the entire icon rect looks too big
-                    let spinner_scale = 0.6;
-                    Container::new()
-                        .exact_size(Vec2::splat(icon_size))
-                        .inner_margin(Margin::same((icon_size * (1.0 - spinner_scale) / 2.0) as _))
-                        .sense(Sense::empty())
-                        .show(ui, |ui| {
-                            ui.add(
-                                egui::Spinner::new()
-                                    .size(icon_size * spinner_scale)
-                                    .color(self.style().text_color().as_egui()),
-                            )
-                        });
-                }
+                let icon_size = crate::icon_size(ui);
+                Container::new()
+                    .exact_size(Vec2::splat(icon_size))
+                    .sense(Sense::empty())
+                    .show(ui, |ui| {
+                        if self
+                            .list
+                            .as_ref()
+                            .is_none_or(|l| l.is_response_of_latest_query(&self.host))
+                        {
+                            // TODO: cache None icons as well, otherwise this constantly searches
+                            // for a non-existent icon.
+                            if let Some(icon) = ImageIcon::from_icon_name(
+                                &self.host,
+                                "search",
+                                Vec2::splat(icon_size),
+                            ) {
+                                ui.centered_and_justified(|ui| ui.add(icon));
+                            } else {
+                                // leave a gap so the loading icon doesn't move
+                                // the input around.
+                            }
+                        } else {
+                            // spinner that encompasses the entire icon rect looks too big
+                            let spinner_scale = 0.6;
+                            ui.centered_and_justified(|ui| {
+                                ui.add(
+                                    egui::Spinner::new()
+                                        .size(icon_size * spinner_scale)
+                                        .color(self.style().text_color().as_egui()),
+                                )
+                            });
+                        }
+                    });
 
                 // a stable id is needed or else the changing icons above makes this buggy
                 let hint_text_color = self.style().weak_text_color().as_egui();
@@ -462,7 +461,7 @@ impl App {
         if !text_edit.response.has_focus() && rendering_state.window_is_focused {
             text_edit.response.request_focus();
             // the text edit focus ring will flash for one frame without this
-            ui.ctx().request_discard("lost text edit focus");
+            ui.request_discard("lost text edit focus");
         }
     }
 
@@ -621,14 +620,14 @@ impl TextEditExt for TextEditOutput {
                 CCursor::new(min),
                 CCursor::new(max),
             )));
-        self.state.clone().store(ui.ctx(), self.response.id);
+        self.state.clone().store(ui, self.response.id);
     }
 
     fn select_all(&mut self, ui: &mut Ui) {
         self.state
             .cursor
             .set_char_range(Some(egui::text::CCursorRange::select_all(&self.galley)));
-        self.state.clone().store(ui.ctx(), self.response.id);
+        self.state.clone().store(ui, self.response.id);
     }
 }
 

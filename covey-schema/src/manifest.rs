@@ -363,7 +363,7 @@ mod tests {
     use crate::{
         id::PluginId,
         keyed_list::KeyedList,
-        manifest::{SchemaSelection, default_commands},
+        manifest::{SchemaSelection, SchemaText, default_commands},
     };
 
     #[test]
@@ -402,10 +402,10 @@ mod tests {
 
     #[test]
     fn int() {
-        let input = r#"
+        let input = r"
             int = { min = 0 }
-        "#;
-        let output: SchemaType = toml::from_str(&input).unwrap();
+        ";
+        let output: SchemaType = toml::from_str(input).unwrap();
         assert_eq!(
             output,
             SchemaType::Int(SchemaInt {
@@ -467,8 +467,8 @@ mod tests {
                     r#type: SchemaType::Map(SchemaMap {
                         value_type: Box::new(SchemaType::Struct(SchemaStruct {
                             fields: BTreeMap::from([
-                                ("name".to_string(), SchemaType::Text(Default::default())),
-                                ("url".to_string(), SchemaType::Text(Default::default()))
+                                ("name".to_string(), SchemaType::Text(SchemaText::default())),
+                                ("url".to_string(), SchemaType::Text(SchemaText::default()))
                             ])
                         })),
                         min_items: Default::default()
@@ -486,7 +486,7 @@ mod tests {
             selection.allowed-values = ["some-thing", "another-thing", "and-yet-another"]
             selection.default = "some-thing"
         "#;
-        let output: SchemaType = toml::from_str(&input).unwrap();
+        let output: SchemaType = toml::from_str(input).unwrap();
         assert_eq!(
             output,
             SchemaType::Selection(SchemaSelection {

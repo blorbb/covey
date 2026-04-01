@@ -52,7 +52,7 @@ pub fn plugin_data_dir() -> &'static PathBuf {
                     .expect("plugin id should be initialised in main"),
             )
     });
-    &*DIR
+    &DIR
 }
 
 /// Clones variables into an async closure (by calling [`ToOwned::to_owned`]).

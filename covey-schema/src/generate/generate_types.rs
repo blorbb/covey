@@ -518,7 +518,9 @@ impl TypePath {
             TypePathKind::Absolute => {}
             TypePathKind::Relative => *base = quote! { #module::#base },
         }
-        generics.iter_mut().for_each(|ty| ty.nest_within(module));
+        for ty in generics {
+            ty.nest_within(module);
+        }
     }
 }
 

@@ -32,10 +32,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // eframe::create_native. Need to use some other kind of channel anyways to
     // tell this app to open from another process
 
-    let (settings, cli_rx) = match cli::listener()? {
-        Some((settings, rx)) => (settings, rx),
+    let Some((settings, cli_rx)) = cli::listener()? else {
         // Another instance is already open, quit.
-        None => return Ok(()),
+        return Ok(());
     };
 
     tracing::info!("Starting window");

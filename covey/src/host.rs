@@ -128,7 +128,7 @@ impl Host {
             covey_schema::keyed_list::ReplaceResult::IdNotFound => {
                 self.send_error(
                     "Failed to reload plugin",
-                    format!("could not find config of plugin {plugin_id}",),
+                    format!("could not find config of plugin {plugin_id}"),
                 );
             }
             covey_schema::keyed_list::ReplaceResult::ReplaceError(e) => {
@@ -315,7 +315,7 @@ impl ActionReceiver {
                 if self.latest_received_query_request_id < new {
                     self.latest_received_query_request_id = new;
                     Some(Action::SetList(crate::List::from_proto(
-                        &host,
+                        host,
                         plugin,
                         list,
                         response.request_id,

@@ -143,7 +143,10 @@ impl Visits {
             match std::fs::write(&tmp_visits_path, json_string) {
                 Ok(()) => {}
                 Err(e) => {
-                    eprintln!("WARNING: failed to write visits to {tmp_visits_path:?}: {e:#}");
+                    eprintln!(
+                        "WARNING: failed to write visits to {}: {e:#}",
+                        tmp_visits_path.display()
+                    );
                     _ = std::fs::remove_file(&tmp_visits_path);
                     return;
                 }
@@ -151,7 +154,10 @@ impl Visits {
             match std::fs::rename(&tmp_visits_path, &visits_path) {
                 Ok(()) => {}
                 Err(e) => {
-                    eprintln!("WARNING: failed to commit visits to {visits_path:?}: {e:#}");
+                    eprintln!(
+                        "WARNING: failed to commit visits to {}: {e:#}",
+                        visits_path.display()
+                    );
                     _ = std::fs::remove_file(&tmp_visits_path);
                     return;
                 }
@@ -227,19 +233,19 @@ impl Frecency {
 /// Returns up to 100 items that have a score of at least 1.
 #[expect(clippy::unused_async, reason = "may require async in the future")]
 pub async fn rank(query: &str, items: &[ListItem], weights: Weights) -> Vec<ListItem> {
-    let mut scored: Vec<_> = if weights.frecency != 0.0 {
+    let mut scored: Vec<_> = if weights.frecency == 0.0 {
+        items
+            .iter()
+            .map(|item| (item, item.accuracy(query, weights)))
+            .filter(|(_, score)| query.is_empty() || *score > 1.0)
+            .collect()
+    } else {
         let visits = Visits::from_file();
         let now = SystemTime::now();
 
         items
-            .into_iter()
+            .iter()
             .map(|item| (item, item.score(query, &visits, now, weights)))
-            .filter(|(_, score)| query.is_empty() || *score > 1.0)
-            .collect()
-    } else {
-        items
-            .into_iter()
-            .map(|item| (item, item.accuracy(query, weights)))
             .filter(|(_, score)| query.is_empty() || *score > 1.0)
             .collect()
     };

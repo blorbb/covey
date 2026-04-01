@@ -106,16 +106,15 @@ impl<T: Identify> KeyedList<T> {
                             replace_result = ReplaceResult::ReplaceError(e);
                             None
                         }
-                        Ok(new_t) => match new_t.id() == id {
-                            true => {
+                        Ok(new_t) => {
+                            if new_t.id() == id {
                                 replace_result = ReplaceResult::Replaced;
                                 Some(new_t)
-                            }
-                            false => {
+                            } else {
                                 replace_result = ReplaceResult::DifferentId;
                                 None
                             }
-                        },
+                        }
                     }
                 } else {
                     Some(t)

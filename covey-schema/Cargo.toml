@@ -12,6 +12,7 @@ description = "Shared types for Covey's configuration"
 ts-rs = ["dep:ts-rs"]
 
 [dependencies]
+az.workspace = true
 hex_color = { workspace = true, features = ["serde"] }
 proc-macro2.workspace = true
 quote.workspace = true

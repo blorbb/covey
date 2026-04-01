@@ -46,16 +46,15 @@ impl Action {
 /// While each action will be run in sequence, they will not wait for previous
 /// actions to complete. If you need to run something more complex,
 /// you can write your desired code in the command callback.
+#[non_exhaustive]
 pub struct Actions {
     pub list: Vec<Action>,
-    _priv: (),
 }
 
 impl<T: IntoIterator<Item = Action>> From<T> for Actions {
     fn from(value: T) -> Self {
         Self {
             list: value.into_iter().collect(),
-            _priv: (),
         }
     }
 }

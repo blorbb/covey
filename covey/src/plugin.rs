@@ -262,6 +262,7 @@ struct ActiveProcess {
 }
 
 impl ActiveProcess {
+    #[expect(clippy::unused_async, reason = "might need async in future")]
     pub(super) async fn new(
         plugin: Weak<PluginInner>,
         bin_path: PathBuf,

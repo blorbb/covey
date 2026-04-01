@@ -154,7 +154,7 @@ fn insert_fonts(
         .families
         .entry(egui_family)
         .or_default()
-        .splice(0..0, font_families.iter().map(|s| s.to_string()));
+        .splice(0..0, font_families.iter().map(|s| (*s).to_owned()));
 }
 
 fn find_font_from_system(font_family: &str) -> anyhow::Result<font_kit::font::Font> {

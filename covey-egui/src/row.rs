@@ -29,7 +29,7 @@ impl<'sel, 'item, Value: PartialEq> ListCell<'sel, 'item, Value> {
         self,
         ui: &mut Ui,
         style: &UserStyle,
-        list_style: &covey::ListStyle,
+        list_style: covey::ListStyle,
     ) -> egui::Response {
         let icon_text_layout = match list_style {
             covey::ListStyle::Rows => Layout::left_to_right(Align::Min),

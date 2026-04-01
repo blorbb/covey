@@ -1054,6 +1054,7 @@ version = "0.0.2"
 dependencies = [
  "anyhow",
  "arboard",
+ "az",
  "clap",
  "covey",
  "eframe",
@@ -1110,6 +1111,7 @@ dependencies = [
 name = "covey-schema"
 version = "0.0.2"
 dependencies = [
+ "az",
  "hex_color",
  "proc-macro2",
  "quote",

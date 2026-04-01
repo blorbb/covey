@@ -102,6 +102,7 @@ impl ListItem {
         self
     }
 
+    #[must_use = "builder method consumes self"]
     pub fn with_usage_id(mut self, id: impl Into<VisitId>) -> Self {
         self.commands.usage_id = id.into();
         self
@@ -136,11 +137,11 @@ impl ListItem {
         now: SystemTime,
         weights: rank::Weights,
     ) -> f32 {
-        if weights.frecency != 0.0 {
+        if weights.frecency == 0.0 {
+            self.accuracy(query, weights)
+        } else {
             self.frecency(visits, now, weights)
                 .combine_with_accuracy(self.accuracy(query, weights))
-        } else {
-            self.accuracy(query, weights)
         }
     }
 

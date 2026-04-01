@@ -1,3 +1,4 @@
+use az::SaturatingAs;
 use hex_color::HexColor;
 use serde::{Deserialize, Serialize};
 
@@ -20,13 +21,18 @@ impl Color {
         Self::rgba(r, g, b, u8::MAX)
     }
 
+    #[must_use]
     #[inline]
     pub fn multiply_alpha(self, factor: f32) -> Self {
         debug_assert!(
             0.0 <= factor && factor.is_finite(),
             "factor should be finite, but was {factor}"
         );
-        Self(self.0.with_a(((self.a() as f32) * factor) as u8))
+
+        Self(
+            self.0
+                .with_a((f32::from(self.a()) * factor).saturating_as::<u8>()),
+        )
     }
 
     pub fn r(&self) -> u8 {
@@ -240,5 +246,5 @@ impl UserStyle {
 }
 
 fn a(a: f32) -> u8 {
-    (a * u8::MAX as f32) as u8
+    (a * f32::from(u8::MAX)).saturating_as::<u8>()
 }

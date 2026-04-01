@@ -46,99 +46,118 @@ impl Container {
 
     /// By default, buttons senses clicks.
     /// Change this to a drag-button with `Sense::drag()`.
-
+    #[must_use]
     pub fn sense(mut self, sense: Sense) -> Self {
         self.sense = sense;
         self
     }
 
+    #[must_use]
     pub fn min_size(mut self, min_size: Vec2) -> Self {
         self.style.min_size = min_size;
         self
     }
 
+    #[must_use]
     pub fn min_width(mut self, min_width: f32) -> Self {
         self.style.min_size.x = min_width;
         self
     }
 
+    #[must_use]
     pub fn min_height(mut self, min_height: f32) -> Self {
         self.style.min_size.y = min_height;
         self
     }
 
+    #[must_use]
     pub fn max_size(mut self, max_size: Vec2) -> Self {
         self.style.max_size = max_size;
         self
     }
 
+    #[must_use]
     pub fn max_width(mut self, max_width: f32) -> Self {
         self.style.max_size.x = max_width;
         self
     }
 
+    #[must_use]
     pub fn max_height(mut self, max_height: f32) -> Self {
         self.style.max_size.y = max_height;
         self
     }
 
+    #[must_use]
     pub fn exact_size(self, size: Vec2) -> Self {
         self.min_size(size).max_size(size)
     }
 
+    #[must_use]
     pub fn exact_width(self, width: f32) -> Self {
         self.min_width(width).max_width(width)
     }
 
+    #[must_use]
     pub fn exact_height(self, height: f32) -> Self {
         self.min_height(height).max_height(height)
     }
 
+    #[must_use]
     pub fn inner_margin(mut self, margin: Margin) -> Self {
         self.style.frame.inner_margin = margin;
         self
     }
 
+    #[must_use]
     pub fn outer_margin(mut self, margin: Margin) -> Self {
         self.style.frame.outer_margin = margin;
         self
     }
 
+    #[must_use]
     pub fn corner_radius(mut self, corner_radius: CornerRadius) -> Self {
         self.style.frame.corner_radius = corner_radius;
         self
     }
 
+    #[must_use]
     pub fn fill(mut self, fill: Color32) -> Self {
         self.style.frame.fill = fill;
         self
     }
 
+    #[must_use]
     pub fn stroke(mut self, stroke: Stroke) -> Self {
         self.style.frame.stroke = stroke;
         self
     }
 
+    #[must_use]
     pub fn hover_fill(mut self, fill: Color32) -> Self {
         self.style.hover_fill = Some(fill);
         self
     }
 
+    #[must_use]
     pub fn hover_stroke(mut self, stroke: Stroke) -> Self {
         self.style.hover_stroke = Some(stroke);
         self
     }
 
+    #[must_use]
     pub fn active_fill(mut self, fill: Color32) -> Self {
         self.style.active_fill = Some(fill);
         self
     }
 
+    #[must_use]
     pub fn active_stroke(mut self, stroke: Stroke) -> Self {
         self.style.active_stroke = Some(stroke);
         self
     }
 
+    #[must_use]
     pub fn selected(mut self, selected: bool) -> Self {
         self.selected = selected;
         self

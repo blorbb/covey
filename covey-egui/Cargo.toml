@@ -21,6 +21,7 @@ x11 = []
 [dependencies]
 anyhow.workspace = true
 arboard.workspace = true
+az.workspace = true
 clap = { workspace = true, features = ["derive"] }
 covey.workspace = true
 eframe.workspace = true

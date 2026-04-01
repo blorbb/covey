@@ -3,7 +3,8 @@ use std::{
     sync::{Arc, LazyLock},
 };
 
-use covey::covey_schema::style::UserStyle;
+use az::SaturatingAs;
+use covey::covey_schema::{hotkey::Hotkey, style::UserStyle};
 use eframe::CreationContext;
 use egui::{
     Align, Color32, CornerRadius, FontFamily, FontId, Key, Layout, Margin, RichText, ScrollArea,
@@ -125,7 +126,8 @@ impl App {
 
             // window
             style.visuals.window_fill = ss.bg_color().as_egui();
-            style.visuals.window_corner_radius = CornerRadius::same(ss.window_rounding() as u8);
+            style.visuals.window_corner_radius =
+                CornerRadius::same(ss.window_rounding().saturating_as());
 
             // text colors
             style.visuals.override_text_color = Some(ss.text_color().as_egui());
@@ -179,7 +181,7 @@ impl eframe::App for &mut App {
         // Top panel only takes up as much space as the UI needs, so it always has
         // the right size.
         egui::Panel::top("main-panel")
-            .frame(egui::Frame::window(&ui.style()))
+            .frame(egui::Frame::window(ui.style()))
             .show_inside(ui, |ui| self.show(ui));
     }
 }
@@ -363,10 +365,7 @@ impl App {
             } else if hotkeys::key_pressed_consume(ui, Key::ArrowUp) {
                 self.list_selection = bounded_wrapping_sub(self.list_selection, 1, list.len());
                 rendering_state.list_selection_changed = true;
-            } else if hotkeys::hotkey_pressed_consume(
-                ui,
-                self.host.config().app.reload_hotkey.clone(),
-            ) {
+            } else if hotkeys::hotkey_pressed_consume(ui, self.host.config().app.reload_hotkey) {
                 self.host.reload_plugin(list.plugin.id());
                 tokio::spawn(self.host.send_query(self.input.clone()));
             }
@@ -377,7 +376,7 @@ impl App {
         if let Some(list) = &self.list
             && let Some(item) = list.items.get(self.list_selection)
             && let Some(hotkey) = hotkeys::hotkey_pressed_now(ui)
-            && let Some(future) = self.host.activate_by_hotkey(item.clone(), hotkey.clone())
+            && let Some(future) = self.host.activate_by_hotkey(item.clone(), hotkey)
         {
             hotkeys::hotkey_pressed_consume(ui, hotkey);
             tokio::spawn(future);
@@ -389,7 +388,7 @@ impl App {
         let mut text_edit = Container::new()
             .exact_height(self.style().input_height())
             .inner_margin(Margin::symmetric(
-                self.style().list_item_padding().inline as _,
+                self.style().list_item_padding().inline.saturating_as(),
                 0,
             ))
             .sense(Sense::empty())
@@ -481,11 +480,8 @@ impl App {
 
                     let mut show_cells = |ui: &mut Ui| {
                         for (i, item) in list.items.iter().enumerate() {
-                            let response = ListCell::new(&mut self.list_selection, i, item).show(
-                                ui,
-                                s,
-                                &list_style,
-                            );
+                            let response = ListCell::new(&mut self.list_selection, i, item)
+                                .show(ui, s, list_style);
 
                             if i % GRID_COLS == 3 {
                                 ui.end_row();
@@ -530,7 +526,7 @@ impl App {
                         // some commands have the same hotkey, but we only activate the FIRST
                         // command with the given hotkey. need to filter out duplicate hotkeys from
                         // subsequent commands.
-                        let mut used_hotkeys = HashSet::new();
+                        let mut used_hotkeys = HashSet::<Hotkey>::new();
                         for command in selected_item.available_commands() {
                             let s = &self.host.config().style;
                             ui.style_mut().spacing.item_spacing = Vec2::splat(s.info_button_gap());
@@ -700,7 +696,10 @@ impl AsEgui<Color32> for covey::covey_schema::style::Color {
 
 impl AsEgui<Margin> for covey::covey_schema::style::Padding {
     fn as_egui(&self) -> Margin {
-        Margin::symmetric(self.inline.round() as i8, self.block.round() as i8)
+        Margin::symmetric(
+            self.inline.round().saturating_as(),
+            self.block.round().saturating_as(),
+        )
     }
 }
 

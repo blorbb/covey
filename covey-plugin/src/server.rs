@@ -115,8 +115,7 @@ async fn main<T: Plugin>() -> anyhow::Result<()> {
 
     loop {
         // auto kill this process after 24h of inactivity
-        match tokio::time::timeout(Duration::from_secs(24 * 60 * 60), stdin_lines.next_line()).await
-        {
+        match tokio::time::timeout(Duration::from_hours(24), stdin_lines.next_line()).await {
             // Timed out
             Err(timeout) => {
                 eprintln!("{timeout:?} passed without new query. shutting down.");
@@ -131,7 +130,7 @@ async fn main<T: Plugin>() -> anyhow::Result<()> {
             }
             // Got a line within the time limit
             Ok(Ok(Some(line))) => {
-                handle_request_line(Arc::clone(&plugin), Arc::clone(&list_item_store), line)?
+                handle_request_line(Arc::clone(&plugin), Arc::clone(&list_item_store), &line)?
             }
         }
     }
@@ -140,10 +139,10 @@ async fn main<T: Plugin>() -> anyhow::Result<()> {
 fn handle_request_line<T: Plugin>(
     plugin: Arc<T>,
     list_item_store: Arc<Mutex<ListItemStore>>,
-    line: String,
+    line: &str,
 ) -> anyhow::Result<()> {
     let covey_proto::Request { id, request } =
-        serde_json::from_str(&line).context("malformed request from covey")?;
+        serde_json::from_str(line).context("malformed request from covey")?;
 
     // Handling the request may take some time, don't block!
     // Allow handling multiple requests at once by spawning a new task.
@@ -166,7 +165,8 @@ fn handle_request_line<T: Plugin>(
                 item_id,
                 command_id,
             }) => {
-                match list_item_store.lock().fetch_callbacks_of(item_id) {
+                let callbacks = list_item_store.lock().fetch_callbacks_of(item_id);
+                match callbacks {
                     Some(callbacks) => {
                         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
                         let menu = crate::Menu { sender: tx };
@@ -186,7 +186,7 @@ fn handle_request_line<T: Plugin>(
                     }
                 };
             }
-        };
+        }
     });
     Ok(())
 }

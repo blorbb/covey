@@ -151,7 +151,7 @@ pub fn listener() -> io::Result<Option<(GuiSettings, Receiver)>> {
         request.truncate(request.trim_end().len()); // Remove trailing newline
         tracing::info!("received request {request:?}");
 
-        match &*request.trim() {
+        match request.trim() {
             "open" => {
                 tx.send(Action::Open)?;
             }

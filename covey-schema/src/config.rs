@@ -99,10 +99,10 @@ impl PluginEntry {
         // make sure these match with the serde default annotations!
         Self {
             id: plugin_id,
-            disabled: Default::default(),
-            prefix: Default::default(),
-            settings: Default::default(),
-            commands: Default::default(),
+            disabled: false,
+            prefix: None,
+            settings: serde_json::Map::new(),
+            commands: BTreeMap::new(),
         }
     }
 }

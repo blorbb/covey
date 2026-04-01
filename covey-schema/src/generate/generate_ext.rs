@@ -34,11 +34,9 @@ pub(super) fn generate_ext_trait(manifest: &PluginManifest, paths: &CratePaths) 
         }
     };
 
-    let menu_doclink = format!("[`Menu`]({}::Menu)", covey_plugin);
-    let display_error_doclink = format!(
-        "[`menu.display_error`]({}::Menu::display_error)",
-        covey_plugin
-    );
+    let menu_doclink = format!("[`Menu`]({covey_plugin}::Menu)");
+    let display_error_doclink =
+        format!("[`menu.display_error`]({covey_plugin}::Menu::display_error)");
     let trait_impl = quote! {
         impl self::CommandExt for #covey_plugin::ListItem {
             #(

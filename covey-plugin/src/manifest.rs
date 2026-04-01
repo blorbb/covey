@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn expanded_types_exist() {
-        config::Config {
+        _ = config::Config {
             urls: HashMap::from([(
                 "key".to_string(),
                 config::urls::UrlsValue {

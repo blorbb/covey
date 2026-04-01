@@ -65,12 +65,12 @@ impl fmt::Debug for List {
                     .items
                     .iter()
                     .take(3)
-                    .map(|item| item.title())
+                    .map(ListItem::title)
                     .collect::<Box<[_]>>(),
             )
             .field("style", &self.style)
             .field("plugin", &self.plugin)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -125,6 +125,7 @@ pub enum ListStyle {
 }
 
 impl ListStyle {
+    #[expect(clippy::needless_pass_by_value)]
     pub(crate) fn from_proto(proto: covey_proto::ListStyle) -> Self {
         match proto {
             covey_proto::ListStyle::Rows => Self::Rows,
@@ -184,7 +185,7 @@ impl ListItem {
         self.available_commands().find(|cmd| {
             self.plugin()
                 .hotkeys_of_cmd(&cmd.id)
-                .is_some_and(|hotkeys| hotkeys.contains(&hotkey))
+                .is_some_and(|hotkeys| hotkeys.contains(hotkey))
         })
     }
 }

@@ -119,8 +119,13 @@ impl ListItem {
         rank::accuracy(query, self, weights)
     }
 
-    pub fn frecency(&self, visits: &rank::Visits, now: SystemTime) -> rank::Frecency {
-        rank::frecency(self, visits, now)
+    pub fn frecency(
+        &self,
+        visits: &rank::Visits,
+        now: SystemTime,
+        weights: rank::Weights,
+    ) -> rank::Frecency {
+        rank::frecency(self, visits, now, weights)
     }
 
     /// Score including both accuracy and frecency.
@@ -132,8 +137,8 @@ impl ListItem {
         weights: rank::Weights,
     ) -> f32 {
         if weights.frecency != 0.0 {
-            self.frecency(visits, now)
-                .combine_with_accuracy(self.accuracy(query, weights), weights)
+            self.frecency(visits, now, weights)
+                .combine_with_accuracy(self.accuracy(query, weights))
         } else {
             self.accuracy(query, weights)
         }

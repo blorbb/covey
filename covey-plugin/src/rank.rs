@@ -9,6 +9,7 @@
 //! https://github.com/homerours/jumper/blob/master/src/record.c.
 
 use std::{
+    cmp::Reverse,
     collections::HashMap,
     hash::BuildHasher,
     io::Read,
@@ -22,10 +23,8 @@ use skim::fuzzy_matcher::{FuzzyMatcher, arinae::ArinaeMatcher};
 
 use crate::ListItem;
 
-fn secs_since_unix_epoch(now: SystemTime) -> f32 {
-    now.duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or(Duration::ZERO)
-        .as_secs() as f32
+fn time_diff_secs(now: SystemTime, earlier: SystemTime) -> f32 {
+    now.duration_since(earlier).unwrap_or_default().as_secs() as f32
 }
 
 const SHORT_DECAY: f32 = 2e-5;
@@ -54,8 +53,26 @@ pub struct Visits {
 #[derive(Debug, Serialize, Deserialize)]
 struct VisitScore {
     /// Time in seconds since [`SystemTime::UNIX_EPOCH`].
-    last_visit: f32,
+    #[serde(with = "timestamp")]
+    last_visit: SystemTime,
     decayed_score: f32,
+}
+
+mod timestamp {
+    use std::time::{Duration, SystemTime};
+
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub(super) fn serialize<S: Serializer>(t: &SystemTime, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_u64(
+            t.duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or(Duration::ZERO)
+                .as_secs(),
+        )
+    }
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<SystemTime, D::Error> {
+        u64::deserialize(d).map(|timestamp| SystemTime::UNIX_EPOCH + Duration::from_secs(timestamp))
+    }
 }
 
 impl Visits {
@@ -89,14 +106,13 @@ impl Visits {
     /// Activating a list item automatically marks the item's visit ID with a
     /// weight of 1.
     pub fn mark_visit_weighted(&mut self, visit_id: VisitId, now: SystemTime, weight: f32) {
-        let now = secs_since_unix_epoch(now);
         let entry = self.map.entry(visit_id).or_insert_with(|| VisitScore {
             last_visit: now,
             decayed_score: 0.0,
         });
 
-        entry.decayed_score =
-            weight + f32::exp(-LONG_DECAY * (now - entry.last_visit)) * entry.decayed_score;
+        entry.decayed_score = weight
+            + f32::exp(-LONG_DECAY * time_diff_secs(now, entry.last_visit)) * entry.decayed_score;
         entry.last_visit = now;
     }
 
@@ -104,17 +120,17 @@ impl Visits {
     /// blocking and cleans up very old entries.
     pub fn write_to_file(mut self) {
         tokio::task::spawn_blocking(move || {
-            let now = secs_since_unix_epoch(SystemTime::now());
+            let now = SystemTime::now();
 
             // take at least 100 entries or less than 50 days old
             let mut map = Vec::from_iter(self.map);
-            map.sort_unstable_by(|(_, v1), (_, v2)| v2.last_visit.total_cmp(&v1.last_visit));
+            map.sort_unstable_by_key(|(_, v)| Reverse(v.last_visit));
             self.map = map
                 .into_iter()
                 .enumerate()
                 .take_while(|(i, (_, v))| {
                     *i < 100
-                        || Duration::from_secs_f32(now - v.last_visit)
+                        || now.duration_since(v.last_visit).unwrap_or_default()
                             <= Duration::from_hours(24 * 50)
                 })
                 .map(|(_, kv)| kv)
@@ -164,22 +180,32 @@ pub(crate) fn accuracy(query: &str, item: &ListItem, weights: Weights) -> f32 {
         .flatten()
         .unwrap_or(0);
 
-    (title_score + desc_score) as f32
+    title_score as f32 * weights.title + desc_score as f32 * weights.description
 }
 
-/// This produces a value that is usually between `[0, 8]`.
-pub(crate) fn frecency(item: &ListItem, visits: &Visits, now: SystemTime) -> Frecency {
-    let now = secs_since_unix_epoch(now);
+pub(crate) fn frecency(
+    item: &ListItem,
+    visits: &Visits,
+    now: SystemTime,
+    weights: Weights,
+) -> Frecency {
     match visits.map.get(item.visit_id()) {
         Some(VisitScore {
             last_visit,
             decayed_score,
-        }) => Frecency(
-            2.4 * f32::ln(
-                0.1 + 10.0 / (1.0 + (now - last_visit) * SHORT_DECAY)
-                    + f32::exp(-LONG_DECAY * (now - last_visit)) * decayed_score,
-            ),
-        ),
+        }) => {
+            let secs_since_last_visit = time_diff_secs(now, *last_visit);
+            // Scaling up here (3.0) since the accuracy score seems to dominate most of the
+            // time. Don't want to make the default frecency weight something other than
+            // 1.0 either.
+            let frecency = (weights.frecency * 3.0)
+                * 2.4
+                * f32::ln(
+                    0.1 + 10.0 / (1.0 + secs_since_last_visit * SHORT_DECAY)
+                        + f32::exp(-LONG_DECAY * secs_since_last_visit) * decayed_score,
+                );
+            Frecency(frecency)
+        }
         None => Frecency::ZERO,
     }
 }
@@ -190,8 +216,8 @@ pub struct Frecency(f32);
 impl Frecency {
     pub const ZERO: Self = Self(0.0);
 
-    pub fn combine_with_accuracy(self, accuracy: f32, weights: Weights) -> f32 {
-        weights.frecency * self.0 + accuracy
+    pub fn combine_with_accuracy(self, accuracy: f32) -> f32 {
+        self.0 + accuracy
     }
 }
 
@@ -245,7 +271,7 @@ impl Weights {
     pub fn without_history() -> Self {
         Self {
             title: 1.0,
-            description: 0.2,
+            description: 0.5,
             frecency: 0.0,
         }
     }

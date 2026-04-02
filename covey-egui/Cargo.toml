@@ -24,7 +24,7 @@ arboard.workspace = true
 az.workspace = true
 clap = { workspace = true, features = ["derive"] }
 covey.workspace = true
-eframe.workspace = true
+eframe = { workspace = true, features = ["glow"] }
 egui.workspace = true
 egui_extras = { workspace = true, features = ["file", "svg", "all_loaders"] }
 font-kit = { workspace = true, features = ["source", "source-fontconfig"] }

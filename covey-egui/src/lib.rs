@@ -100,6 +100,10 @@ impl App {
                 .with_transparent(true)
                 .with_always_on_top()
                 .with_decorations(false),
+            // TODO: running the closure in eframe::run_native takes ~200ms when using wgpu. Starts
+            // up much faster when using glow (~15ms). wgpu seems to be recommended though, so try
+            // switch back in the future to see if this gets fixed.
+            renderer: eframe::Renderer::Glow,
             ..Default::default()
         };
 

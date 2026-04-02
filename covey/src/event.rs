@@ -181,11 +181,11 @@ impl ListItem {
     }
 
     /// Gets the command that can be activated from the provided hotkey.
-    pub fn activated_command_from_hotkey(&self, hotkey: &Hotkey) -> Option<&Command> {
+    pub fn activated_command_from_hotkey(&self, hotkey: Hotkey) -> Option<&Command> {
         self.available_commands().find(|cmd| {
             self.plugin()
                 .hotkeys_of_cmd(&cmd.id)
-                .is_some_and(|hotkeys| hotkeys.contains(hotkey))
+                .is_some_and(|hotkeys| hotkeys.contains(&hotkey))
         })
     }
 }

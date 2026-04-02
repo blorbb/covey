@@ -370,7 +370,10 @@ impl App {
                 self.list_selection = bounded_wrapping_sub(self.list_selection, 1, list.len());
                 rendering_state.list_selection_changed = true;
             } else if hotkeys::hotkey_pressed_consume(ui, self.host.config().app.reload_hotkey) {
-                self.host.reload_plugin(list.plugin.id());
+                let plugin_to_reload = list.plugin.id().clone();
+                // avoid activating now stale items
+                self.list = None;
+                self.host.reload_plugin(&plugin_to_reload);
                 tokio::spawn(self.host.send_query(self.input.clone()));
             }
         }

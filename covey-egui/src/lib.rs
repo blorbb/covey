@@ -69,7 +69,7 @@ impl App {
     pub fn new(cli_rx: cli::Receiver, gui_settings: GuiSettings) -> anyhow::Result<Self> {
         let (mut host, actions) = covey::channel()?;
         // immediately send an empty query
-        tokio::spawn(host.send_query(String::new()));
+        host.send_query(String::new());
         Ok(Self {
             cli: cli_rx,
             host,
@@ -337,7 +337,7 @@ impl App {
                 // Another query to update the plugin on what it changed.
                 // This change isn't detected by text_edit.response.changed()
                 if contents != self.input {
-                    tokio::spawn(self.host.send_query(contents.clone()));
+                    self.host.send_query(contents.clone());
                 }
                 self.input = contents;
                 rendering_state.new_cursor_selection = Some((min, max));
@@ -374,7 +374,7 @@ impl App {
                 // avoid activating now stale items
                 self.list = None;
                 self.host.reload_plugin(&plugin_to_reload);
-                tokio::spawn(self.host.send_query(self.input.clone()));
+                self.host.send_query(self.input.clone());
             }
         }
 
@@ -383,10 +383,9 @@ impl App {
         if let Some(list) = &self.list
             && let Some(item) = list.items.get(self.list_selection)
             && let Some(hotkey) = hotkeys::hotkey_pressed_now(ui)
-            && let Some(future) = self.host.activate_by_hotkey(item.clone(), hotkey)
+            && let Some(_cmd) = self.host.activate_by_hotkey(item.clone(), hotkey)
         {
             hotkeys::hotkey_pressed_consume(ui, hotkey);
-            tokio::spawn(future);
         }
     }
 
@@ -460,7 +459,7 @@ impl App {
         }
 
         if text_edit.response.changed() {
-            tokio::spawn(self.host.send_query(self.input.clone()));
+            self.host.send_query(self.input.clone());
         }
 
         // can't request focus if the app is unfocused
@@ -565,9 +564,7 @@ impl App {
                                 });
 
                             if button.response.clicked() {
-                                tokio::spawn(
-                                    self.host.activate(selected_item.id(), command.id.clone()),
-                                );
+                                self.host.activate(selected_item.id(), command.id.clone());
                             }
                         }
                     };

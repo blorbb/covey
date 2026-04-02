@@ -8,7 +8,6 @@
 
 use std::{
     fs,
-    future::Future,
     io::{Read as _, Write as _},
 };
 
@@ -82,32 +81,28 @@ impl Host {
     ///
     /// Responses should be handled by calling [`ActionReceiver::recv`].
     #[tracing::instrument(skip(self))]
-    pub fn send_query(&mut self, query: String) -> impl Future<Output = ()> + use<> + Send + Sync {
+    pub fn send_query(&mut self, query: String) {
         debug!("setting input to {query:?}");
 
         let request_id = covey_proto::RequestId(self.next_request_id);
         self.latest_sent_query_request_id = request_id;
         self.next_request_id += 1;
-        let plugins = self.plugins.clone();
 
-        async move {
-            for plugin in plugins
-                .iter()
-                .filter(|plugin| !plugin.config_entry().disabled)
-            {
-                let Some(stripped) = plugin
-                    .prefix()
-                    .and_then(|prefix| query.strip_prefix(prefix))
-                else {
-                    continue;
-                };
+        let plugin_with_prefix = self
+            .plugins
+            .iter()
+            .filter(|plugin| !plugin.config_entry().disabled)
+            .find_map(|plugin| Some((plugin, query.strip_prefix(plugin.prefix()?)?)));
 
-                debug!("querying plugin {}", plugin.id());
-                plugin.query(request_id, stripped.to_string()).await;
+        match plugin_with_prefix {
+            Some((plugin, stripped_query)) => {
+                tracing::debug!("querying plugin {plugin:?}");
+                plugin.query(request_id, stripped_query.to_owned());
+            }
+            None => {
+                tracing::warn!("no plugin activated with query {query}");
                 return;
             }
-
-            tracing::warn!("no plugin activated with query {query}");
         }
     }
 
@@ -115,23 +110,16 @@ impl Host {
     ///
     /// Responses should be handled by calling [`ActionReceiver::recv`].
     #[tracing::instrument(skip(self))]
-    pub fn activate(
-        &mut self,
-        item: ListItemId,
-        command_id: CommandId,
-    ) -> impl Future<Output = ()> + use<> + Send + Sync {
+    pub fn activate(&mut self, item: ListItemId, command_id: CommandId) {
         debug!("activating {item:?}");
 
         let request_id = covey_proto::RequestId(self.next_request_id);
         self.next_request_id += 1;
-        let plugins = self.plugins.clone();
 
-        async move {
-            let Some(plugin) = plugins.get(item.plugin.id()) else {
-                return;
-            };
-            plugin.activate(request_id, item.local_id, command_id).await
-        }
+        let Some(plugin) = self.plugins.get(item.plugin.id()) else {
+            return;
+        };
+        plugin.activate(request_id, item.local_id, command_id)
     }
 
     /// Activates a list item using the specified hotkey.
@@ -140,13 +128,10 @@ impl Host {
     /// configuration. Returns [`Some`] if the hotkey activated some command,
     /// otherwise [`None`].
     #[tracing::instrument(skip(self))]
-    pub fn activate_by_hotkey(
-        &mut self,
-        item: ListItem,
-        hotkey: Hotkey,
-    ) -> Option<impl Future<Output = ()> + use<>> {
+    pub fn activate_by_hotkey(&mut self, item: ListItem, hotkey: Hotkey) -> Option<CommandId> {
         let command = item.activated_command_from_hotkey(hotkey)?;
-        Some(self.activate(item.id(), command.id.clone()))
+        self.activate(item.id(), command.id.clone());
+        Some(command.id.clone())
     }
 
     pub fn config(&self) -> &GlobalConfig {

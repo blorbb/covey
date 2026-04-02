@@ -28,7 +28,7 @@ covey-manifest-macros = { path = "covey-manifest-macros", version = "0.0.2" }
 covey-proto = { path = "covey-proto", version = "0.0.2" }
 covey-schema = { path = "covey-schema", version = "0.0.2" }
 dirs = "6"
-eframe = "0.34.1"
+eframe = { version = "0.34.1", default-features = false, features = ["accesskit", "default_fonts", "glow", "wayland", "x11"] }
 egui = "0.34.1"
 egui_extras = "0.34.1"
 font-kit = { version = "0.14", default-features = false }

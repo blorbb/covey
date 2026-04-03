@@ -151,10 +151,6 @@ impl Plugin {
         )
     }
 
-    // TODO: don't retry if the request is an activation request?
-    // add some way to check if the child dies for some reason, and send a message
-    // to clear the list so that the user doesn't try to activate an item from a
-    // dead plugin.
     /// Sends a request to the plugin process, retrying once if the process has
     /// been killed.
     fn send_request_with_retry(&self, request: &covey_proto::Request) -> io::Result<()> {
@@ -168,9 +164,20 @@ impl Plugin {
                         // TODO: remove this log, only restart if the right error kind is reached
                         tracing::warn!("failed to write request: {e:#}");
                         tracing::warn!("restarting killed plugin {:?}", self.id());
-                        *process = self.start_process()?;
-                        process.send_request(request)?;
-                        Ok(())
+
+                        // Do not retry if the request is an activation request. The list item id
+                        // would probably not refer to the correct item anymore. The process should
+                        // not be dead if the frontend is able to hold a list item produced by that
+                        // plugin, so this would only happen if something went wrong with the
+                        // plugin.
+                        match &request.request {
+                            covey_proto::RequestBody::Activate(..) => Err(e),
+                            covey_proto::RequestBody::Query(..) => {
+                                *process = self.start_process()?;
+                                process.send_request(request)?;
+                                Ok(())
+                            }
+                        }
                     }
                 }
             }

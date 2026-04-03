@@ -18,15 +18,16 @@ use tokio::sync::mpsc;
 
 use crate::DATA_DIR;
 
-/// A ref-counted reference to a plugin instance.
+/// A plugin ID with a specific, immutable configuration.
 ///
-/// Comparison traits ([`Eq`], [`Hash`], etc) are in terms of
-/// this plugin's name.
+/// This is ref-counted, and thus cheap to clone. Comparison traits ([`Eq`],
+/// [`Hash`], etc) are implemented in terms of the [`Arc`] pointer identity.
+/// [`Ord`] is implemented by the plugin's ID, then by the [`Arc`] pointer, so
+/// it is consistent with the behaviour of [`Eq`].
 ///
-/// When this plugin is constructed, only the manifest is loaded.
-/// The plugin process is not spawned until a request is made.
-/// We handle killed plugin processes by re-spawning the process then
-/// retrying the request.
+/// When this plugin is constructed, only the manifest is loaded. The plugin
+/// process is not spawned until a request is made. We handle killed plugin
+/// processes by re-spawning the process then retrying the request.
 #[derive(Clone)]
 pub struct Plugin {
     inner: Arc<PluginInner>,
@@ -132,7 +133,7 @@ impl Plugin {
     fn start_process(&self) -> io::Result<ActiveProcess> {
         let bin_path = self.binary_path();
         ActiveProcess::new(
-            Arc::downgrade(&self.inner),
+            self.downgrade(),
             &bin_path,
             &self.config_entry().settings,
             self.inner.response_sender.clone(),
@@ -180,6 +181,12 @@ impl Plugin {
             }
         }
     }
+
+    pub fn downgrade(&self) -> PluginWeak {
+        PluginWeak {
+            inner: Arc::downgrade(&self.inner),
+        }
+    }
 }
 
 impl fmt::Debug for Plugin {
@@ -189,11 +196,10 @@ impl fmt::Debug for Plugin {
 }
 
 // COMPARISON TRAITS //
-// These MUST be implemented in terms of the name.
 
 impl PartialEq for Plugin {
     fn eq(&self, other: &Self) -> bool {
-        self.id() == other.id()
+        Arc::ptr_eq(&self.inner, &other.inner)
     }
 }
 
@@ -207,13 +213,15 @@ impl PartialOrd for Plugin {
 
 impl Ord for Plugin {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.id().cmp(other.id())
+        self.id()
+            .cmp(other.id())
+            .then(Arc::as_ptr(&self.inner).cmp(&Arc::as_ptr(&other.inner)))
     }
 }
 
 impl Hash for Plugin {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.id().hash(state);
+        Arc::as_ptr(&self.inner).hash(state);
     }
 }
 
@@ -236,6 +244,20 @@ fn manifest_path(plugin_name: &str) -> PathBuf {
     data_directory_path(plugin_name).join("manifest.toml")
 }
 
+/// A [`Plugin`] with a weak pointer.
+#[derive(Clone)]
+pub struct PluginWeak {
+    inner: Weak<PluginInner>,
+}
+
+impl PluginWeak {
+    pub fn upgrade(&self) -> Option<Plugin> {
+        Some(Plugin {
+            inner: self.inner.upgrade()?,
+        })
+    }
+}
+
 struct PluginInner {
     manifest: PluginManifest,
     entry: PluginEntry,
@@ -250,7 +272,6 @@ impl Drop for PluginInner {
 }
 
 struct ActiveProcess {
-    // Kill the process on drop.
     process: Child,
     child_stdin: ChildStdin,
 }
@@ -258,7 +279,7 @@ struct ActiveProcess {
 impl ActiveProcess {
     /// This is _not blocking_.
     pub(super) fn new(
-        plugin: Weak<PluginInner>,
+        plugin_weak: PluginWeak,
         bin_path: &Path,
         initialization_settings: &serde_json::Map<String, serde_json::Value>,
         response_sender: mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
@@ -281,15 +302,16 @@ impl ActiveProcess {
 
         // Forward stderr as logs.
         std::thread::spawn({
-            let plugin = Weak::clone(&plugin);
+            let plugin_weak = plugin_weak.clone();
             move || {
                 let mut lines = stderr.lines();
                 while let Some(Ok(line)) = lines.next()
-                    && let Some(inner) = plugin.upgrade()
+                    && let Some(plugin) = plugin_weak.upgrade()
                 {
-                    let plugin = Plugin { inner };
                     tracing::info!("plugin {id}: {line}", id = plugin.id());
                 }
+
+                tracing::info!("stopped reading plugin stderr");
             }
         });
 
@@ -299,9 +321,8 @@ impl ActiveProcess {
         std::thread::spawn(move || {
             let mut lines = stdout.lines();
             while let Some(Ok(line)) = lines.next()
-                && let Some(inner) = plugin.upgrade()
+                && let Some(plugin) = plugin_weak.upgrade()
             {
-                let plugin = Plugin { inner };
                 let Ok(response) = serde_json::from_str::<covey_proto::Response>(&line) else {
                     tracing::warn!("plugin {id} (stdout): {line}", id = plugin.id());
                     continue;
@@ -316,6 +337,8 @@ impl ActiveProcess {
                     }
                 }
             }
+
+            tracing::info!("stopped reading plugin stdout");
         });
 
         // Must work with child stdin directly instead of a channel so that attempted
@@ -339,6 +362,7 @@ impl ActiveProcess {
 
 impl Drop for ActiveProcess {
     fn drop(&mut self) {
+        // This also stops the stdout/err forwarding threads as the readers are closed.
         match self.process.kill() {
             Ok(()) => {}
             Err(e) => tracing::error!("failed to kill plugin process: {e:#}"),

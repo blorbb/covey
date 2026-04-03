@@ -184,6 +184,9 @@ impl<'a, T> IntoIterator for &'a KeyedList<T> {
 }
 
 /// A type that has a unique key.
+///
+/// The comparison implementations (e.g. [`Eq`], [`Ord`], etc) of the type
+/// aren't necessarily the same as comparison on [`Self::id()`].
 pub trait Identify {
     type Id: StringId;
     fn id(&self) -> &Self::Id;

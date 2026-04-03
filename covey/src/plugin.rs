@@ -4,7 +4,7 @@ use std::{
     io::{self, BufRead as _, BufReader, Write as _},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, Stdio},
-    sync::{Arc, Mutex, Weak},
+    sync::{Arc, Mutex, Weak, atomic::AtomicU32},
 };
 
 use covey_schema::{
@@ -18,12 +18,16 @@ use tokio::sync::mpsc;
 
 use crate::DATA_DIR;
 
+/// An integer to distinguish between multiple constructions of the same plugin
+/// ID. Should not use pointer equality as an address may be reused when
+/// trying to compare [`PluginWeak`].
+static PLUGIN_GENERATION: AtomicU32 = AtomicU32::new(0);
+
 /// A plugin ID with a specific, immutable configuration.
 ///
-/// This is ref-counted, and thus cheap to clone. Comparison traits ([`Eq`],
-/// [`Hash`], etc) are implemented in terms of the [`Arc`] pointer identity.
-/// [`Ord`] is implemented by the plugin's ID, then by the [`Arc`] pointer, so
-/// it is consistent with the behaviour of [`Eq`].
+/// This is ref-counted, and thus cheap to clone. Cloned plugins are [`Eq`] to
+/// each other, but a differently constructed plugin even with the same plugin
+/// ID are not equal.
 ///
 /// When this plugin is constructed, only the manifest is loaded. The plugin
 /// process is not spawned until a request is made. We handle killed plugin
@@ -31,6 +35,7 @@ use crate::DATA_DIR;
 #[derive(Clone)]
 pub struct Plugin {
     inner: Arc<PluginInner>,
+    generation: u32,
 }
 
 impl Plugin {
@@ -56,7 +61,13 @@ impl Plugin {
                 response_sender,
                 process: Mutex::new(None),
             }),
+            generation: PLUGIN_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
         }
+    }
+
+    pub(crate) fn kill_process(&self) {
+        // Dropping the ActiveProcess kills the process.
+        *self.inner.process.lock().unwrap() = None;
     }
 
     pub fn id(&self) -> &PluginId {
@@ -184,51 +195,10 @@ impl Plugin {
 
     pub fn downgrade(&self) -> PluginWeak {
         PluginWeak {
+            id: self.id().clone(),
+            generation: self.generation,
             inner: Arc::downgrade(&self.inner),
         }
-    }
-}
-
-impl fmt::Debug for Plugin {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Plugin").field(&self.id().as_str()).finish()
-    }
-}
-
-// COMPARISON TRAITS //
-
-impl PartialEq for Plugin {
-    fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.inner, &other.inner)
-    }
-}
-
-impl Eq for Plugin {}
-
-impl PartialOrd for Plugin {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Plugin {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.id()
-            .cmp(other.id())
-            .then(Arc::as_ptr(&self.inner).cmp(&Arc::as_ptr(&other.inner)))
-    }
-}
-
-impl Hash for Plugin {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        Arc::as_ptr(&self.inner).hash(state);
-    }
-}
-
-impl Identify for Plugin {
-    type Id = PluginId;
-    fn id(&self) -> &Self::Id {
-        self.id()
     }
 }
 
@@ -247,14 +217,114 @@ fn manifest_path(plugin_name: &str) -> PathBuf {
 /// A [`Plugin`] with a weak pointer.
 #[derive(Clone)]
 pub struct PluginWeak {
+    id: PluginId,
+    generation: u32,
     inner: Weak<PluginInner>,
 }
 
 impl PluginWeak {
+    pub fn id(&self) -> &PluginId {
+        &self.id
+    }
+
     pub fn upgrade(&self) -> Option<Plugin> {
         Some(Plugin {
             inner: self.inner.upgrade()?,
+            generation: self.generation,
         })
+    }
+
+    pub fn strong_count(&self) -> usize {
+        self.inner.strong_count()
+    }
+}
+
+// Traits - Plugin and PluginWeak should have equivalent implementations.
+
+impl fmt::Debug for Plugin {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Plugin")
+            // avoid quotes around the id
+            .field(&fmt::from_fn(|f| f.write_str(self.id().as_str())))
+            .finish()
+    }
+}
+
+impl fmt::Debug for PluginWeak {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("PluginWeak")
+            .field(&fmt::from_fn(|f| f.write_str(self.id().as_str())))
+            .finish()
+    }
+}
+
+impl PartialEq for Plugin {
+    fn eq(&self, other: &Self) -> bool {
+        self.generation == other.generation
+    }
+}
+
+impl PartialEq for PluginWeak {
+    fn eq(&self, other: &Self) -> bool {
+        self.generation == other.generation
+    }
+}
+
+impl Eq for Plugin {}
+impl Eq for PluginWeak {}
+
+impl PartialOrd for Plugin {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialOrd for PluginWeak {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Plugin {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // Ordering by plugin ID first might be useful
+        self.id()
+            .cmp(other.id())
+            .then(self.generation.cmp(&other.generation))
+    }
+}
+
+impl Ord for PluginWeak {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.id()
+            .cmp(other.id())
+            .then(self.generation.cmp(&other.generation))
+    }
+}
+
+impl Hash for Plugin {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.generation.hash(state);
+    }
+}
+
+impl Hash for PluginWeak {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.generation.hash(state);
+    }
+}
+
+impl Identify for Plugin {
+    type Id = PluginId;
+    fn id(&self) -> &Self::Id {
+        self.id()
+    }
+}
+
+impl Identify for PluginWeak {
+    type Id = PluginId;
+    fn id(&self) -> &Self::Id {
+        self.id()
     }
 }
 
@@ -311,7 +381,7 @@ impl ActiveProcess {
                     tracing::info!("plugin {id}: {line}", id = plugin.id());
                 }
 
-                tracing::info!("stopped reading plugin stderr");
+                tracing::info!("stopped reading plugin {:?} stderr", plugin_weak.id());
             }
         });
 
@@ -338,7 +408,7 @@ impl ActiveProcess {
                 }
             }
 
-            tracing::info!("stopped reading plugin stdout");
+            tracing::info!("stopped reading plugin {:?} stdout", plugin_weak.id());
         });
 
         // Must work with child stdin directly instead of a channel so that attempted

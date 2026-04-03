@@ -349,7 +349,7 @@ fn find_and_insert_plugins_from_fs(config: &mut GlobalConfig) {
 /// Never kills the most recently queried plugin to avoid the user trying to
 /// activate a list item of a killed plugin process.
 struct PluginProcessGc {
-    store: Arc<Mutex<HashMap<PluginWeak, Instant>>>,
+    last_touched_times: Arc<Mutex<HashMap<PluginWeak, Instant>>>,
     stop_signal: Arc<AtomicBool>,
 }
 
@@ -359,11 +359,14 @@ impl PluginProcessGc {
     /// The exact time that the processes are killed is not precise and may be a
     /// while after `timeout`.
     fn new(timeout: Duration) -> Self {
-        let store = Arc::new(Mutex::new(HashMap::<PluginWeak, Instant>::new()));
+        let last_touched_times = Arc::new(Mutex::new(HashMap::<PluginWeak, Instant>::new()));
         let stop_signal = Arc::new(AtomicBool::new(false));
 
-        let store_clone = Arc::clone(&store);
-        let thread_stop_signal = Arc::clone(&stop_signal);
+        let this = Self {
+            last_touched_times: Arc::clone(&last_touched_times),
+            stop_signal: Arc::clone(&stop_signal),
+        };
+
         thread::spawn(move || {
             loop {
                 // Check the hash map periodically.
@@ -371,17 +374,17 @@ impl PluginProcessGc {
                 // cleared if the plugin has been dropped anyways.
                 thread::sleep(Duration::from_mins(1));
 
-                if thread_stop_signal.load(std::sync::atomic::Ordering::Relaxed) {
+                if stop_signal.load(std::sync::atomic::Ordering::Relaxed) {
                     break;
                 }
 
-                let mut map = store_clone.lock().unwrap();
-                let Some(most_recent_query) = map.values().max().copied() else {
+                let mut last_touched_times = last_touched_times.lock().unwrap();
+                let Some(most_recent_query) = last_touched_times.values().max().copied() else {
                     // empty map, don't need to do anything
                     continue;
                 };
 
-                map.retain(|plugin, query_time| match plugin.upgrade() {
+                last_touched_times.retain(|plugin, query_time| match plugin.upgrade() {
                     Some(plugin) => {
                         if query_time.elapsed() > timeout && *query_time != most_recent_query {
                             plugin.kill_process();
@@ -396,11 +399,11 @@ impl PluginProcessGc {
             }
         });
 
-        Self { store, stop_signal }
+        this
     }
 
     fn touch(&self, plugin: &Plugin) {
-        self.store
+        self.last_touched_times
             .lock()
             .unwrap()
             .insert(plugin.downgrade(), Instant::now());

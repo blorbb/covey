@@ -7,8 +7,12 @@
 //! consume with [`Self::recv_action`].
 
 use std::{
+    collections::HashMap,
     fs,
     io::{Read as _, Write as _},
+    sync::{Arc, Mutex, atomic::AtomicBool},
+    thread,
+    time::{Duration, Instant},
 };
 
 use anyhow::Result;
@@ -24,6 +28,7 @@ use tracing::{debug, error, info, warn};
 use crate::{
     CONFIG_DIR, CONFIG_PATH, ListItem, PLUGINS_DIR, Plugin,
     event::{Action, ListItemId},
+    plugin::PluginWeak,
 };
 
 pub fn channel() -> Result<(Host, ActionReceiver)> {
@@ -58,6 +63,8 @@ pub fn channel() -> Result<(Host, ActionReceiver)> {
             // must be greater than the initial `latest_received_query_request_id`
             next_request_id: 1,
             latest_sent_query_request_id: covey_proto::RequestId(0),
+            // TODO: make this configurable
+            plugin_process_gc: PluginProcessGc::new(Duration::from_hours(24)),
         },
         ActionReceiver {
             receiver: response_receiver,
@@ -74,6 +81,7 @@ pub struct Host {
     plugins: KeyedList<Plugin>,
     next_request_id: u64,
     latest_sent_query_request_id: covey_proto::RequestId,
+    plugin_process_gc: PluginProcessGc,
 }
 
 impl Host {
@@ -97,6 +105,7 @@ impl Host {
         match plugin_with_prefix {
             Some((plugin, stripped_query)) => {
                 tracing::debug!("querying plugin {plugin:?}");
+                self.plugin_process_gc.touch(plugin);
                 plugin.query(request_id, stripped_query.to_owned());
             }
             None => {
@@ -119,6 +128,7 @@ impl Host {
         let Some(plugin) = self.plugins.get(item.plugin.id()) else {
             return;
         };
+        self.plugin_process_gc.touch(plugin);
         plugin.activate(request_id, item.local_id, command_id)
     }
 
@@ -331,4 +341,75 @@ fn find_and_insert_plugins_from_fs(config: &mut GlobalConfig) {
         entry.disabled = true; // require explicitly enabling a new plugin
         entry
     }));
+}
+
+/// Automatically kills plugin processes after a period of time if they haven't
+/// been queried/activated.
+///
+/// Never kills the most recently queried plugin to avoid the user trying to
+/// activate a list item of a killed plugin process.
+struct PluginProcessGc {
+    store: Arc<Mutex<HashMap<PluginWeak, Instant>>>,
+    stop_signal: Arc<AtomicBool>,
+}
+
+impl PluginProcessGc {
+    /// Kills plugin processes after _at least_ `timeout` has passed.
+    ///
+    /// The exact time that the processes are killed is not precise and may be a
+    /// while after `timeout`.
+    fn new(timeout: Duration) -> Self {
+        let store = Arc::new(Mutex::new(HashMap::<PluginWeak, Instant>::new()));
+        let stop_signal = Arc::new(AtomicBool::new(false));
+
+        let store_clone = Arc::clone(&store);
+        let thread_stop_signal = Arc::clone(&stop_signal);
+        thread::spawn(move || {
+            loop {
+                // Check the hash map periodically.
+                // Simpler than storing futures with exact timeouts and allows the hashmap to be
+                // cleared if the plugin has been dropped anyways.
+                thread::sleep(Duration::from_mins(1));
+
+                if thread_stop_signal.load(std::sync::atomic::Ordering::Relaxed) {
+                    break;
+                }
+
+                let mut map = store_clone.lock().unwrap();
+                let Some(most_recent_query) = map.values().max().copied() else {
+                    // empty map, don't need to do anything
+                    continue;
+                };
+
+                map.retain(|plugin, query_time| match plugin.upgrade() {
+                    Some(plugin) => {
+                        if query_time.elapsed() > timeout && *query_time != most_recent_query {
+                            plugin.kill_process();
+                            false
+                        } else {
+                            true
+                        }
+                    }
+                    // plugin is already gone
+                    None => false,
+                });
+            }
+        });
+
+        Self { store, stop_signal }
+    }
+
+    fn touch(&self, plugin: &Plugin) {
+        self.store
+            .lock()
+            .unwrap()
+            .insert(plugin.downgrade(), Instant::now());
+    }
+}
+
+impl Drop for PluginProcessGc {
+    fn drop(&mut self) {
+        self.stop_signal
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
 }

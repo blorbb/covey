@@ -151,6 +151,10 @@ impl Plugin {
         )
     }
 
+    // TODO: don't retry if the request is an activation request?
+    // add some way to check if the child dies for some reason, and send a message
+    // to clear the list so that the user doesn't try to activate an item from a
+    // dead plugin.
     /// Sends a request to the plugin process, retrying once if the process has
     /// been killed.
     fn send_request_with_retry(&self, request: &covey_proto::Request) -> io::Result<()> {

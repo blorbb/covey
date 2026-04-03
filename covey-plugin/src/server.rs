@@ -1,4 +1,4 @@
-use std::{process, sync::Arc, time::Duration};
+use std::{process, sync::Arc};
 
 use anyhow::Context;
 use parking_lot::Mutex;
@@ -114,22 +114,14 @@ async fn main<T: Plugin>() -> anyhow::Result<()> {
     let mut stdin_lines = tokio::io::BufReader::new(tokio::io::stdin()).lines();
 
     loop {
-        // auto kill this process after 24h of inactivity
-        match tokio::time::timeout(Duration::from_hours(24), stdin_lines.next_line()).await {
-            // Timed out
-            Err(timeout) => {
-                eprintln!("{timeout:?} passed without new query. shutting down.");
-                return Ok(());
-            }
-            // `next_line` failed
-            Ok(Err(e)) => anyhow::bail!(e),
+        match stdin_lines.next_line().await {
+            Err(e) => anyhow::bail!(e),
             // No more lines
-            Ok(Ok(None)) => {
+            Ok(None) => {
                 eprintln!("stdin closed");
                 return Ok(());
             }
-            // Got a line within the time limit
-            Ok(Ok(Some(line))) => {
+            Ok(Some(line)) => {
                 handle_request_line(Arc::clone(&plugin), Arc::clone(&list_item_store), &line)?
             }
         }

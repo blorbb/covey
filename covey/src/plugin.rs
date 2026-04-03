@@ -16,7 +16,7 @@ use covey_schema::{
 };
 use tokio::sync::mpsc;
 
-use crate::DATA_DIR;
+use crate::{DATA_DIR, event::Message};
 
 /// An integer to distinguish between multiple constructions of the same plugin
 /// ID. Should not use pointer equality as an address may be reused when
@@ -41,24 +41,24 @@ pub struct Plugin {
 impl Plugin {
     pub(crate) fn new_read_manifest(
         entry: PluginEntry,
-        response_sender: mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
+        messages: mpsc::UnboundedSender<Message>,
     ) -> anyhow::Result<Self> {
         let toml = std::fs::read_to_string(manifest_path(entry.id.as_str()))?;
         let manifest: PluginManifest = toml::from_str(&toml)?;
 
-        Ok(Self::new(entry, manifest, response_sender))
+        Ok(Self::new(entry, manifest, messages))
     }
 
     pub(crate) fn new(
         entry: PluginEntry,
         manifest: PluginManifest,
-        response_sender: mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
+        messages: mpsc::UnboundedSender<Message>,
     ) -> Self {
         Self {
             inner: Arc::new(PluginInner {
                 manifest,
                 entry,
-                response_sender,
+                messages,
                 process: Mutex::new(None),
             }),
             generation: PLUGIN_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
@@ -147,7 +147,7 @@ impl Plugin {
             self.downgrade(),
             &bin_path,
             &self.config_entry().settings,
-            self.inner.response_sender.clone(),
+            self.inner.messages.clone(),
         )
     }
 
@@ -189,7 +189,7 @@ impl Plugin {
         match self.send_request_with_retry(request) {
             Ok(()) => {}
             Err(e) => {
-                _ = self.inner.response_sender.send((
+                _ = self.inner.messages.send(Message::PluginResponse(
                     self.clone(),
                     covey_proto::Response::display_error(request.id, format!("{e:#}")),
                 ))
@@ -335,13 +335,13 @@ impl Identify for PluginWeak {
 struct PluginInner {
     manifest: PluginManifest,
     entry: PluginEntry,
-    response_sender: mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
+    messages: mpsc::UnboundedSender<Message>,
     process: Mutex<Option<ActiveProcess>>,
 }
 
 impl Drop for PluginInner {
     fn drop(&mut self) {
-        tracing::info!("dropped plugin {}", self.entry.id)
+        tracing::info!("dropped plugin {}", self.entry.id);
     }
 }
 
@@ -356,7 +356,7 @@ impl ActiveProcess {
         plugin_weak: PluginWeak,
         bin_path: &Path,
         initialization_settings: &serde_json::Map<String, serde_json::Value>,
-        response_sender: mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
+        messages: mpsc::UnboundedSender<Message>,
     ) -> io::Result<Self> {
         let initialization_settings = serde_json::to_string(initialization_settings)
             .expect("plugin init settings should be serializable");
@@ -389,7 +389,7 @@ impl ActiveProcess {
             }
         });
 
-        // Forward child stdout to the response_sender channel.
+        // Forward child stdout to the messages channel.
         // Any unrecognised lines will be forwarded as logs, but as a warning.
         // Plugins should not be printing logs to stdout.
         std::thread::spawn(move || {
@@ -403,7 +403,7 @@ impl ActiveProcess {
                 };
 
                 tracing::trace!("plugin {id} (stdout): {line}", id = plugin.id());
-                match response_sender.send((plugin.clone(), response)) {
+                match messages.send(Message::PluginResponse(plugin.clone(), response)) {
                     Ok(()) => {}
                     Err(e) => {
                         tracing::error!(?plugin, "failed to send response through channel: {e:#}");

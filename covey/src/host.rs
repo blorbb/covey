@@ -27,7 +27,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     CONFIG_DIR, CONFIG_PATH, ListItem, PLUGINS_DIR, Plugin,
-    event::{Action, ListItemId},
+    event::{Action, ListItemId, Message},
     plugin::PluginWeak,
 };
 
@@ -48,17 +48,15 @@ pub fn channel() -> Result<(Host, ActionReceiver)> {
     let mut global_config: GlobalConfig = toml::from_str(&s)?;
     find_and_insert_plugins_from_fs(&mut global_config);
 
-    let (response_sender, response_receiver) = mpsc::unbounded_channel();
-    let (action_sender, action_receiver) = mpsc::unbounded_channel();
+    let (tx, rx) = mpsc::unbounded_channel();
 
-    let plugins = load_plugins_from_config(&global_config, &response_sender);
+    let plugins = load_plugins_from_config(&global_config, &tx);
     info!("found plugins: {plugins:?}");
 
     Ok((
         Host {
             config: global_config,
-            other_actions: action_sender,
-            response_sender,
+            messages: tx,
             plugins,
             // must be greater than the initial `latest_received_query_request_id`
             next_request_id: 1,
@@ -67,8 +65,7 @@ pub fn channel() -> Result<(Host, ActionReceiver)> {
             plugin_process_gc: PluginProcessGc::new(Duration::from_hours(24)),
         },
         ActionReceiver {
-            receiver: response_receiver,
-            other_actions: action_receiver,
+            messages: rx,
             latest_received_query_request_id: 0,
         },
     ))
@@ -76,8 +73,7 @@ pub fn channel() -> Result<(Host, ActionReceiver)> {
 
 pub struct Host {
     config: GlobalConfig,
-    other_actions: mpsc::UnboundedSender<Action>,
-    response_sender: mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
+    messages: mpsc::UnboundedSender<Message>,
     plugins: KeyedList<Plugin>,
     next_request_id: u64,
     latest_sent_query_request_id: covey_proto::RequestId,
@@ -155,7 +151,7 @@ impl Host {
     pub fn reload(&mut self, config: GlobalConfig) {
         debug!("reloading");
         self.config = config;
-        self.plugins = load_plugins_from_config(&self.config, &self.response_sender);
+        self.plugins = load_plugins_from_config(&self.config, &self.messages);
         // TODO: spawn this in another task and handle errors properly
         Self::write_config(&self.config).expect("TODO");
     }
@@ -167,7 +163,7 @@ impl Host {
         debug!("reloading plugin {plugin_id}");
 
         let replace_result = self.plugins.replace(plugin_id, |plugin| {
-            Plugin::new_read_manifest(plugin.config_entry().clone(), self.response_sender.clone())
+            Plugin::new_read_manifest(plugin.config_entry().clone(), self.messages.clone())
         });
 
         match replace_result {
@@ -203,9 +199,10 @@ impl Host {
     }
 
     fn send_error(&self, title: impl Into<String>, description: impl Into<String>) {
-        _ = self
-            .other_actions
-            .send(Action::DisplayError(title.into(), description.into()))
+        _ = self.messages.send(Message::Action(Action::DisplayError(
+            title.into(),
+            description.into(),
+        )))
     }
 
     pub(crate) fn query_request_id_is_latest(&self, id: covey_proto::RequestId) -> bool {
@@ -220,47 +217,48 @@ impl Host {
 }
 
 pub struct ActionReceiver {
-    receiver: mpsc::UnboundedReceiver<(Plugin, covey_proto::Response)>,
-    other_actions: mpsc::UnboundedReceiver<Action>,
+    messages: mpsc::UnboundedReceiver<Message>,
     latest_received_query_request_id: u64,
 }
 
 impl ActionReceiver {
-    /// Receives an action by a plugin.
+    /// Receives an action to perform.
     ///
     /// Cancel safe.
     #[tracing::instrument(skip_all)]
     pub async fn recv(&mut self, host: &Host) -> Action {
-        // TODO: receive from other_actions too
-
         loop {
-            tracing::trace!(items_in_queue = self.receiver.len());
+            tracing::trace!(items_in_queue = self.messages.len());
 
-            let (plugin, response) = self
-                .receiver
+            let message = self
+                .messages
                 .recv()
                 .await
                 .expect("host should contain corresponding sender");
 
-            if let Some(action) = self.response_to_action(host, &plugin, response) {
-                return action;
+            match message {
+                Message::Action(action) => return action,
+                Message::PluginResponse(plugin, response) => {
+                    if let Some(action) = self.response_to_action(host, &plugin, response) {
+                        return action;
+                    }
+                }
             }
         }
     }
 
     #[tracing::instrument(skip_all)]
     pub fn try_recv(&mut self, host: &Host) -> Option<Action> {
-        tracing::trace!(items_in_queue = self.receiver.len());
+        tracing::trace!(items_in_queue = self.messages.len());
 
-        let plugin_action = self
-            .receiver
-            .try_recv()
-            .ok()
-            .and_then(|(plugin, response)| self.response_to_action(host, &plugin, response));
+        let message = self.messages.try_recv();
 
-        match plugin_action {
-            Some(action) => Some(action),
-            None => self.other_actions.try_recv().ok(),
+        match message {
+            Ok(Message::Action(action)) => Some(action),
+            Ok(Message::PluginResponse(plugin, response)) => {
+                self.response_to_action(host, &plugin, response)
+            }
+            Err(_) => None,
         }
     }
 
@@ -306,10 +304,10 @@ impl ActionReceiver {
 
 fn load_plugins_from_config(
     config: &GlobalConfig,
-    response_sender: &mpsc::UnboundedSender<(Plugin, covey_proto::Response)>,
+    messages: &mpsc::UnboundedSender<Message>,
 ) -> KeyedList<Plugin> {
     KeyedList::new_lossy(config.plugins.iter().filter_map(|plugin_entry| {
-        match Plugin::new_read_manifest(plugin_entry.clone(), response_sender.clone()) {
+        match Plugin::new_read_manifest(plugin_entry.clone(), messages.clone()) {
             Ok(plugin) => {
                 debug!("found plugin {plugin:?}");
                 Some(plugin)

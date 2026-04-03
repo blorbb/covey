@@ -6,6 +6,13 @@ use covey_schema::{hotkey::Hotkey, manifest::Command};
 
 use crate::{Host, Plugin};
 
+/// An internal message that needs to be processed to present an [`Action`] to
+/// the user.
+pub(crate) enum Message {
+    Action(Action),
+    PluginResponse(Plugin, covey_proto::Response),
+}
+
 /// An action that should be performed by the frontend.
 #[derive(Debug)]
 pub enum Action {

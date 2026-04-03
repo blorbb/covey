@@ -80,8 +80,7 @@ mod tests {
     }
 }
 
-/// A response sent by the plugin against the a [`Request`].
-
+/// A response sent by the plugin against a [`Request`].
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct Response {
@@ -116,9 +115,9 @@ impl Response {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub enum ResponseBody {
-    /// Response to [`Body::Query`].
+    /// Response to [`RequestBody::Query`].
     SetList(List),
-    /// Response to [`Body::Activate`]. Can be sent multiple times.
+    /// Response to [`RequestBody::Activate`]. Can be sent multiple times.
     PerformAction(PluginAction),
 }
 

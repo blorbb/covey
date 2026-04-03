@@ -10,7 +10,7 @@ use egui::{
 };
 use font_kit::{family_name::FamilyName, properties::Properties, source::SystemSource};
 
-pub fn style_reset() -> egui::Style {
+pub(crate) fn style_reset() -> egui::Style {
     let empty_visuals = WidgetVisuals {
         bg_fill: Color32::TRANSPARENT,
         weak_bg_fill: Color32::TRANSPARENT,
@@ -112,7 +112,7 @@ pub fn style_reset() -> egui::Style {
     }
 }
 
-pub fn load_system_fonts() -> egui::FontDefinitions {
+pub(crate) fn load_system_fonts() -> egui::FontDefinitions {
     // https://github.com/emilk/egui/discussions/1344#discussioncomment-6432960
 
     let mut fonts = egui::FontDefinitions::default();

@@ -179,7 +179,7 @@ impl FromStr for Hotkey {
     /// Modifiers are one of "ctrl", "control", "alt", "shift" or "meta".
     ///
     /// Keys are the character produced when the key is pressed, or for
-    /// enter and tab, the strings "enter" and "tab". See [`Key`] for the
+    /// enter and tab, the strings "enter" and "tab". See [`KeyCode`] for the
     /// supported keys.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use ParseAcceleratorError as E;

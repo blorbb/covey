@@ -9,7 +9,7 @@ use std::{
 
 pub use list::{Icon, List, ListItem, ListStyle};
 mod action;
-pub use action::{Action, Actions};
+pub use action::Action;
 mod input;
 pub use input::{Input, SelectionRange};
 mod plugin;
@@ -26,7 +26,7 @@ pub use anyhow::{self, Result};
 /// ID of this plugin.
 ///
 /// This should be set to `env!("CARGO_PKG_NAME")` of the plugin, by
-/// inputting string to [`main`].
+/// inputting string to [`run_server`].
 pub static PLUGIN_ID: OnceLock<&'static str> = OnceLock::new();
 
 /// Assigned directory of this plugin, where extra data can be stored.

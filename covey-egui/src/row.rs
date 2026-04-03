@@ -6,14 +6,14 @@ use crate::{
     widgets::{Container, ImageIcon},
 };
 
-pub struct ListCell<'sel, 'item, Value> {
+pub(crate) struct ListCell<'sel, 'item, Value> {
     current_value: &'sel mut Value,
     selected_value: Value,
     item: &'item ListItem,
 }
 
 impl<'sel, 'item, Value: PartialEq> ListCell<'sel, 'item, Value> {
-    pub fn new(
+    pub(crate) fn new(
         current_value: &'sel mut Value,
         selected_value: Value,
         item: &'item ListItem,
@@ -25,7 +25,7 @@ impl<'sel, 'item, Value: PartialEq> ListCell<'sel, 'item, Value> {
         }
     }
 
-    pub fn show(
+    pub(crate) fn show(
         self,
         ui: &mut Ui,
         style: &UserStyle,

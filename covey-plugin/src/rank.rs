@@ -3,10 +3,10 @@
 //! Visit stats are stored in `<plugin dir>/activations.json`.
 //!
 //! Frecency calculation formula is based on
-//! https://github.com/homerours/jumper/blob/master/algorithm.md.
+//! <https://github.com/homerours/jumper/blob/master/algorithm.md>.
 //!
 //! The implementation details are based on
-//! https://github.com/homerours/jumper/blob/master/src/record.c.
+//! <https://github.com/homerours/jumper/blob/master/src/record.c>.
 
 use std::{
     cmp::Reverse,

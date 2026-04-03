@@ -7,7 +7,7 @@ use std::{path::PathBuf, sync::LazyLock};
 pub use covey_schema;
 pub use event::{Action, Input, List, ListItem, ListItemId, ListStyle, ResolvedIcon};
 pub use host::{ActionReceiver, Host, channel};
-pub use plugin::Plugin;
+pub use plugin::{Plugin, PluginWeak};
 
 pub static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     dirs::config_dir()

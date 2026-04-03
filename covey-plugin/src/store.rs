@@ -116,7 +116,7 @@ struct QueryListItemStore {
 }
 
 impl QueryListItemStore {
-    pub fn callback_of_id(&self, id: covey_proto::ListItemId) -> Option<&ListItemCallbacks> {
+    fn callback_of_id(&self, id: covey_proto::ListItemId) -> Option<&ListItemCallbacks> {
         let offset = id.0 - self.first_id.0;
         self.callbacks.get(
             offset
@@ -131,7 +131,7 @@ struct AutoIncrementer(AtomicU64);
 
 impl AutoIncrementer {
     /// Retrieves several auto-incremented IDs at once.
-    pub fn fetch_many(&self, count: u64) -> Range<u64> {
+    fn fetch_many(&self, count: u64) -> Range<u64> {
         let lower_bound = self.0.fetch_add(count, Ordering::Relaxed);
         let upper_bound = lower_bound + count;
 

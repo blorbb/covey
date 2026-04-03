@@ -478,7 +478,7 @@ struct TypePath {
 }
 
 impl TypePath {
-    pub fn relative(base: Path) -> Self {
+    fn relative(base: Path) -> Self {
         Self {
             kind: TypePathKind::Relative,
             base,
@@ -486,7 +486,7 @@ impl TypePath {
         }
     }
 
-    pub fn absolute(base: Path) -> Self {
+    fn absolute(base: Path) -> Self {
         Self {
             kind: TypePathKind::Absolute,
             base,
@@ -494,7 +494,7 @@ impl TypePath {
         }
     }
 
-    pub fn with_generic(mut self, generic: TypePath) -> Self {
+    fn with_generic(mut self, generic: TypePath) -> Self {
         self.generics.push(generic);
         self
     }
@@ -507,7 +507,7 @@ enum TypePathKind {
 }
 
 impl TypePath {
-    pub fn nest_within(&mut self, module: &Ident) {
+    fn nest_within(&mut self, module: &Ident) {
         let Self {
             kind,
             base,

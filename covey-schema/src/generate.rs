@@ -37,13 +37,13 @@ struct CratePaths {
 }
 
 impl CratePaths {
-    pub fn serde_error(&self) -> TokenStream {
+    fn serde_error(&self) -> TokenStream {
         let serde = &self.serde;
         quote! { <D::Error as #serde::de::Error> }
     }
 
     #[expect(clippy::needless_pass_by_value, reason = "usually used with quote!()")]
-    pub fn bail_invalid_value(&self, variant: TokenStream, exp: &str) -> TokenStream {
+    fn bail_invalid_value(&self, variant: TokenStream, exp: &str) -> TokenStream {
         let serde = &self.serde;
         let error = self.serde_error();
         quote! {
@@ -54,7 +54,7 @@ impl CratePaths {
     }
 
     #[expect(clippy::needless_pass_by_value, reason = "usually used with quote!()")]
-    pub fn bail_invalid_length(&self, length: TokenStream, exp: &str) -> TokenStream {
+    fn bail_invalid_length(&self, length: TokenStream, exp: &str) -> TokenStream {
         let error = self.serde_error();
         quote! {
             return ::core::result::Result::Err(

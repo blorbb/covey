@@ -54,6 +54,8 @@ impl fmt::Debug for List {
             )
             .field("style", &self.style)
             .field("plugin", &self.plugin())
+            .field("activation_target", &self.activation_target)
+            .field("request_id", &self.request_id)
             .finish_non_exhaustive()
     }
 }

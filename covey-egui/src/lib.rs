@@ -4,7 +4,10 @@ use std::{
 };
 
 use az::SaturatingAs;
-use covey::covey_schema::{hotkey::Hotkey, style::UserStyle};
+use covey::{
+    ActivationTarget,
+    covey_schema::{hotkey::Hotkey, style::UserStyle},
+};
 use eframe::CreationContext;
 use egui::{
     Align, Color32, CornerRadius, FontFamily, FontId, Key, Layout, Margin, RichText, ScrollArea,
@@ -381,13 +384,24 @@ impl App {
         // activations
 
         if let Some(list) = &self.list
-            && let Some(item) = list.items.get(self.list_selection)
             && let Some(hotkey) = hotkeys::hotkey_pressed_now(ui)
-            && let Some(_cmd) = self
-                .host
-                .activate_by_hotkey(item.activation_target(), hotkey)
         {
-            hotkeys::hotkey_pressed_consume(ui, hotkey);
+            // list commands are lower priority than list item commands.
+            let activated_command = list
+                .items
+                .get(self.list_selection)
+                .and_then(|item| {
+                    self.host
+                        .activate_by_hotkey(item.activation_target(), hotkey)
+                })
+                .or_else(|| {
+                    self.host
+                        .activate_by_hotkey(list.activation_target(), hotkey)
+                });
+
+            if activated_command.is_some() {
+                hotkeys::hotkey_pressed_consume(ui, hotkey);
+            }
         }
     }
 
@@ -530,47 +544,29 @@ impl App {
                     ui.label("No plugin activated");
                 }
                 Some(list) => {
+                    ui.spacing_mut().item_spacing = Vec2::splat(self.style().info_button_gap());
+
+                    // some commands have the same hotkey, but we only activate the FIRST
+                    // command with the given hotkey. need to filter out duplicate hotkeys from
+                    // subsequent commands.
+                    let mut used_hotkeys = HashSet::<Hotkey>::new();
+
                     if let Some(selected_item) = list.items.get(self.list_selection) {
-                        // some commands have the same hotkey, but we only activate the FIRST
-                        // command with the given hotkey. need to filter out duplicate hotkeys from
-                        // subsequent commands.
-                        let mut used_hotkeys = HashSet::<Hotkey>::new();
-                        for command in selected_item.activation_target().available_commands() {
-                            let s = &self.host.config().style;
-                            ui.style_mut().spacing.item_spacing = Vec2::splat(s.info_button_gap());
-
-                            let button = Container::new()
-                                .inner_margin(s.info_button_padding().as_egui())
-                                .corner_radius(s.info_button_rounding().into())
-                                .fill(s.info_button_bg().as_egui())
-                                .hover_fill(s.info_button_hovered_bg().as_egui())
-                                .active_fill(s.info_button_active_bg().as_egui())
-                                .show_horizontal(ui, |ui| {
-                                    // space between command and shortcut
-                                    ui.style_mut().spacing.item_spacing =
-                                        s.info_button_padding().as_egui();
-                                    ui.label(&command.title);
-
-                                    if let Some(hotkeys) =
-                                        selected_item.plugin().hotkeys_of_cmd(&command.id)
-                                        && let Some(new_hotkey) = hotkeys
-                                            .iter()
-                                            .find(|hotkey| !used_hotkeys.contains(hotkey))
-                                    {
-                                        ui.colored_label(
-                                            s.weak_text_color().as_egui(),
-                                            new_hotkey.to_short_string(),
-                                        );
-                                        used_hotkeys.extend(hotkeys);
-                                    }
-                                });
-
-                            if button.response.clicked() {
-                                self.host
-                                    .activate(selected_item.activation_target(), &command.id);
-                            }
-                        }
+                        show_command_buttons(
+                            &mut self.host,
+                            ui,
+                            selected_item.activation_target(),
+                            &mut used_hotkeys,
+                        );
                     };
+
+                    // list commands are lower priority than list item commands.
+                    show_command_buttons(
+                        &mut self.host,
+                        ui,
+                        list.activation_target(),
+                        &mut used_hotkeys,
+                    );
 
                     // TODO: make clicking this go to a settings window
                     ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
@@ -579,6 +575,45 @@ impl App {
                 }
             }
         });
+
+        fn show_command_buttons(
+            host: &mut covey::Host,
+            ui: &mut Ui,
+            activation_target: &ActivationTarget,
+            used_hotkeys: &mut HashSet<Hotkey>,
+        ) {
+            for command in activation_target.available_commands() {
+                let s = &host.config().style;
+
+                let button = Container::new()
+                    .inner_margin(s.info_button_padding().as_egui())
+                    .corner_radius(s.info_button_rounding().into())
+                    .fill(s.info_button_bg().as_egui())
+                    .hover_fill(s.info_button_hovered_bg().as_egui())
+                    .active_fill(s.info_button_active_bg().as_egui())
+                    .show_horizontal(ui, |ui| {
+                        // space between command and shortcut
+                        ui.style_mut().spacing.item_spacing = s.info_button_padding().as_egui();
+                        ui.label(&command.title);
+
+                        if let Some(hotkeys) =
+                            activation_target.plugin().hotkeys_of_cmd(&command.id)
+                            && let Some(new_hotkey) =
+                                hotkeys.iter().find(|hotkey| !used_hotkeys.contains(hotkey))
+                        {
+                            ui.colored_label(
+                                s.weak_text_color().as_egui(),
+                                new_hotkey.to_short_string(),
+                            );
+                            used_hotkeys.extend(hotkeys);
+                        }
+                    });
+
+                if button.response.clicked() {
+                    host.activate(activation_target, &command.id);
+                }
+            }
+        }
     }
 }
 

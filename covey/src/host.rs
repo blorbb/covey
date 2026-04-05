@@ -115,15 +115,16 @@ impl Host {
     ///
     /// Responses should be handled by calling [`ActionReceiver::recv`].
     #[tracing::instrument(skip(self))]
-    pub fn activate(&mut self, item: &ActivationTarget, command_id: &CommandId) {
-        debug!("activating {item:?}");
+    pub fn activate(&mut self, target: &ActivationTarget, command_id: &CommandId) {
+        debug!("activating {target:?}");
 
         let request_id = covey_proto::RequestId(self.next_request_id);
         self.next_request_id += 1;
 
-        self.plugin_process_gc.touch(item.plugin());
-        item.plugin()
-            .activate(request_id, item.local_target_id, command_id.clone())
+        self.plugin_process_gc.touch(target.plugin());
+        target
+            .plugin()
+            .activate(request_id, target.local_target_id, command_id.clone())
     }
 
     /// Activates a list item using the specified hotkey.
@@ -131,14 +132,14 @@ impl Host {
     /// Figures out the command to run based on the hotkey and plugin
     /// configuration. Returns [`Some`] if the hotkey activated some command,
     /// otherwise [`None`].
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self, target))]
     pub fn activate_by_hotkey(
         &mut self,
-        item: &ActivationTarget,
+        target: &ActivationTarget,
         hotkey: Hotkey,
     ) -> Option<CommandId> {
-        let command = item.activated_command_from_hotkey(hotkey)?;
-        self.activate(item, &command.id);
+        let command = target.activated_command_from_hotkey(hotkey)?;
+        self.activate(target, &command.id);
         Some(command.id.clone())
     }
 

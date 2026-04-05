@@ -28,17 +28,12 @@ pub(super) fn generate_ext_trait(manifest: &PluginManifest, paths: &CratePaths) 
         })
         .collect();
 
-    let trait_def = quote! {
-        pub trait CommandExt {
-            #(#signatures;)*
-        }
-    };
-
     let menu_doclink = format!("[`Menu`]({covey_plugin}::Menu)");
     let display_error_doclink =
         format!("[`menu.display_error`]({covey_plugin}::Menu::display_error)");
-    let trait_impl = quote! {
-        impl self::CommandExt for #covey_plugin::ListItem {
+
+    let trait_def = quote! {
+        pub trait CommandExt {
             #(
                 /// Runs when this command is activated.
                 ///
@@ -49,6 +44,27 @@ pub(super) fn generate_ext_trait(manifest: &PluginManifest, paths: &CratePaths) 
                 /// If an [`Err`](::core::result::Result::Err) is returned,
                 #[doc = #display_error_doclink]
                 /// will be called on the error.
+                #signatures;
+            )*
+        }
+    };
+
+    let list_item_impl = quote! {
+        impl self::CommandExt for #covey_plugin::ListItem {
+            #(
+                #signatures {
+                    self.add_command(
+                        #command_ids,
+                        callback
+                    )
+                }
+            )*
+        }
+    };
+
+    let list_impl = quote! {
+        impl self::CommandExt for #covey_plugin::List {
+            #(
                 #signatures {
                     self.add_command(
                         #command_ids,
@@ -62,6 +78,7 @@ pub(super) fn generate_ext_trait(manifest: &PluginManifest, paths: &CratePaths) 
     quote! {
         #trait_def
 
-        #trait_impl
+        #list_item_impl
+        #list_impl
     }
 }

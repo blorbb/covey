@@ -43,6 +43,22 @@ impl List {
         self.style = Some(ListStyle::Rows);
         self
     }
+
+    /// Adds a command that can be called.
+    ///
+    /// This should not be used directly, use the extension trait generated
+    /// by [`crate::include_manifest!`] instead.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn add_command(
+        mut self,
+        name: &'static str,
+        callback: impl AsyncFn(Menu) -> crate::Result<()> + Send + Sync + 'static,
+    ) -> Self {
+        self.callbacks
+            .add_callback(covey_proto::CommandId::new(name), callback);
+        self
+    }
 }
 
 #[non_exhaustive]
@@ -161,18 +177,8 @@ impl ListItem {
         name: &'static str,
         callback: impl AsyncFn(Menu) -> crate::Result<()> + Send + Sync + 'static,
     ) -> Self {
-        let callback = Arc::new(callback);
-        self.callbacks.add_callback(
-            covey_proto::CommandId::new(name),
-            Arc::new(move |menu| {
-                let callback = Arc::clone(&callback);
-                Box::pin(async move {
-                    if let Err(e) = callback(menu.clone()).await {
-                        menu.display_error(format!("{e:#}"));
-                    }
-                })
-            }),
-        );
+        self.callbacks
+            .add_callback(covey_proto::CommandId::new(name), callback);
         self
     }
 }
@@ -212,9 +218,20 @@ impl CommandCallbacks {
     pub(crate) fn add_callback(
         &mut self,
         command_id: covey_proto::CommandId,
-        callback: ActivationFunction,
+        callback: impl AsyncFn(Menu) -> crate::Result<()> + Send + Sync + 'static,
     ) {
-        self.commands.insert(command_id, callback);
+        let callback = Arc::new(callback);
+        self.commands.insert(
+            command_id,
+            Arc::new(move |menu| {
+                let callback = Arc::clone(&callback);
+                Box::pin(async move {
+                    if let Err(e) = callback(menu.clone()).await {
+                        menu.display_error(format!("{e:#}"));
+                    }
+                })
+            }),
+        );
     }
 
     pub(crate) fn get_callback(

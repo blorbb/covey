@@ -53,7 +53,7 @@ impl List {
     pub fn add_command(
         mut self,
         name: &'static str,
-        callback: impl AsyncFn(Menu) -> crate::Result<()> + Send + Sync + 'static,
+        callback: impl AsyncFn(&Menu) -> crate::Result<()> + Send + Sync + 'static,
     ) -> Self {
         self.callbacks
             .add_callback(covey_proto::CommandId::new(name), callback);
@@ -175,7 +175,7 @@ impl ListItem {
     pub fn add_command(
         mut self,
         name: &'static str,
-        callback: impl AsyncFn(Menu) -> crate::Result<()> + Send + Sync + 'static,
+        callback: impl AsyncFn(&Menu) -> crate::Result<()> + Send + Sync + 'static,
     ) -> Self {
         self.callbacks
             .add_callback(covey_proto::CommandId::new(name), callback);
@@ -199,7 +199,11 @@ impl Icon {
     }
 }
 
-// ActivationFunction needs Send + Sync for PluginBlocking to work.
+// ActivationFunction needs Send + Sync for blocking plugins to work.
+// The callback exposed by `add_callback` takes an input of `&Menu` instead of
+// `Menu` to force the user to complete everything they want before returning
+// from the callback. Might want to add something that happens after the
+// callback returns.
 type DynFuture<T> = Pin<Box<dyn Future<Output = T>>>;
 type ActivationFunction = Arc<dyn Fn(Menu) -> DynFuture<()> + Send + Sync>;
 
@@ -218,7 +222,7 @@ impl CommandCallbacks {
     pub(crate) fn add_callback(
         &mut self,
         command_id: covey_proto::CommandId,
-        callback: impl AsyncFn(Menu) -> crate::Result<()> + Send + Sync + 'static,
+        callback: impl AsyncFn(&Menu) -> crate::Result<()> + Send + Sync + 'static,
     ) {
         let callback = Arc::new(callback);
         self.commands.insert(
@@ -226,7 +230,7 @@ impl CommandCallbacks {
             Arc::new(move |menu| {
                 let callback = Arc::clone(&callback);
                 Box::pin(async move {
-                    if let Err(e) = callback(menu.clone()).await {
+                    if let Err(e) = callback(&menu).await {
                         menu.display_error(format!("{e:#}"));
                     }
                 })

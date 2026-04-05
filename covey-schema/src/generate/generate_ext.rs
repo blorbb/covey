@@ -22,7 +22,7 @@ pub(super) fn generate_ext_trait(manifest: &PluginManifest, paths: &CratePaths) 
             quote! {
                 fn #method(
                     self,
-                    callback: impl AsyncFn(#covey_plugin::Menu) -> #covey_plugin::Result<()> + ::core::marker::Send + ::core::marker::Sync + 'static
+                    callback: impl AsyncFn(&#covey_plugin::Menu) -> #covey_plugin::Result<()> + ::core::marker::Send + ::core::marker::Sync + 'static
                 ) -> Self
             }
         })

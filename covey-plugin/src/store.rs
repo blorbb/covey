@@ -1,12 +1,13 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     iter,
     ops::Range,
     pin::Pin,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicU64, Ordering},
     },
+    time::Duration,
 };
 
 use az::CheckedAs;
@@ -14,23 +15,25 @@ use az::CheckedAs;
 use crate::{List, Menu, rank::VisitId};
 
 /// Map list (item) IDs to their command callbacks.
+///
+/// Cloning this creates another reference to the same map.
+#[derive(Clone)]
 pub(crate) struct CommandMap {
-    /// TODO: clear old items
-    lists: Vec<ListCallbacks>,
-    target_ids: AutoIncrementer,
+    lists: Arc<Mutex<VecDeque<ListCallbacks>>>,
+    target_ids: Arc<AutoIncrementer>,
 }
 
 impl CommandMap {
     pub(crate) fn new() -> Self {
         Self {
-            lists: vec![],
-            target_ids: AutoIncrementer(AtomicU64::new(0)),
+            lists: Arc::new(Mutex::new(VecDeque::new())),
+            target_ids: Arc::new(AutoIncrementer(AtomicU64::new(0))),
         }
     }
 
     /// Stores the result of a query, returning the response that should be
     /// sent to covey.
-    pub(crate) fn store_query_result(&mut self, list: List) -> covey_proto::List {
+    pub(crate) fn store_query_result(&self, list: List) -> covey_proto::List {
         let list_target_id = covey_proto::ActivationTarget(self.target_ids.fetch_next());
 
         let mut items = vec![];
@@ -58,11 +61,27 @@ impl CommandMap {
 
         let list_command_ids = list.callbacks.ids().cloned().collect();
 
-        self.lists.push(ListCallbacks {
-            list_target_id,
-            item_callbacks,
-            list_callbacks: list.callbacks,
-        });
+        let num_lists = {
+            let mut lists = self.lists.lock().unwrap();
+            lists.push_back(ListCallbacks {
+                list_target_id,
+                item_callbacks,
+                list_callbacks: list.callbacks,
+            });
+            lists.len()
+        };
+
+        // Remove the older item after 1s. This should be more than enough time for the
+        // frontend to have caught up to this list and made it impossible for the user
+        // to try and activate an old item.
+        if num_lists >= 2 {
+            let lists = Arc::clone(&self.lists);
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                let mut lists = lists.lock().unwrap();
+                lists.pop_front();
+            });
+        }
 
         covey_proto::List {
             id: list_target_id,
@@ -78,13 +97,19 @@ impl CommandMap {
     /// However, implementation may change in the future which disposes of
     /// callbacks more frequently, and may have extremely rare edge cases where
     /// a callback is disposed but then activated.
-    pub(crate) fn target_callbacks(
+    pub(crate) fn find_callback(
         &self,
-        id: covey_proto::ActivationTarget,
-    ) -> Option<(Option<&VisitId>, &TargetCallbacks)> {
-        self.lists
+        target_id: covey_proto::ActivationTarget,
+        command_id: &covey_proto::CommandId,
+    ) -> Option<(Option<VisitId>, ActivationFunction)> {
+        let lists = self.lists.lock().unwrap();
+        let (visit_id, callbacks) = lists
             .iter()
-            .find_map(|commands| commands.target_callbacks(id))
+            .find_map(|commands| commands.target_callbacks(target_id))?;
+        Some((
+            visit_id.cloned(),
+            callbacks.get_callback(command_id)?.clone(),
+        ))
     }
 }
 

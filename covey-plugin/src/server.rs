@@ -1,7 +1,6 @@
 use std::{process, sync::Arc};
 
 use anyhow::Context;
-use parking_lot::Mutex;
 use tokio::{io::AsyncBufReadExt as _, task::LocalSet};
 
 use crate::{
@@ -109,7 +108,7 @@ async fn main<T: Plugin>() -> anyhow::Result<()> {
     let plugin = T::new(T::Config::try_from_input(&manifest_json)?).await?;
     let plugin = Arc::new(plugin);
 
-    let command_map = Arc::new(Mutex::new(CommandMap::new()));
+    let command_map = CommandMap::new();
 
     let mut stdin_lines = tokio::io::BufReader::new(tokio::io::stdin()).lines();
 
@@ -121,16 +120,14 @@ async fn main<T: Plugin>() -> anyhow::Result<()> {
                 eprintln!("stdin closed");
                 return Ok(());
             }
-            Ok(Some(line)) => {
-                handle_request_line(Arc::clone(&plugin), Arc::clone(&command_map), &line)?
-            }
+            Ok(Some(line)) => handle_request_line(Arc::clone(&plugin), command_map.clone(), &line)?,
         }
     }
 }
 
 fn handle_request_line<T: Plugin>(
     plugin: Arc<T>,
-    command_map: Arc<Mutex<CommandMap>>,
+    command_map: CommandMap,
     line: &str,
 ) -> anyhow::Result<()> {
     let covey_proto::Request {
@@ -145,7 +142,7 @@ fn handle_request_line<T: Plugin>(
             covey_proto::RequestBody::Query(query) => {
                 match plugin.query(query.text).await {
                     Ok(list) => {
-                        let proto_list = command_map.lock().store_query_result(list);
+                        let proto_list = command_map.store_query_result(list);
                         let response = covey_proto::Response::set_list(request_id, proto_list);
                         println!("{}", response.serialize());
                     }
@@ -160,13 +157,7 @@ fn handle_request_line<T: Plugin>(
                 target_id,
                 command_id,
             }) => {
-                let callback =
-                    command_map
-                        .lock()
-                        .target_callbacks(target_id)
-                        .and_then(|(visit_id, c)| {
-                            Some((visit_id.cloned(), c.get_callback(&command_id).cloned()?))
-                        });
+                let callback = command_map.find_callback(target_id, &command_id);
 
                 match callback {
                     Some((visit_id, callback)) => {

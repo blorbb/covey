@@ -171,7 +171,8 @@ impl Plugin {
                         // plugin, so this would only happen if something went wrong with the
                         // plugin.
                         match &request.request {
-                            covey_proto::RequestBody::Activate(..) => Err(e),
+                            covey_proto::RequestBody::ActivateItem(..)
+                            | covey_proto::RequestBody::ActivateList(..) => Err(e),
                             covey_proto::RequestBody::Query(..) => {
                                 *process = self.start_process()?;
                                 process.send_request(request)?;

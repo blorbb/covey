@@ -6,7 +6,7 @@ use tokio::{io::AsyncBufReadExt as _, task::LocalSet};
 
 use crate::{
     Plugin, manifest::ManifestDeserialization as _, plugin::BlockingPluginWrapper,
-    store::ListItemStore,
+    store::CommandMap,
 };
 
 /// Starts up the server with a specified plugin implementation.
@@ -109,7 +109,7 @@ async fn main<T: Plugin>() -> anyhow::Result<()> {
     let plugin = T::new(T::Config::try_from_input(&manifest_json)?).await?;
     let plugin = Arc::new(plugin);
 
-    let list_item_store = Arc::new(Mutex::new(ListItemStore::new()));
+    let command_map = Arc::new(Mutex::new(CommandMap::new()));
 
     let mut stdin_lines = tokio::io::BufReader::new(tokio::io::stdin()).lines();
 
@@ -122,7 +122,7 @@ async fn main<T: Plugin>() -> anyhow::Result<()> {
                 return Ok(());
             }
             Ok(Some(line)) => {
-                handle_request_line(Arc::clone(&plugin), Arc::clone(&list_item_store), &line)?
+                handle_request_line(Arc::clone(&plugin), Arc::clone(&command_map), &line)?
             }
         }
     }
@@ -130,7 +130,7 @@ async fn main<T: Plugin>() -> anyhow::Result<()> {
 
 fn handle_request_line<T: Plugin>(
     plugin: Arc<T>,
-    list_item_store: Arc<Mutex<ListItemStore>>,
+    command_map: Arc<Mutex<CommandMap>>,
     line: &str,
 ) -> anyhow::Result<()> {
     let covey_proto::Request { id, request } =
@@ -143,7 +143,7 @@ fn handle_request_line<T: Plugin>(
             covey_proto::RequestBody::Query(query) => {
                 match plugin.query(query.text).await {
                     Ok(list) => {
-                        let proto_list = list_item_store.lock().store_query_result(list);
+                        let proto_list = command_map.lock().store_query_result(list);
                         let response = covey_proto::Response::set_list(id, proto_list);
                         println!("{}", response.serialize());
                     }
@@ -153,17 +153,27 @@ fn handle_request_line<T: Plugin>(
                     }
                 };
             }
-            covey_proto::RequestBody::Activate(covey_proto::RequestActivate {
+            covey_proto::RequestBody::ActivateItem(covey_proto::RequestActivateItem {
                 item_id,
                 command_id,
             }) => {
-                let callbacks = list_item_store.lock().fetch_callbacks_of(item_id);
-                match callbacks {
-                    Some(callbacks) => {
+                let callback =
+                    command_map
+                        .lock()
+                        .item_callbacks(item_id)
+                        .and_then(|(visit_id, c)| {
+                            Some((visit_id.clone(), c.get_callback(&command_id).cloned()?))
+                        });
+
+                match callback {
+                    Some((visit_id, callback)) => {
+                        crate::rank::Visits::update_file_with_visit(visit_id);
+                        // TODO: channels are overcomplicating this, just print directly from Menu.
+                        // Also pass in &Menu.
                         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
                         let menu = crate::Menu { sender: tx };
 
-                        let call_command_task = callbacks.call_command(&command_id, menu);
+                        let call_command_task = callback(menu);
                         let forward_to_covey_task = async {
                             while let Some(action) = rx.recv().await {
                                 let response = covey_proto::Response::perform_action(id, action);
@@ -174,7 +184,37 @@ fn handle_request_line<T: Plugin>(
                         tokio::join!(call_command_task, forward_to_covey_task);
                     }
                     None => {
-                        eprintln!("failed to fetch callback of list item {item_id:?}")
+                        eprintln!("failed to fetch command {command_id} of list item {item_id:?}")
+                    }
+                };
+            }
+            covey_proto::RequestBody::ActivateList(covey_proto::RequestActivateList {
+                list_id,
+                command_id,
+            }) => {
+                let callback = command_map
+                    .lock()
+                    .list_callbacks(list_id)
+                    .and_then(|c| c.get_callback(&command_id))
+                    .cloned();
+
+                match callback {
+                    Some(callback) => {
+                        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+                        let menu = crate::Menu { sender: tx };
+
+                        let call_command_task = callback(menu);
+                        let forward_to_covey_task = async {
+                            while let Some(action) = rx.recv().await {
+                                let response = covey_proto::Response::perform_action(id, action);
+                                println!("{}", response.serialize());
+                            }
+                        };
+
+                        tokio::join!(call_command_task, forward_to_covey_task);
+                    }
+                    None => {
+                        eprintln!("failed to fetch command {command_id} of list item {list_id:?}")
                     }
                 };
             }

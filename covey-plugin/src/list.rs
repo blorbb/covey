@@ -14,11 +14,16 @@ pub struct List {
     /// the user. Plugins should only set one if the content makes the most
     /// sense with one of these styles.
     pub style: Option<ListStyle>,
+    pub(crate) callbacks: CommandCallbacks,
 }
 
 impl List {
     pub fn new(items: Vec<ListItem>) -> Self {
-        Self { items, style: None }
+        Self {
+            items,
+            style: None,
+            callbacks: CommandCallbacks::new(),
+        }
     }
 
     #[must_use = "builder method consumes self"]
@@ -57,14 +62,13 @@ impl ListStyle {
     }
 }
 
-// This should only be converted into a covey_proto::ListItem via the
-// ListItemStore.
 #[derive(Clone)]
 pub struct ListItem {
     pub title: String,
     pub description: String,
     pub icon: Option<Icon>,
-    pub(crate) commands: ListItemCallbacks,
+    pub(crate) visit_id: VisitId,
+    pub(crate) callbacks: CommandCallbacks,
 }
 
 impl ListItem {
@@ -74,7 +78,8 @@ impl ListItem {
             title: title.clone(),
             icon: None,
             description: String::new(),
-            commands: ListItemCallbacks::new(VisitId::from(title)),
+            visit_id: VisitId::from(title),
+            callbacks: CommandCallbacks::new(),
         }
     }
 
@@ -103,8 +108,8 @@ impl ListItem {
     }
 
     #[must_use = "builder method consumes self"]
-    pub fn with_usage_id(mut self, id: impl Into<VisitId>) -> Self {
-        self.commands.usage_id = id.into();
+    pub fn with_visit_id(mut self, id: impl Into<VisitId>) -> Self {
+        self.visit_id = id.into();
         self
     }
 
@@ -113,7 +118,7 @@ impl ListItem {
     ///
     /// If not explicitly set, the usage id will be the list item title.
     pub fn visit_id(&self) -> &VisitId {
-        &self.commands.usage_id
+        &self.visit_id
     }
 
     pub fn accuracy(&self, query: &str, weights: rank::Weights) -> f32 {
@@ -152,7 +157,7 @@ impl ListItem {
     #[doc(hidden)]
     #[must_use]
     pub fn add_command(mut self, name: &'static str, callback: ActivationFunction) -> Self {
-        self.commands
+        self.callbacks
             .add_command(covey_proto::CommandId::new(name), callback);
         self
     }
@@ -179,16 +184,14 @@ type DynFuture<T> = Pin<Box<dyn Future<Output = T>>>;
 type ActivationFunction = Arc<dyn Fn(Menu) -> DynFuture<()> + Send + Sync>;
 
 #[derive(Clone)]
-pub(crate) struct ListItemCallbacks {
+pub(crate) struct CommandCallbacks {
     commands: HashMap<covey_proto::CommandId, ActivationFunction>,
-    usage_id: VisitId,
 }
 
-impl ListItemCallbacks {
-    pub(crate) fn new(title: VisitId) -> Self {
+impl CommandCallbacks {
+    pub(crate) fn new() -> Self {
         Self {
             commands: HashMap::default(),
-            usage_id: title,
         }
     }
 
@@ -200,12 +203,11 @@ impl ListItemCallbacks {
         self.commands.insert(command_id, callback);
     }
 
-    /// Calls a command by name, doing nothing if the command is not found.
-    pub(crate) async fn call_command(&self, name: &covey_proto::CommandId, menu: Menu) {
-        if let Some(cmd) = self.commands.get(name) {
-            crate::rank::Visits::update_file_with_visit(self.usage_id.clone());
-            cmd(menu).await;
-        }
+    pub(crate) fn get_callback(
+        &self,
+        command_id: &covey_proto::CommandId,
+    ) -> Option<&ActivationFunction> {
+        self.commands.get(command_id)
     }
 
     pub(crate) fn ids(&self) -> impl Iterator<Item = &covey_proto::CommandId> {

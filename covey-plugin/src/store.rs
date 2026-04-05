@@ -1,5 +1,5 @@
 use std::{
-    collections::VecDeque,
+    collections::HashMap,
     iter,
     ops::Range,
     sync::atomic::{AtomicU64, Ordering},
@@ -7,76 +7,68 @@ use std::{
 
 use az::CheckedAs;
 
-use crate::{Icon, List, ListItem, ListStyle, list::ListItemCallbacks};
+use crate::{Icon, List, ListStyle, list::CommandCallbacks, rank::VisitId};
 
-/// Store to map list item IDs to their callbacks.
-pub(crate) struct ListItemStore {
-    /// A deque of all queries which have been made.
-    ///
-    /// Old queries are only dropped when an activation is performed, as
-    /// this is the only way to guarantee that old list items will not be
-    /// activated. Long latency from sending the query results to the front
-    /// end could result in old queries being activated.
-    ///
-    /// This disposal implementation may change in the future.
-    ///
-    /// The IDs stored in the deque should be increasing and contiguous.
-    queries: VecDeque<QueryListItemStore>,
-    ids: AutoIncrementer,
+/// Map list (item) IDs to their command callbacks.
+pub(crate) struct CommandMap {
+    /// TODO: clear old items
+    lists: HashMap<covey_proto::ListId, ListCommands>,
+    item_ids: AutoIncrementer,
+    list_ids: AutoIncrementer,
 }
 
-impl ListItemStore {
+impl CommandMap {
     pub(crate) fn new() -> Self {
         Self {
-            queries: VecDeque::new(),
-            ids: AutoIncrementer(AtomicU64::new(0)),
+            lists: HashMap::new(),
+            item_ids: AutoIncrementer(AtomicU64::new(0)),
+            list_ids: AutoIncrementer(AtomicU64::new(0)),
         }
     }
 
     /// Stores the result of a query, returning the response that should be
     /// sent to covey.
     pub(crate) fn store_query_result(&mut self, list: List) -> covey_proto::List {
-        // Don't store an empty result
-        if list.items.is_empty() {
-            return covey_proto::List {
-                items: vec![],
-                style: list.style.map(ListStyle::into_proto),
-            };
+        let mut items = vec![];
+        let mut item_callbacks = vec![];
+
+        let new_item_ids = self.item_ids.fetch_many(list.items.len() as u64);
+        for (id, item) in iter::zip(new_item_ids, list.items) {
+            let crate::ListItem {
+                title,
+                description,
+                icon,
+                visit_id,
+                callbacks,
+            } = item;
+
+            items.push(covey_proto::ListItem {
+                id: covey_proto::ListItemId(id),
+                title,
+                description,
+                icon: icon.map(Icon::into_proto),
+                commands: callbacks.ids().cloned().collect(),
+            });
+            item_callbacks.push((visit_id, callbacks));
         }
 
-        let (items, callbacks) = split_item_vec(&self.ids, list.items);
+        let list_id = covey_proto::ListId(self.list_ids.fetch_next());
+        let list_command_ids = list.callbacks.ids().cloned().collect();
 
-        self.queries.push_back(QueryListItemStore {
-            callbacks,
-            first_id: items.first().expect("list should be non empty").id,
-        });
+        self.lists.insert(
+            list_id,
+            ListCommands {
+                first_item_id: items.first().map(|item| item.id),
+                list_item_callbacks: item_callbacks,
+                list_callbacks: list.callbacks,
+            },
+        );
 
-        return covey_proto::List {
+        covey_proto::List {
+            id: list_id,
+            commands: list_command_ids,
             items,
             style: list.style.map(ListStyle::into_proto),
-        };
-
-        fn split_item_vec(
-            ids: &AutoIncrementer,
-            vec: Vec<ListItem>,
-        ) -> (Vec<covey_proto::ListItem>, Vec<ListItemCallbacks>) {
-            let new_ids = ids.fetch_many(vec.len() as u64);
-
-            let mut items = vec![];
-            let mut callbacks = vec![];
-
-            for (id, item) in iter::zip(new_ids, vec) {
-                items.push(covey_proto::ListItem {
-                    id: covey_proto::ListItemId(id),
-                    title: item.title,
-                    description: item.description,
-                    icon: item.icon.map(Icon::into_proto),
-                    available_commands: item.commands.ids().cloned().collect(),
-                });
-                callbacks.push(item.commands);
-            }
-
-            (items, callbacks)
         }
     }
 
@@ -86,39 +78,33 @@ impl ListItemStore {
     /// However, implementation may change in the future which disposes of
     /// callbacks more frequently, and may have extremely rare edge cases where
     /// a callback is disposed but then activated.
-    pub(crate) fn fetch_callbacks_of(
-        &mut self,
+    pub(crate) fn item_callbacks(
+        &self,
         id: covey_proto::ListItemId,
-    ) -> Option<ListItemCallbacks> {
-        // linear search is good enough
-        let (found_index, found_callback) =
-            self.queries.iter().enumerate().find_map(|(i, query)| {
-                query
-                    .callback_of_id(id)
-                    .map(|callbacks| (i, callbacks.clone()))
-            })?;
+    ) -> Option<&(VisitId, CommandCallbacks)> {
+        self.lists
+            .values()
+            .find_map(|commands| commands.item_callbacks(id))
+    }
 
-        // Remove old queries.
-        // Don't include the current query, since the action could be
-        // nothing and the same query could have another list item activated.
-        self.queries.drain(..found_index);
-
-        Some(found_callback)
+    pub(crate) fn list_callbacks(&self, id: covey_proto::ListId) -> Option<&CommandCallbacks> {
+        self.lists.get(&id).map(|commands| &commands.list_callbacks)
     }
 }
 
 /// INVARIANTS:
 /// - IDs of the list items are increasing and contiguous.
-/// - Number of items stored is non-zero.
-struct QueryListItemStore {
-    callbacks: Vec<ListItemCallbacks>,
-    first_id: covey_proto::ListItemId,
+/// - `first_id` is None iff `list_item_callbacks` is empty.
+struct ListCommands {
+    first_item_id: Option<covey_proto::ListItemId>,
+    list_item_callbacks: Vec<(VisitId, CommandCallbacks)>,
+    list_callbacks: CommandCallbacks,
 }
 
-impl QueryListItemStore {
-    fn callback_of_id(&self, id: covey_proto::ListItemId) -> Option<&ListItemCallbacks> {
-        let offset = id.0 - self.first_id.0;
-        self.callbacks.get(
+impl ListCommands {
+    fn item_callbacks(&self, id: covey_proto::ListItemId) -> Option<&(VisitId, CommandCallbacks)> {
+        let offset = id.0 - self.first_item_id?.0;
+        self.list_item_callbacks.get(
             offset
                 .checked_as::<usize>()
                 .expect("there should not be way too many callbacks stored (over u32::MAX)"),
@@ -136,5 +122,9 @@ impl AutoIncrementer {
         let upper_bound = lower_bound + count;
 
         lower_bound..upper_bound
+    }
+
+    fn fetch_next(&self) -> u64 {
+        self.0.fetch_add(1, Ordering::Relaxed)
     }
 }

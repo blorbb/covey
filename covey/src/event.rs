@@ -184,7 +184,7 @@ impl ListItem {
             .manifest()
             .commands
             .iter()
-            .filter(|cmd| self.item.available_commands.contains(&cmd.id))
+            .filter(|cmd| self.item.commands.contains(&cmd.id))
     }
 
     /// Gets the command that can be activated from the provided hotkey.

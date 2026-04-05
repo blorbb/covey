@@ -50,17 +50,9 @@ pub(super) fn generate_ext_trait(manifest: &PluginManifest, paths: &CratePaths) 
                 #[doc = #display_error_doclink]
                 /// will be called on the error.
                 #signatures {
-                    let callback = ::std::sync::Arc::new(callback);
                     self.add_command(
                         #command_ids,
-                        ::std::sync::Arc::new(move |menu| ::std::boxed::Box::pin({
-                            let callback = ::std::sync::Arc::clone(&callback);
-                            async move {
-                                if let ::core::result::Result::Err(e) = callback(::core::clone::Clone::clone(&menu)).await {
-                                    menu.display_error(::std::format!("{e:#}"));
-                                }
-                            }
-                        }))
+                        callback
                     )
                 }
             )*

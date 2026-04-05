@@ -156,9 +156,23 @@ impl ListItem {
     /// by [`crate::include_manifest!`] instead.
     #[doc(hidden)]
     #[must_use]
-    pub fn add_command(mut self, name: &'static str, callback: ActivationFunction) -> Self {
-        self.callbacks
-            .add_command(covey_proto::CommandId::new(name), callback);
+    pub fn add_command(
+        mut self,
+        name: &'static str,
+        callback: impl AsyncFn(Menu) -> crate::Result<()> + Send + Sync + 'static,
+    ) -> Self {
+        let callback = Arc::new(callback);
+        self.callbacks.add_callback(
+            covey_proto::CommandId::new(name),
+            Arc::new(move |menu| {
+                let callback = Arc::clone(&callback);
+                Box::pin(async move {
+                    if let Err(e) = callback(menu.clone()).await {
+                        menu.display_error(format!("{e:#}"));
+                    }
+                })
+            }),
+        );
         self
     }
 }
@@ -195,7 +209,7 @@ impl CommandCallbacks {
         }
     }
 
-    pub(crate) fn add_command(
+    pub(crate) fn add_callback(
         &mut self,
         command_id: covey_proto::CommandId,
         callback: ActivationFunction,

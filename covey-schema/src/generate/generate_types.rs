@@ -5,7 +5,7 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::{ToTokens, format_ident, quote};
 use syn::ext::IdentExt;
 
-use super::{CratePaths, Path};
+use super::{CratePath, CratePaths};
 use crate::{
     keyed_list::Identify,
     manifest::{
@@ -473,12 +473,12 @@ impl FieldType {
 #[derive(Debug, Clone)]
 struct TypePath {
     kind: TypePathKind,
-    base: Path,
+    base: CratePath,
     generics: Vec<TypePath>,
 }
 
 impl TypePath {
-    fn relative(base: Path) -> Self {
+    fn relative(base: CratePath) -> Self {
         Self {
             kind: TypePathKind::Relative,
             base,
@@ -486,7 +486,7 @@ impl TypePath {
         }
     }
 
-    fn absolute(base: Path) -> Self {
+    fn absolute(base: CratePath) -> Self {
         Self {
             kind: TypePathKind::Absolute,
             base,

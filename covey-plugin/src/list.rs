@@ -1,8 +1,9 @@
-use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc, time::SystemTime};
+use std::time::SystemTime;
 
 use crate::{
     Menu,
     rank::{self, VisitId},
+    store::TargetCallbacks,
 };
 
 #[non_exhaustive]
@@ -14,11 +15,16 @@ pub struct List {
     /// the user. Plugins should only set one if the content makes the most
     /// sense with one of these styles.
     pub style: Option<ListStyle>,
+    pub(crate) callbacks: TargetCallbacks,
 }
 
 impl List {
     pub fn new(items: Vec<ListItem>) -> Self {
-        Self { items, style: None }
+        Self {
+            items,
+            style: None,
+            callbacks: TargetCallbacks::new(),
+        }
     }
 
     #[must_use = "builder method consumes self"]
@@ -38,6 +44,22 @@ impl List {
         self.style = Some(ListStyle::Rows);
         self
     }
+
+    /// Adds a command that can be called.
+    ///
+    /// This should not be used directly, use the extension trait generated
+    /// by [`crate::include_manifest!`] instead.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn add_command(
+        mut self,
+        name: &'static str,
+        callback: impl AsyncFn(&Menu) -> crate::Result<()> + Send + Sync + 'static,
+    ) -> Self {
+        self.callbacks
+            .add_callback(covey_proto::CommandId::new(name), callback);
+        self
+    }
 }
 
 #[non_exhaustive]
@@ -47,24 +69,13 @@ pub enum ListStyle {
     GridWithColumns(u32),
 }
 
-impl ListStyle {
-    pub(crate) fn into_proto(self) -> covey_proto::ListStyle {
-        match self {
-            Self::Rows => covey_proto::ListStyle::Rows,
-            Self::Grid => covey_proto::ListStyle::Grid,
-            Self::GridWithColumns(columns) => covey_proto::ListStyle::GridWithColumns(columns),
-        }
-    }
-}
-
-// This should only be converted into a covey_proto::ListItem via the
-// ListItemStore.
 #[derive(Clone)]
 pub struct ListItem {
     pub title: String,
     pub description: String,
     pub icon: Option<Icon>,
-    pub(crate) commands: ListItemCallbacks,
+    pub(crate) visit_id: VisitId,
+    pub(crate) callbacks: TargetCallbacks,
 }
 
 impl ListItem {
@@ -74,7 +85,8 @@ impl ListItem {
             title: title.clone(),
             icon: None,
             description: String::new(),
-            commands: ListItemCallbacks::new(VisitId::from(title)),
+            visit_id: VisitId::from(title),
+            callbacks: TargetCallbacks::new(),
         }
     }
 
@@ -103,8 +115,8 @@ impl ListItem {
     }
 
     #[must_use = "builder method consumes self"]
-    pub fn with_usage_id(mut self, id: impl Into<VisitId>) -> Self {
-        self.commands.usage_id = id.into();
+    pub fn with_visit_id(mut self, id: impl Into<VisitId>) -> Self {
+        self.visit_id = id.into();
         self
     }
 
@@ -113,7 +125,7 @@ impl ListItem {
     ///
     /// If not explicitly set, the usage id will be the list item title.
     pub fn visit_id(&self) -> &VisitId {
-        &self.commands.usage_id
+        &self.visit_id
     }
 
     pub fn accuracy(&self, query: &str, weights: rank::Weights) -> f32 {
@@ -151,9 +163,13 @@ impl ListItem {
     /// by [`crate::include_manifest!`] instead.
     #[doc(hidden)]
     #[must_use]
-    pub fn add_command(mut self, name: &'static str, callback: ActivationFunction) -> Self {
-        self.commands
-            .add_command(covey_proto::CommandId::new(name), callback);
+    pub fn add_command(
+        mut self,
+        name: &'static str,
+        callback: impl AsyncFn(&Menu) -> crate::Result<()> + Send + Sync + 'static,
+    ) -> Self {
+        self.callbacks
+            .add_callback(covey_proto::CommandId::new(name), callback);
         self
     }
 }
@@ -163,52 +179,4 @@ impl ListItem {
 pub enum Icon {
     Name(String),
     Text(String),
-}
-
-impl Icon {
-    pub(crate) fn into_proto(self) -> covey_proto::ListItemIcon {
-        match self {
-            Self::Name(name) => covey_proto::ListItemIcon::Name(name),
-            Self::Text(text) => covey_proto::ListItemIcon::Text(text),
-        }
-    }
-}
-
-// ActivationFunction needs Send + Sync for PluginBlocking to work.
-type DynFuture<T> = Pin<Box<dyn Future<Output = T>>>;
-type ActivationFunction = Arc<dyn Fn(Menu) -> DynFuture<()> + Send + Sync>;
-
-#[derive(Clone)]
-pub(crate) struct ListItemCallbacks {
-    commands: HashMap<covey_proto::CommandId, ActivationFunction>,
-    usage_id: VisitId,
-}
-
-impl ListItemCallbacks {
-    pub(crate) fn new(title: VisitId) -> Self {
-        Self {
-            commands: HashMap::default(),
-            usage_id: title,
-        }
-    }
-
-    pub(crate) fn add_command(
-        &mut self,
-        command_id: covey_proto::CommandId,
-        callback: ActivationFunction,
-    ) {
-        self.commands.insert(command_id, callback);
-    }
-
-    /// Calls a command by name, doing nothing if the command is not found.
-    pub(crate) async fn call_command(&self, name: &covey_proto::CommandId, menu: Menu) {
-        if let Some(cmd) = self.commands.get(name) {
-            crate::rank::Visits::update_file_with_visit(self.usage_id.clone());
-            cmd(menu).await;
-        }
-    }
-
-    pub(crate) fn ids(&self) -> impl Iterator<Item = &covey_proto::CommandId> {
-        self.commands.keys()
-    }
 }

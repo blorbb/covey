@@ -1,23 +1,20 @@
 use std::fmt::Display;
 
-use tokio::sync::mpsc::UnboundedSender;
-
 use crate::{Action, Input};
 
 /// Provides methods to interact with the app menu.
-///
-/// This type is cheap to clone.
-#[derive(Clone)]
 pub struct Menu {
-    pub(crate) sender: UnboundedSender<covey_proto::PluginAction>,
+    /// The request ID that all responses are replying to.
+    pub(crate) request_id: covey_proto::RequestId,
 }
 
 impl Menu {
     fn send_action(&self, action: Action) {
-        match self.sender.send(action.into_proto()) {
-            Ok(()) => {}
-            Err(e) => eprintln!("failed to send action: {e}"),
-        }
+        let response = covey_proto::Response::perform_action(
+            self.request_id,
+            crate::into_proto::action(action),
+        );
+        println!("{}", response.serialize());
     }
 
     pub fn close(&self) {

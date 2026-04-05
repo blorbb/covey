@@ -8,13 +8,12 @@ use quote::quote;
 
 use crate::manifest::PluginManifest;
 
-/// Type alias for a [`TokenStream`]. Just for better readability.
-type Path = TokenStream;
+type CratePath = TokenStream;
 
 pub fn include_manifest(
     s: &str,
-    serde_path: Path,
-    covey_plugin_path: Path,
+    serde_path: CratePath,
+    covey_plugin_path: CratePath,
 ) -> Result<TokenStream, toml::de::Error> {
     let paths = CratePaths {
         serde: serde_path,
@@ -32,8 +31,8 @@ pub fn include_manifest(
 }
 
 struct CratePaths {
-    serde: Path,
-    covey_plugin: Path,
+    serde: CratePath,
+    covey_plugin: CratePath,
 }
 
 impl CratePaths {

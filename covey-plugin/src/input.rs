@@ -22,14 +22,6 @@ impl Input {
         self.selection = sel;
         self
     }
-
-    #[must_use = "builder method consumes self"]
-    pub(crate) fn into_proto(self) -> covey_proto::Input {
-        covey_proto::Input {
-            query: self.query,
-            selection: self.selection.to_range(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy)]

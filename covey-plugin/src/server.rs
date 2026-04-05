@@ -1,12 +1,11 @@
 use std::{process, sync::Arc};
 
 use anyhow::Context;
-use parking_lot::Mutex;
 use tokio::{io::AsyncBufReadExt as _, task::LocalSet};
 
 use crate::{
     Plugin, manifest::ManifestDeserialization as _, plugin::BlockingPluginWrapper,
-    store::ListItemStore,
+    store::CommandMap,
 };
 
 /// Starts up the server with a specified plugin implementation.
@@ -109,7 +108,7 @@ async fn main<T: Plugin>() -> anyhow::Result<()> {
     let plugin = T::new(T::Config::try_from_input(&manifest_json)?).await?;
     let plugin = Arc::new(plugin);
 
-    let list_item_store = Arc::new(Mutex::new(ListItemStore::new()));
+    let command_map = CommandMap::new();
 
     let mut stdin_lines = tokio::io::BufReader::new(tokio::io::stdin()).lines();
 
@@ -121,20 +120,20 @@ async fn main<T: Plugin>() -> anyhow::Result<()> {
                 eprintln!("stdin closed");
                 return Ok(());
             }
-            Ok(Some(line)) => {
-                handle_request_line(Arc::clone(&plugin), Arc::clone(&list_item_store), &line)?
-            }
+            Ok(Some(line)) => handle_request_line(Arc::clone(&plugin), command_map.clone(), &line)?,
         }
     }
 }
 
 fn handle_request_line<T: Plugin>(
     plugin: Arc<T>,
-    list_item_store: Arc<Mutex<ListItemStore>>,
+    command_map: CommandMap,
     line: &str,
 ) -> anyhow::Result<()> {
-    let covey_proto::Request { id, request } =
-        serde_json::from_str(line).context("malformed request from covey")?;
+    let covey_proto::Request {
+        id: request_id,
+        request,
+    } = serde_json::from_str(line).context("malformed request from covey")?;
 
     // Handling the request may take some time, don't block!
     // Allow handling multiple requests at once by spawning a new task.
@@ -143,38 +142,32 @@ fn handle_request_line<T: Plugin>(
             covey_proto::RequestBody::Query(query) => {
                 match plugin.query(query.text).await {
                     Ok(list) => {
-                        let proto_list = list_item_store.lock().store_query_result(list);
-                        let response = covey_proto::Response::set_list(id, proto_list);
+                        let proto_list = command_map.store_query_result(list);
+                        let response = covey_proto::Response::set_list(request_id, proto_list);
                         println!("{}", response.serialize());
                     }
                     Err(e) => {
-                        let response = covey_proto::Response::display_error(id, format!("{e:#}"));
+                        let response =
+                            covey_proto::Response::display_error(request_id, format!("{e:#}"));
                         println!("{}", response.serialize());
                     }
                 };
             }
             covey_proto::RequestBody::Activate(covey_proto::RequestActivate {
-                item_id,
+                target_id,
                 command_id,
             }) => {
-                let callbacks = list_item_store.lock().fetch_callbacks_of(item_id);
-                match callbacks {
-                    Some(callbacks) => {
-                        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-                        let menu = crate::Menu { sender: tx };
+                let callback = command_map.find_callback(target_id, &command_id);
 
-                        let call_command_task = callbacks.call_command(&command_id, menu);
-                        let forward_to_covey_task = async {
-                            while let Some(action) = rx.recv().await {
-                                let response = covey_proto::Response::perform_action(id, action);
-                                println!("{}", response.serialize());
-                            }
+                match callback {
+                    Some((visit_id, callback)) => {
+                        if let Some(visit_id) = visit_id {
+                            crate::rank::Visits::update_file_with_visit(visit_id)
                         };
-
-                        tokio::join!(call_command_task, forward_to_covey_task);
+                        callback(crate::Menu { request_id }).await;
                     }
                     None => {
-                        eprintln!("failed to fetch callback of list item {item_id:?}")
+                        eprintln!("failed to fetch {command_id:?} of {target_id:?}")
                     }
                 };
             }

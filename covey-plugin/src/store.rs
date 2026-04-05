@@ -1,82 +1,93 @@
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     iter,
     ops::Range,
-    sync::atomic::{AtomicU64, Ordering},
+    pin::Pin,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration,
 };
 
 use az::CheckedAs;
 
-use crate::{Icon, List, ListItem, ListStyle, list::ListItemCallbacks};
+use crate::{List, Menu, rank::VisitId};
 
-/// Store to map list item IDs to their callbacks.
-pub(crate) struct ListItemStore {
-    /// A deque of all queries which have been made.
-    ///
-    /// Old queries are only dropped when an activation is performed, as
-    /// this is the only way to guarantee that old list items will not be
-    /// activated. Long latency from sending the query results to the front
-    /// end could result in old queries being activated.
-    ///
-    /// This disposal implementation may change in the future.
-    ///
-    /// The IDs stored in the deque should be increasing and contiguous.
-    queries: VecDeque<QueryListItemStore>,
-    ids: AutoIncrementer,
+/// Map list (item) IDs to their command callbacks.
+///
+/// Cloning this creates another reference to the same map.
+#[derive(Clone)]
+pub(crate) struct CommandMap {
+    lists: Arc<Mutex<VecDeque<ListCallbacks>>>,
+    target_ids: Arc<AutoIncrementer>,
 }
 
-impl ListItemStore {
+impl CommandMap {
     pub(crate) fn new() -> Self {
         Self {
-            queries: VecDeque::new(),
-            ids: AutoIncrementer(AtomicU64::new(0)),
+            lists: Arc::new(Mutex::new(VecDeque::new())),
+            target_ids: Arc::new(AutoIncrementer(AtomicU64::new(0))),
         }
     }
 
     /// Stores the result of a query, returning the response that should be
     /// sent to covey.
-    pub(crate) fn store_query_result(&mut self, list: List) -> covey_proto::List {
-        // Don't store an empty result
-        if list.items.is_empty() {
-            return covey_proto::List {
-                items: vec![],
-                style: list.style.map(ListStyle::into_proto),
-            };
+    pub(crate) fn store_query_result(&self, list: List) -> covey_proto::List {
+        let list_target_id = covey_proto::ActivationTarget(self.target_ids.fetch_next());
+
+        let mut items = vec![];
+        let mut item_callbacks = vec![];
+
+        let new_item_ids = self.target_ids.fetch_many(list.items.len() as u64);
+        for (id, item) in iter::zip(new_item_ids, list.items) {
+            let crate::ListItem {
+                title,
+                description,
+                icon,
+                visit_id,
+                callbacks,
+            } = item;
+
+            items.push(covey_proto::ListItem {
+                id: covey_proto::ActivationTarget(id),
+                title,
+                description,
+                icon: icon.map(crate::into_proto::icon),
+                commands: callbacks.ids().cloned().collect(),
+            });
+            item_callbacks.push((visit_id, callbacks));
         }
 
-        let (items, callbacks) = split_item_vec(&self.ids, list.items);
+        let list_command_ids = list.callbacks.ids().cloned().collect();
 
-        self.queries.push_back(QueryListItemStore {
-            callbacks,
-            first_id: items.first().expect("list should be non empty").id,
-        });
-
-        return covey_proto::List {
-            items,
-            style: list.style.map(ListStyle::into_proto),
+        let num_lists = {
+            let mut lists = self.lists.lock().unwrap();
+            lists.push_back(ListCallbacks {
+                list_target_id,
+                item_callbacks,
+                list_callbacks: list.callbacks,
+            });
+            lists.len()
         };
 
-        fn split_item_vec(
-            ids: &AutoIncrementer,
-            vec: Vec<ListItem>,
-        ) -> (Vec<covey_proto::ListItem>, Vec<ListItemCallbacks>) {
-            let new_ids = ids.fetch_many(vec.len() as u64);
+        // Remove the older item after 1s. This should be more than enough time for the
+        // frontend to have caught up to this list and made it impossible for the user
+        // to try and activate an old item.
+        if num_lists >= 2 {
+            let lists = Arc::clone(&self.lists);
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                let mut lists = lists.lock().unwrap();
+                lists.pop_front();
+            });
+        }
 
-            let mut items = vec![];
-            let mut callbacks = vec![];
-
-            for (id, item) in iter::zip(new_ids, vec) {
-                items.push(covey_proto::ListItem {
-                    id: covey_proto::ListItemId(id),
-                    title: item.title,
-                    description: item.description,
-                    icon: item.icon.map(Icon::into_proto),
-                    available_commands: item.commands.ids().cloned().collect(),
-                });
-                callbacks.push(item.commands);
-            }
-
-            (items, callbacks)
+        covey_proto::List {
+            id: list_target_id,
+            commands: list_command_ids,
+            items,
+            style: list.style.map(crate::into_proto::list_style),
         }
     }
 
@@ -86,43 +97,100 @@ impl ListItemStore {
     /// However, implementation may change in the future which disposes of
     /// callbacks more frequently, and may have extremely rare edge cases where
     /// a callback is disposed but then activated.
-    pub(crate) fn fetch_callbacks_of(
-        &mut self,
-        id: covey_proto::ListItemId,
-    ) -> Option<ListItemCallbacks> {
-        // linear search is good enough
-        let (found_index, found_callback) =
-            self.queries.iter().enumerate().find_map(|(i, query)| {
-                query
-                    .callback_of_id(id)
-                    .map(|callbacks| (i, callbacks.clone()))
-            })?;
-
-        // Remove old queries.
-        // Don't include the current query, since the action could be
-        // nothing and the same query could have another list item activated.
-        self.queries.drain(..found_index);
-
-        Some(found_callback)
+    pub(crate) fn find_callback(
+        &self,
+        target_id: covey_proto::ActivationTarget,
+        command_id: &covey_proto::CommandId,
+    ) -> Option<(Option<VisitId>, ActivationFunction)> {
+        let lists = self.lists.lock().unwrap();
+        let (visit_id, callbacks) = lists
+            .iter()
+            .find_map(|commands| commands.target_callbacks(target_id))?;
+        Some((
+            visit_id.cloned(),
+            callbacks.get_callback(command_id)?.clone(),
+        ))
     }
 }
 
 /// INVARIANTS:
 /// - IDs of the list items are increasing and contiguous.
-/// - Number of items stored is non-zero.
-struct QueryListItemStore {
-    callbacks: Vec<ListItemCallbacks>,
-    first_id: covey_proto::ListItemId,
+/// - `list_target_id` is the target id of the list itself.
+/// - The IDs of the list items start at `list_target_id + 1`.
+struct ListCallbacks {
+    list_target_id: covey_proto::ActivationTarget,
+    list_callbacks: TargetCallbacks,
+    item_callbacks: Vec<(VisitId, TargetCallbacks)>,
 }
 
-impl QueryListItemStore {
-    fn callback_of_id(&self, id: covey_proto::ListItemId) -> Option<&ListItemCallbacks> {
-        let offset = id.0 - self.first_id.0;
-        self.callbacks.get(
-            offset
-                .checked_as::<usize>()
-                .expect("there should not be way too many callbacks stored (over u32::MAX)"),
-        )
+impl ListCallbacks {
+    fn target_callbacks(
+        &self,
+        target: covey_proto::ActivationTarget,
+    ) -> Option<(Option<&VisitId>, &TargetCallbacks)> {
+        if target.0 == self.list_target_id.0 {
+            Some((None, &self.list_callbacks))
+        } else {
+            let offset = target.0.checked_sub(self.list_target_id.0 + 1)?;
+            let (id, callbacks) = self.item_callbacks.get(
+                offset
+                    .checked_as::<usize>()
+                    .expect("there should not be way too many callbacks stored (over u32::MAX)"),
+            )?;
+
+            Some((Some(id), callbacks))
+        }
+    }
+}
+
+// ActivationFunction needs Send + Sync for blocking plugins to work.
+// The callback exposed by `add_callback` takes an input of `&Menu` instead of
+// `Menu` to force the user to complete everything they want before returning
+// from the callback. Might want to add something that happens after the
+// callback returns.
+type DynFuture<T> = Pin<Box<dyn Future<Output = T>>>;
+type ActivationFunction = Arc<dyn Fn(Menu) -> DynFuture<()> + Send + Sync>;
+
+#[derive(Clone)]
+pub(crate) struct TargetCallbacks {
+    commands: HashMap<covey_proto::CommandId, ActivationFunction>,
+}
+
+impl TargetCallbacks {
+    pub(crate) fn new() -> Self {
+        Self {
+            commands: HashMap::default(),
+        }
+    }
+
+    pub(crate) fn add_callback(
+        &mut self,
+        command_id: covey_proto::CommandId,
+        callback: impl AsyncFn(&Menu) -> crate::Result<()> + Send + Sync + 'static,
+    ) {
+        let callback = Arc::new(callback);
+        self.commands.insert(
+            command_id,
+            Arc::new(move |menu| {
+                let callback = Arc::clone(&callback);
+                Box::pin(async move {
+                    if let Err(e) = callback(&menu).await {
+                        menu.display_error(format!("{e:#}"));
+                    }
+                })
+            }),
+        );
+    }
+
+    pub(crate) fn get_callback(
+        &self,
+        command_id: &covey_proto::CommandId,
+    ) -> Option<&ActivationFunction> {
+        self.commands.get(command_id)
+    }
+
+    pub(crate) fn ids(&self) -> impl Iterator<Item = &covey_proto::CommandId> {
+        self.commands.keys()
     }
 }
 
@@ -136,5 +204,9 @@ impl AutoIncrementer {
         let upper_bound = lower_bound + count;
 
         lower_bound..upper_bound
+    }
+
+    fn fetch_next(&self) -> u64 {
+        self.0.fetch_add(1, Ordering::Relaxed)
     }
 }

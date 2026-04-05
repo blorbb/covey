@@ -6,13 +6,7 @@ use crate::Input;
 /// close the application. This should usually be first to feel more responsive
 /// and avoid waiting for other commands to run before closing.
 #[derive(Debug, Clone)]
-pub struct Action(covey_proto::PluginAction);
-
-impl Action {
-    pub(crate) fn into_proto(self) -> covey_proto::PluginAction {
-        self.0
-    }
-}
+pub struct Action(pub(crate) covey_proto::PluginAction);
 
 /// Helper constructors for action variants
 impl Action {
@@ -26,7 +20,7 @@ impl Action {
 
     pub fn set_input(input: impl Into<Input>) -> Self {
         Self(covey_proto::PluginAction::SetInput(
-            input.into().into_proto(),
+            crate::into_proto::input(input.into()),
         ))
     }
 

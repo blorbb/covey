@@ -1,24 +1,25 @@
-pub mod manifest;
-pub mod rank;
-
+mod action;
+mod input;
+mod into_proto;
 mod list;
+pub mod manifest;
+mod menu;
+mod plugin;
+pub mod rank;
+mod server;
+pub mod spawn;
+
 use std::{
     path::PathBuf,
     sync::{LazyLock, OnceLock},
 };
 
-pub use list::{Icon, List, ListItem, ListStyle};
-mod action;
 pub use action::Action;
-mod input;
 pub use input::{Input, SelectionRange};
-mod plugin;
-pub use plugin::Plugin;
-mod server;
-pub use server::{run_server, run_server_blocking};
-mod menu;
+pub use list::{Icon, List, ListItem, ListStyle};
 pub use menu::Menu;
-pub mod spawn;
+pub use plugin::Plugin;
+pub use server::{run_server, run_server_blocking};
 mod store;
 
 pub use anyhow::{self, Result};

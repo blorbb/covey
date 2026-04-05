@@ -24,11 +24,11 @@ impl Request {
         }
     }
 
-    pub fn activate(id: RequestId, item_id: ListItemId, command_id: CommandId) -> Self {
+    pub fn activate(id: RequestId, item_id: ActivationTarget, command_id: CommandId) -> Self {
         Self {
             id,
             request: RequestBody::Activate(RequestActivate {
-                item_id,
+                target_id: item_id,
                 command_id,
             }),
         }
@@ -56,28 +56,8 @@ pub struct RequestQuery {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct RequestActivate {
-    pub item_id: ListItemId,
+    pub target_id: ActivationTarget,
     pub command_id: CommandId,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn serialize() {
-        let json = &Request {
-            id: RequestId(0),
-            request: RequestBody::Query(RequestQuery {
-                text: "this is my query".to_owned(),
-            }),
-        }
-        .serialize();
-        assert_eq!(
-            json,
-            r#"{"id":0,"request":{"query":{"text":"this is my query"}}}"#
-        );
-    }
 }
 
 /// A response sent by the plugin against a [`Request`].
@@ -137,15 +117,22 @@ pub struct Input {
     pub selection: Range<usize>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+/// A unique ID for a target that can be activated.
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[serde(transparent)]
-pub struct ListItemId(pub u64);
+pub struct ActivationTarget(pub u64);
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct List {
     pub items: Vec<ListItem>,
     pub style: Option<ListStyle>,
+    pub id: ActivationTarget,
+    /// Commands that are not tied to a particular list item.
+    ///
+    /// If a list item has an available command with the same command ID, the
+    /// list item command will be ran instead of this command.
+    pub commands: Vec<CommandId>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -159,11 +146,11 @@ pub enum ListStyle {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct ListItem {
-    pub id: ListItemId,
     pub title: String,
     pub description: String,
-    pub available_commands: Vec<CommandId>,
     pub icon: Option<ListItemIcon>,
+    pub id: ActivationTarget,
+    pub commands: Vec<CommandId>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -171,4 +158,24 @@ pub struct ListItem {
 pub enum ListItemIcon {
     Name(String),
     Text(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serialize() {
+        let json = &Request {
+            id: RequestId(0),
+            request: RequestBody::Query(RequestQuery {
+                text: "this is my query".to_owned(),
+            }),
+        }
+        .serialize();
+        assert_eq!(
+            json,
+            r#"{"id":0,"request":{"query":{"text":"this is my query"}}}"#
+        );
+    }
 }

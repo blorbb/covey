@@ -133,8 +133,10 @@ fn handle_request_line<T: Plugin>(
     command_map: Arc<Mutex<CommandMap>>,
     line: &str,
 ) -> anyhow::Result<()> {
-    let covey_proto::Request { id, request } =
-        serde_json::from_str(line).context("malformed request from covey")?;
+    let covey_proto::Request {
+        id: request_id,
+        request,
+    } = serde_json::from_str(line).context("malformed request from covey")?;
 
     // Handling the request may take some time, don't block!
     // Allow handling multiple requests at once by spawning a new task.
@@ -144,11 +146,12 @@ fn handle_request_line<T: Plugin>(
                 match plugin.query(query.text).await {
                     Ok(list) => {
                         let proto_list = command_map.lock().store_query_result(list);
-                        let response = covey_proto::Response::set_list(id, proto_list);
+                        let response = covey_proto::Response::set_list(request_id, proto_list);
                         println!("{}", response.serialize());
                     }
                     Err(e) => {
-                        let response = covey_proto::Response::display_error(id, format!("{e:#}"));
+                        let response =
+                            covey_proto::Response::display_error(request_id, format!("{e:#}"));
                         println!("{}", response.serialize());
                     }
                 };
@@ -168,20 +171,7 @@ fn handle_request_line<T: Plugin>(
                 match callback {
                     Some((visit_id, callback)) => {
                         crate::rank::Visits::update_file_with_visit(visit_id);
-                        // TODO: channels are overcomplicating this, just print directly from Menu.
-                        // Also pass in &Menu.
-                        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-                        let menu = crate::Menu { sender: tx };
-
-                        let call_command_task = callback(menu);
-                        let forward_to_covey_task = async {
-                            while let Some(action) = rx.recv().await {
-                                let response = covey_proto::Response::perform_action(id, action);
-                                println!("{}", response.serialize());
-                            }
-                        };
-
-                        tokio::join!(call_command_task, forward_to_covey_task);
+                        callback(crate::Menu { request_id }).await;
                     }
                     None => {
                         eprintln!("failed to fetch command {command_id} of list item {item_id:?}")
@@ -200,21 +190,10 @@ fn handle_request_line<T: Plugin>(
 
                 match callback {
                     Some(callback) => {
-                        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-                        let menu = crate::Menu { sender: tx };
-
-                        let call_command_task = callback(menu);
-                        let forward_to_covey_task = async {
-                            while let Some(action) = rx.recv().await {
-                                let response = covey_proto::Response::perform_action(id, action);
-                                println!("{}", response.serialize());
-                            }
-                        };
-
-                        tokio::join!(call_command_task, forward_to_covey_task);
+                        callback(crate::Menu { request_id }).await;
                     }
                     None => {
-                        eprintln!("failed to fetch command {command_id} of list item {list_id:?}")
+                        eprintln!("failed to fetch command {command_id} of list {list_id:?}")
                     }
                 };
             }

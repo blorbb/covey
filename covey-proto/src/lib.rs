@@ -24,11 +24,11 @@ impl Request {
         }
     }
 
-    pub fn activate(id: RequestId, item_id: ListItemId, command_id: CommandId) -> Self {
+    pub fn activate(id: RequestId, item_id: ActivationTarget, command_id: CommandId) -> Self {
         Self {
             id,
-            request: RequestBody::ActivateItem(RequestActivateItem {
-                item_id,
+            request: RequestBody::Activate(RequestActivate {
+                target_id: item_id,
                 command_id,
             }),
         }
@@ -44,8 +44,7 @@ impl Request {
 #[serde(rename_all = "kebab-case")]
 pub enum RequestBody {
     Query(RequestQuery),
-    ActivateItem(RequestActivateItem),
-    ActivateList(RequestActivateList),
+    Activate(RequestActivate),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -56,15 +55,8 @@ pub struct RequestQuery {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct RequestActivateItem {
-    pub item_id: ListItemId,
-    pub command_id: CommandId,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct RequestActivateList {
-    pub list_id: ListId,
+pub struct RequestActivate {
+    pub target_id: ActivationTarget,
     pub command_id: CommandId,
 }
 
@@ -125,20 +117,17 @@ pub struct Input {
     pub selection: Range<usize>,
 }
 
+/// A unique ID for a target that can be activated.
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[serde(transparent)]
-pub struct ListItemId(pub u64);
-
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[serde(transparent)]
-pub struct ListId(pub u64);
+pub struct ActivationTarget(pub u64);
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct List {
-    pub id: ListId,
     pub items: Vec<ListItem>,
     pub style: Option<ListStyle>,
+    pub id: ActivationTarget,
     /// Commands that are not tied to a particular list item.
     ///
     /// If a list item has an available command with the same command ID, the
@@ -157,11 +146,11 @@ pub enum ListStyle {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct ListItem {
-    pub id: ListItemId,
     pub title: String,
     pub description: String,
-    pub commands: Vec<CommandId>,
     pub icon: Option<ListItemIcon>,
+    pub id: ActivationTarget,
+    pub commands: Vec<CommandId>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

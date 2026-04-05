@@ -135,10 +135,12 @@ impl Plugin {
     pub(crate) fn activate(
         &self,
         id: covey_proto::RequestId,
-        item_id: covey_proto::ListItemId,
+        target_id: covey_proto::ActivationTarget,
         command_id: CommandId,
     ) {
-        self.send_request_or_display_error(&covey_proto::Request::activate(id, item_id, command_id))
+        self.send_request_or_display_error(&covey_proto::Request::activate(
+            id, target_id, command_id,
+        ))
     }
 
     fn start_process(&self) -> io::Result<ActiveProcess> {
@@ -171,8 +173,7 @@ impl Plugin {
                         // plugin, so this would only happen if something went wrong with the
                         // plugin.
                         match &request.request {
-                            covey_proto::RequestBody::ActivateItem(..)
-                            | covey_proto::RequestBody::ActivateList(..) => Err(e),
+                            covey_proto::RequestBody::Activate(..) => Err(e),
                             covey_proto::RequestBody::Query(..) => {
                                 *process = self.start_process()?;
                                 process.send_request(request)?;

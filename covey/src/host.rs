@@ -26,8 +26,8 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    CONFIG_DIR, CONFIG_PATH, ListItem, PLUGINS_DIR, Plugin,
-    event::{Action, ListItemId, Message},
+    CONFIG_DIR, CONFIG_PATH, PLUGINS_DIR, Plugin,
+    event::{Action, ActivationTarget, Message},
     plugin::PluginWeak,
 };
 
@@ -111,21 +111,19 @@ impl Host {
         }
     }
 
-    /// Activates a list item with a specified command.
+    /// Activates a list / list item with a specified command.
     ///
     /// Responses should be handled by calling [`ActionReceiver::recv`].
     #[tracing::instrument(skip(self))]
-    pub fn activate(&mut self, item: ListItemId, command_id: CommandId) {
+    pub fn activate(&mut self, item: &ActivationTarget, command_id: &CommandId) {
         debug!("activating {item:?}");
 
         let request_id = covey_proto::RequestId(self.next_request_id);
         self.next_request_id += 1;
 
-        let Some(plugin) = self.plugins.get(item.plugin.id()) else {
-            return;
-        };
-        self.plugin_process_gc.touch(plugin);
-        plugin.activate(request_id, item.local_id, command_id)
+        self.plugin_process_gc.touch(item.plugin());
+        item.plugin()
+            .activate(request_id, item.local_target_id, command_id.clone())
     }
 
     /// Activates a list item using the specified hotkey.
@@ -134,9 +132,13 @@ impl Host {
     /// configuration. Returns [`Some`] if the hotkey activated some command,
     /// otherwise [`None`].
     #[tracing::instrument(skip(self))]
-    pub fn activate_by_hotkey(&mut self, item: ListItem, hotkey: Hotkey) -> Option<CommandId> {
+    pub fn activate_by_hotkey(
+        &mut self,
+        item: &ActivationTarget,
+        hotkey: Hotkey,
+    ) -> Option<CommandId> {
         let command = item.activated_command_from_hotkey(hotkey)?;
-        self.activate(item.id(), command.id.clone());
+        self.activate(item, &command.id);
         Some(command.id.clone())
     }
 
@@ -277,10 +279,10 @@ impl ActionReceiver {
                 let new = response.request_id.0;
                 if self.latest_received_query_request_id < new {
                     self.latest_received_query_request_id = new;
-                    Some(Action::SetList(crate::List::from_proto(
+                    Some(Action::SetList(crate::from_proto::list(
+                        list,
                         host,
                         plugin,
-                        list,
                         response.request_id,
                     )))
                 } else {
@@ -292,7 +294,7 @@ impl ActionReceiver {
                 covey_proto::PluginAction::Close => Action::Close,
                 covey_proto::PluginAction::Copy(str) => Action::Copy(str),
                 covey_proto::PluginAction::SetInput(input) => {
-                    Action::SetInput(crate::Input::from_proto(plugin, input))
+                    Action::SetInput(crate::from_proto::input(input, plugin))
                 }
                 covey_proto::PluginAction::DisplayError(err) => {
                     Action::DisplayError(format!("Plugin {} failed", plugin.id()), err)

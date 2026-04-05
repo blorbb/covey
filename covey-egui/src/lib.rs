@@ -370,7 +370,7 @@ impl App {
                 self.list_selection = bounded_wrapping_sub(self.list_selection, 1, list.len());
                 rendering_state.list_selection_changed = true;
             } else if hotkeys::hotkey_pressed_consume(ui, self.host.config().app.reload_hotkey) {
-                let plugin_to_reload = list.plugin.id().clone();
+                let plugin_to_reload = list.plugin().id().clone();
                 // avoid activating now stale items
                 self.list = None;
                 self.host.reload_plugin(&plugin_to_reload);
@@ -383,7 +383,9 @@ impl App {
         if let Some(list) = &self.list
             && let Some(item) = list.items.get(self.list_selection)
             && let Some(hotkey) = hotkeys::hotkey_pressed_now(ui)
-            && let Some(_cmd) = self.host.activate_by_hotkey(item.clone(), hotkey)
+            && let Some(_cmd) = self
+                .host
+                .activate_by_hotkey(item.activation_target(), hotkey)
         {
             hotkeys::hotkey_pressed_consume(ui, hotkey);
         }
@@ -533,7 +535,7 @@ impl App {
                         // command with the given hotkey. need to filter out duplicate hotkeys from
                         // subsequent commands.
                         let mut used_hotkeys = HashSet::<Hotkey>::new();
-                        for command in selected_item.available_commands() {
+                        for command in selected_item.activation_target().available_commands() {
                             let s = &self.host.config().style;
                             ui.style_mut().spacing.item_spacing = Vec2::splat(s.info_button_gap());
 
@@ -564,14 +566,15 @@ impl App {
                                 });
 
                             if button.response.clicked() {
-                                self.host.activate(selected_item.id(), command.id.clone());
+                                self.host
+                                    .activate(selected_item.activation_target(), &command.id);
                             }
                         }
                     };
 
                     // TODO: make clicking this go to a settings window
                     ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                        ui.add(egui::Button::new(&list.plugin.manifest().name));
+                        ui.add(egui::Button::new(&list.plugin().manifest().name));
                     });
                 }
             }

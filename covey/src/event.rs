@@ -31,36 +31,13 @@ pub struct Input {
     pub selection: (usize, usize),
 }
 
-impl Input {
-    pub(crate) fn prefix_with(&mut self, prefix: &str) {
-        self.contents.insert_str(0, prefix);
-        let prefix_len = prefix.chars().count();
-
-        let (a, b) = self.selection;
-        self.selection = (a.saturating_add(prefix_len), b.saturating_add(prefix_len));
-    }
-
-    pub(crate) fn from_proto(plugin: &Plugin, il: covey_proto::Input) -> Self {
-        let mut input = Self {
-            contents: il.query,
-            selection: (il.selection.start, il.selection.end),
-        };
-        input.prefix_with(
-            plugin
-                .prefix()
-                .expect("plugin with no prefix should never be queried"),
-        );
-        input
-    }
-}
-
 /// A list of results to show provided by a plugin.
 #[non_exhaustive]
 pub struct List {
     pub items: Vec<ListItem>,
     pub style: Option<ListStyle>,
-    pub plugin: Plugin,
-    request_id: covey_proto::RequestId,
+    pub(crate) activation_target: ActivationTarget,
+    pub(crate) request_id: covey_proto::RequestId,
 }
 
 impl fmt::Debug for List {
@@ -76,12 +53,16 @@ impl fmt::Debug for List {
                     .collect::<Box<[_]>>(),
             )
             .field("style", &self.style)
-            .field("plugin", &self.plugin)
+            .field("plugin", &self.plugin())
             .finish_non_exhaustive()
     }
 }
 
 impl List {
+    pub fn plugin(&self) -> &Plugin {
+        &self.activation_target.plugin
+    }
+
     pub fn len(&self) -> usize {
         self.items.len()
     }
@@ -94,32 +75,8 @@ impl List {
         host.query_request_id_is_latest(self.request_id)
     }
 
-    pub(crate) fn from_proto(
-        host: &Host,
-        plugin: &Plugin,
-        proto: covey_proto::List,
-        request_id: covey_proto::RequestId,
-    ) -> Self {
-        let style = proto.style.map(ListStyle::from_proto);
-        let list: Vec<_> = proto
-            .items
-            .into_iter()
-            .map(|li| ListItem {
-                plugin: Plugin::clone(plugin),
-                icon: li
-                    .icon
-                    .clone()
-                    .and_then(|icon| ResolvedIcon::resolve(host, icon)),
-                item: li,
-            })
-            .collect();
-
-        Self {
-            style,
-            items: list,
-            plugin: plugin.clone(),
-            request_id,
-        }
+    pub fn activation_target(&self) -> &ActivationTarget {
+        &self.activation_target
     }
 }
 
@@ -131,95 +88,71 @@ pub enum ListStyle {
     GridWithColumns(u32),
 }
 
-impl ListStyle {
-    #[expect(clippy::needless_pass_by_value)]
-    pub(crate) fn from_proto(proto: covey_proto::ListStyle) -> Self {
-        match proto {
-            covey_proto::ListStyle::Rows => Self::Rows,
-            covey_proto::ListStyle::Grid => Self::Grid,
-            covey_proto::ListStyle::GridWithColumns(columns) => Self::GridWithColumns(columns),
-        }
-    }
-}
-
 /// A single result provided by a plugin.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ListItem {
-    plugin: Plugin,
-    item: covey_proto::ListItem,
-    icon: Option<ResolvedIcon>,
+    pub(crate) title: String,
+    pub(crate) description: String,
+    pub(crate) icon: Option<ResolvedIcon>,
+    pub(crate) activation_target: ActivationTarget,
 }
 
 impl ListItem {
     pub fn plugin(&self) -> &Plugin {
-        &self.plugin
+        &self.activation_target.plugin
     }
 
     pub fn title(&self) -> &str {
-        &self.item.title
+        &self.title
     }
 
     pub fn description(&self) -> &str {
-        &self.item.description
+        &self.description
     }
 
     pub fn icon(&self) -> Option<&ResolvedIcon> {
         self.icon.as_ref()
     }
 
-    pub fn id(&self) -> ListItemId {
-        ListItemId {
-            plugin: Plugin::clone(&self.plugin),
-            local_id: self.item.id,
-        }
+    pub fn activation_target(&self) -> &ActivationTarget {
+        &self.activation_target
     }
+}
 
+#[derive(Debug, Clone)]
+pub struct ActivationTarget {
+    pub(crate) plugin: Plugin,
+    /// ID unique within the plugin.
+    pub(crate) local_target_id: covey_proto::ActivationTarget,
+    pub(crate) commands: Vec<covey_proto::CommandId>,
+}
+
+impl ActivationTarget {
     /// The commands that can be activated on this list item as reported by the
     /// plugin.
     ///
     /// Commands will be given in the returned iterator in the same order as the
     /// the commands are defined in the plugin's manifest.
     pub fn available_commands(&self) -> impl Iterator<Item = &Command> {
-        self.plugin()
+        self.plugin
             .manifest()
             .commands
             .iter()
-            .filter(|cmd| self.item.commands.contains(&cmd.id))
+            .filter(|cmd| self.commands.contains(&cmd.id))
     }
 
     /// Gets the command that can be activated from the provided hotkey.
     pub fn activated_command_from_hotkey(&self, hotkey: Hotkey) -> Option<&Command> {
         self.available_commands().find(|cmd| {
-            self.plugin()
+            self.plugin
                 .hotkeys_of_cmd(&cmd.id)
                 .is_some_and(|hotkeys| hotkeys.contains(&hotkey))
         })
     }
-}
 
-impl fmt::Debug for ListItem {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ListItem")
-            .field("plugin", &self.plugin())
-            .field("title", &self.item.title)
-            .field("description", &self.item.description)
-            .field("icon", &self.item.icon)
-            .finish()
+    pub fn plugin(&self) -> &Plugin {
+        &self.plugin
     }
-}
-
-/// A list item without rendering details (description, etc).
-///
-/// Used by the model to call functions on this list item.
-///
-/// This should usually be constructed by [`ListItem::id`]. However,
-/// all fields are public, so it can be constructed elsewhere. This
-/// struct does not guarantee that the local ID is known to the plugin.
-#[derive(Debug, Clone)]
-pub struct ListItemId {
-    pub plugin: Plugin,
-    /// ID unique within the plugin.
-    pub local_id: covey_proto::ListItemId,
 }
 
 /// Icon with named system icons resolved to a file path.
@@ -255,20 +188,5 @@ impl ResolvedIcon {
                 None
             }
         })
-    }
-
-    pub(crate) fn resolve(host: &Host, proto: covey_proto::ListItemIcon) -> Option<Self> {
-        // `freedesktop_icons::lookup` can do filesystem reads, which is blocking.
-        // Maybe this function should be async. But this is used on the path of turning
-        // responses to actions, which is tricky to turn async.
-        //
-        // Only new icons will need to perform a filesystem lookup. Most icons should be
-        // cached, which is a fast lookup and doesn't block.
-        match proto {
-            covey_proto::ListItemIcon::Name(name) => {
-                Self::resolve_icon_name(host, &name).map(Self::File)
-            }
-            covey_proto::ListItemIcon::Text(text) => Some(Self::Text(text)),
-        }
     }
 }

@@ -10,7 +10,10 @@ pub struct Menu {
 
 impl Menu {
     fn send_action(&self, action: Action) {
-        let response = covey_proto::Response::perform_action(self.request_id, action.into_proto());
+        let response = covey_proto::Response::perform_action(
+            self.request_id,
+            crate::into_proto::action(action),
+        );
         println!("{}", response.serialize());
     }
 

@@ -1,8 +1,9 @@
-use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc, time::SystemTime};
+use std::time::SystemTime;
 
 use crate::{
     Menu,
     rank::{self, VisitId},
+    store::TargetCallbacks,
 };
 
 #[non_exhaustive]
@@ -14,7 +15,7 @@ pub struct List {
     /// the user. Plugins should only set one if the content makes the most
     /// sense with one of these styles.
     pub style: Option<ListStyle>,
-    pub(crate) callbacks: CommandCallbacks,
+    pub(crate) callbacks: TargetCallbacks,
 }
 
 impl List {
@@ -22,7 +23,7 @@ impl List {
         Self {
             items,
             style: None,
-            callbacks: CommandCallbacks::new(),
+            callbacks: TargetCallbacks::new(),
         }
     }
 
@@ -68,23 +69,13 @@ pub enum ListStyle {
     GridWithColumns(u32),
 }
 
-impl ListStyle {
-    pub(crate) fn into_proto(self) -> covey_proto::ListStyle {
-        match self {
-            Self::Rows => covey_proto::ListStyle::Rows,
-            Self::Grid => covey_proto::ListStyle::Grid,
-            Self::GridWithColumns(columns) => covey_proto::ListStyle::GridWithColumns(columns),
-        }
-    }
-}
-
 #[derive(Clone)]
 pub struct ListItem {
     pub title: String,
     pub description: String,
     pub icon: Option<Icon>,
     pub(crate) visit_id: VisitId,
-    pub(crate) callbacks: CommandCallbacks,
+    pub(crate) callbacks: TargetCallbacks,
 }
 
 impl ListItem {
@@ -95,7 +86,7 @@ impl ListItem {
             icon: None,
             description: String::new(),
             visit_id: VisitId::from(title),
-            callbacks: CommandCallbacks::new(),
+            callbacks: TargetCallbacks::new(),
         }
     }
 
@@ -188,64 +179,4 @@ impl ListItem {
 pub enum Icon {
     Name(String),
     Text(String),
-}
-
-impl Icon {
-    pub(crate) fn into_proto(self) -> covey_proto::ListItemIcon {
-        match self {
-            Self::Name(name) => covey_proto::ListItemIcon::Name(name),
-            Self::Text(text) => covey_proto::ListItemIcon::Text(text),
-        }
-    }
-}
-
-// ActivationFunction needs Send + Sync for blocking plugins to work.
-// The callback exposed by `add_callback` takes an input of `&Menu` instead of
-// `Menu` to force the user to complete everything they want before returning
-// from the callback. Might want to add something that happens after the
-// callback returns.
-type DynFuture<T> = Pin<Box<dyn Future<Output = T>>>;
-type ActivationFunction = Arc<dyn Fn(Menu) -> DynFuture<()> + Send + Sync>;
-
-#[derive(Clone)]
-pub(crate) struct CommandCallbacks {
-    commands: HashMap<covey_proto::CommandId, ActivationFunction>,
-}
-
-impl CommandCallbacks {
-    pub(crate) fn new() -> Self {
-        Self {
-            commands: HashMap::default(),
-        }
-    }
-
-    pub(crate) fn add_callback(
-        &mut self,
-        command_id: covey_proto::CommandId,
-        callback: impl AsyncFn(&Menu) -> crate::Result<()> + Send + Sync + 'static,
-    ) {
-        let callback = Arc::new(callback);
-        self.commands.insert(
-            command_id,
-            Arc::new(move |menu| {
-                let callback = Arc::clone(&callback);
-                Box::pin(async move {
-                    if let Err(e) = callback(&menu).await {
-                        menu.display_error(format!("{e:#}"));
-                    }
-                })
-            }),
-        );
-    }
-
-    pub(crate) fn get_callback(
-        &self,
-        command_id: &covey_proto::CommandId,
-    ) -> Option<&ActivationFunction> {
-        self.commands.get(command_id)
-    }
-
-    pub(crate) fn ids(&self) -> impl Iterator<Item = &covey_proto::CommandId> {
-        self.commands.keys()
-    }
 }

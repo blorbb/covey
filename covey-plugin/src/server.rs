@@ -156,44 +156,27 @@ fn handle_request_line<T: Plugin>(
                     }
                 };
             }
-            covey_proto::RequestBody::ActivateItem(covey_proto::RequestActivateItem {
-                item_id,
+            covey_proto::RequestBody::Activate(covey_proto::RequestActivate {
+                target_id,
                 command_id,
             }) => {
                 let callback =
                     command_map
                         .lock()
-                        .item_callbacks(item_id)
+                        .target_callbacks(target_id)
                         .and_then(|(visit_id, c)| {
-                            Some((visit_id.clone(), c.get_callback(&command_id).cloned()?))
+                            Some((visit_id.cloned(), c.get_callback(&command_id).cloned()?))
                         });
 
                 match callback {
                     Some((visit_id, callback)) => {
-                        crate::rank::Visits::update_file_with_visit(visit_id);
+                        if let Some(visit_id) = visit_id {
+                            crate::rank::Visits::update_file_with_visit(visit_id)
+                        };
                         callback(crate::Menu { request_id }).await;
                     }
                     None => {
-                        eprintln!("failed to fetch command {command_id} of list item {item_id:?}")
-                    }
-                };
-            }
-            covey_proto::RequestBody::ActivateList(covey_proto::RequestActivateList {
-                list_id,
-                command_id,
-            }) => {
-                let callback = command_map
-                    .lock()
-                    .list_callbacks(list_id)
-                    .and_then(|c| c.get_callback(&command_id))
-                    .cloned();
-
-                match callback {
-                    Some(callback) => {
-                        callback(crate::Menu { request_id }).await;
-                    }
-                    None => {
-                        eprintln!("failed to fetch command {command_id} of list {list_id:?}")
+                        eprintln!("failed to fetch {command_id:?} of {target_id:?}")
                     }
                 };
             }

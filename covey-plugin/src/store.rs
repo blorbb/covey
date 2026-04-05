@@ -2,37 +2,41 @@ use std::{
     collections::HashMap,
     iter,
     ops::Range,
-    sync::atomic::{AtomicU64, Ordering},
+    pin::Pin,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use az::CheckedAs;
 
-use crate::{Icon, List, ListStyle, list::CommandCallbacks, rank::VisitId};
+use crate::{List, Menu, rank::VisitId};
 
 /// Map list (item) IDs to their command callbacks.
 pub(crate) struct CommandMap {
     /// TODO: clear old items
-    lists: HashMap<covey_proto::ListId, ListCommands>,
-    item_ids: AutoIncrementer,
-    list_ids: AutoIncrementer,
+    lists: Vec<ListCallbacks>,
+    target_ids: AutoIncrementer,
 }
 
 impl CommandMap {
     pub(crate) fn new() -> Self {
         Self {
-            lists: HashMap::new(),
-            item_ids: AutoIncrementer(AtomicU64::new(0)),
-            list_ids: AutoIncrementer(AtomicU64::new(0)),
+            lists: vec![],
+            target_ids: AutoIncrementer(AtomicU64::new(0)),
         }
     }
 
     /// Stores the result of a query, returning the response that should be
     /// sent to covey.
     pub(crate) fn store_query_result(&mut self, list: List) -> covey_proto::List {
+        let list_target_id = covey_proto::ActivationTarget(self.target_ids.fetch_next());
+
         let mut items = vec![];
         let mut item_callbacks = vec![];
 
-        let new_item_ids = self.item_ids.fetch_many(list.items.len() as u64);
+        let new_item_ids = self.target_ids.fetch_many(list.items.len() as u64);
         for (id, item) in iter::zip(new_item_ids, list.items) {
             let crate::ListItem {
                 title,
@@ -43,32 +47,28 @@ impl CommandMap {
             } = item;
 
             items.push(covey_proto::ListItem {
-                id: covey_proto::ListItemId(id),
+                id: covey_proto::ActivationTarget(id),
                 title,
                 description,
-                icon: icon.map(Icon::into_proto),
+                icon: icon.map(crate::into_proto::icon),
                 commands: callbacks.ids().cloned().collect(),
             });
             item_callbacks.push((visit_id, callbacks));
         }
 
-        let list_id = covey_proto::ListId(self.list_ids.fetch_next());
         let list_command_ids = list.callbacks.ids().cloned().collect();
 
-        self.lists.insert(
-            list_id,
-            ListCommands {
-                first_item_id: items.first().map(|item| item.id),
-                list_item_callbacks: item_callbacks,
-                list_callbacks: list.callbacks,
-            },
-        );
+        self.lists.push(ListCallbacks {
+            list_target_id,
+            item_callbacks,
+            list_callbacks: list.callbacks,
+        });
 
         covey_proto::List {
-            id: list_id,
+            id: list_target_id,
             commands: list_command_ids,
             items,
-            style: list.style.map(ListStyle::into_proto),
+            style: list.style.map(crate::into_proto::list_style),
         }
     }
 
@@ -78,37 +78,94 @@ impl CommandMap {
     /// However, implementation may change in the future which disposes of
     /// callbacks more frequently, and may have extremely rare edge cases where
     /// a callback is disposed but then activated.
-    pub(crate) fn item_callbacks(
+    pub(crate) fn target_callbacks(
         &self,
-        id: covey_proto::ListItemId,
-    ) -> Option<&(VisitId, CommandCallbacks)> {
+        id: covey_proto::ActivationTarget,
+    ) -> Option<(Option<&VisitId>, &TargetCallbacks)> {
         self.lists
-            .values()
-            .find_map(|commands| commands.item_callbacks(id))
-    }
-
-    pub(crate) fn list_callbacks(&self, id: covey_proto::ListId) -> Option<&CommandCallbacks> {
-        self.lists.get(&id).map(|commands| &commands.list_callbacks)
+            .iter()
+            .find_map(|commands| commands.target_callbacks(id))
     }
 }
 
 /// INVARIANTS:
 /// - IDs of the list items are increasing and contiguous.
-/// - `first_id` is None iff `list_item_callbacks` is empty.
-struct ListCommands {
-    first_item_id: Option<covey_proto::ListItemId>,
-    list_item_callbacks: Vec<(VisitId, CommandCallbacks)>,
-    list_callbacks: CommandCallbacks,
+/// - `list_target_id` is the target id of the list itself.
+/// - The IDs of the list items start at `list_target_id + 1`.
+struct ListCallbacks {
+    list_target_id: covey_proto::ActivationTarget,
+    list_callbacks: TargetCallbacks,
+    item_callbacks: Vec<(VisitId, TargetCallbacks)>,
 }
 
-impl ListCommands {
-    fn item_callbacks(&self, id: covey_proto::ListItemId) -> Option<&(VisitId, CommandCallbacks)> {
-        let offset = id.0 - self.first_item_id?.0;
-        self.list_item_callbacks.get(
-            offset
-                .checked_as::<usize>()
-                .expect("there should not be way too many callbacks stored (over u32::MAX)"),
-        )
+impl ListCallbacks {
+    fn target_callbacks(
+        &self,
+        target: covey_proto::ActivationTarget,
+    ) -> Option<(Option<&VisitId>, &TargetCallbacks)> {
+        if target.0 == self.list_target_id.0 {
+            Some((None, &self.list_callbacks))
+        } else {
+            let offset = target.0.checked_sub(self.list_target_id.0 + 1)?;
+            let (id, callbacks) = self.item_callbacks.get(
+                offset
+                    .checked_as::<usize>()
+                    .expect("there should not be way too many callbacks stored (over u32::MAX)"),
+            )?;
+
+            Some((Some(id), callbacks))
+        }
+    }
+}
+
+// ActivationFunction needs Send + Sync for blocking plugins to work.
+// The callback exposed by `add_callback` takes an input of `&Menu` instead of
+// `Menu` to force the user to complete everything they want before returning
+// from the callback. Might want to add something that happens after the
+// callback returns.
+type DynFuture<T> = Pin<Box<dyn Future<Output = T>>>;
+type ActivationFunction = Arc<dyn Fn(Menu) -> DynFuture<()> + Send + Sync>;
+
+#[derive(Clone)]
+pub(crate) struct TargetCallbacks {
+    commands: HashMap<covey_proto::CommandId, ActivationFunction>,
+}
+
+impl TargetCallbacks {
+    pub(crate) fn new() -> Self {
+        Self {
+            commands: HashMap::default(),
+        }
+    }
+
+    pub(crate) fn add_callback(
+        &mut self,
+        command_id: covey_proto::CommandId,
+        callback: impl AsyncFn(&Menu) -> crate::Result<()> + Send + Sync + 'static,
+    ) {
+        let callback = Arc::new(callback);
+        self.commands.insert(
+            command_id,
+            Arc::new(move |menu| {
+                let callback = Arc::clone(&callback);
+                Box::pin(async move {
+                    if let Err(e) = callback(&menu).await {
+                        menu.display_error(format!("{e:#}"));
+                    }
+                })
+            }),
+        );
+    }
+
+    pub(crate) fn get_callback(
+        &self,
+        command_id: &covey_proto::CommandId,
+    ) -> Option<&ActivationFunction> {
+        self.commands.get(command_id)
+    }
+
+    pub(crate) fn ids(&self) -> impl Iterator<Item = &covey_proto::CommandId> {
+        self.commands.keys()
     }
 }
 

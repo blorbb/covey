@@ -19,7 +19,7 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use skim::fuzzy_matcher::{FuzzyMatcher, arinae::ArinaeMatcher};
+use skim::fuzzy_matcher::{FuzzyMatcher, skim::SkimMatcherV2};
 
 use crate::ListItem;
 
@@ -172,8 +172,9 @@ impl Visits {
     }
 }
 
-static MATCHER: LazyLock<ArinaeMatcher> =
-    LazyLock::new(|| ArinaeMatcher::new(skim::CaseMatching::Smart, true, true));
+// The arinae matcher (skim's recommended one) seems to give weird results if
+// the pattern contains spaces or numbers.
+static MATCHER: LazyLock<SkimMatcherV2> = LazyLock::new(|| SkimMatcherV2::default().smart_case());
 
 /// Does not add frecency.
 pub(crate) fn accuracy(query: &str, item: &ListItem, weights: Weights) -> f32 {

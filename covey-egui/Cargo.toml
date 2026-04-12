@@ -32,7 +32,7 @@ image = { workspace = true, features = ["jpeg", "png"] }
 interprocess.workspace = true
 mimalloc.workspace = true
 notify-rust.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 # tray-icon = "0.21"

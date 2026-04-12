@@ -22,7 +22,7 @@ use covey_schema::{
     id::{CommandId, PluginId},
     keyed_list::KeyedList,
 };
-use tokio::sync::mpsc;
+use futures::channel::mpsc;
 use tracing::{debug, error, info, warn};
 
 use crate::{
@@ -48,7 +48,7 @@ pub fn channel() -> Result<(Host, ActionReceiver)> {
     let mut global_config: GlobalConfig = toml::from_str(&s)?;
     find_and_insert_plugins_from_fs(&mut global_config);
 
-    let (tx, rx) = mpsc::unbounded_channel();
+    let (tx, rx) = mpsc::unbounded();
 
     let plugins = load_plugins_from_config(&global_config, &tx);
     info!("found plugins: {plugins:?}");
@@ -201,11 +201,13 @@ impl Host {
         Ok(())
     }
 
-    fn send_error(&self, title: impl Into<String>, description: impl Into<String>) {
-        _ = self.messages.send(Message::Action(Action::DisplayError(
-            title.into(),
-            description.into(),
-        )))
+    fn send_error(&mut self, title: impl Into<String>, description: impl Into<String>) {
+        let _: Result<_, _> = self
+            .messages
+            .unbounded_send(Message::Action(Action::DisplayError(
+                title.into(),
+                description.into(),
+            )));
     }
 
     pub(crate) fn query_request_id_is_latest(&self, id: covey_proto::RequestId) -> bool {
@@ -231,8 +233,6 @@ impl ActionReceiver {
     #[tracing::instrument(skip_all)]
     pub async fn recv(&mut self, host: &Host) -> Action {
         loop {
-            tracing::trace!(items_in_queue = self.messages.len());
-
             let message = self
                 .messages
                 .recv()
@@ -252,8 +252,6 @@ impl ActionReceiver {
 
     #[tracing::instrument(skip_all)]
     pub fn try_recv(&mut self, host: &Host) -> Option<Action> {
-        tracing::trace!(items_in_queue = self.messages.len());
-
         let message = self.messages.try_recv();
 
         match message {

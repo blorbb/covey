@@ -16,7 +16,6 @@ az.workspace = true
 covey-manifest-macros.workspace = true
 covey-proto.workspace = true
 dirs.workspace = true
-parking_lot.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 skim.workspace = true

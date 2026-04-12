@@ -13,8 +13,8 @@ covey-proto.workspace = true
 covey-schema.workspace = true
 dirs.workspace = true
 freedesktop-icons.workspace = true
+futures.workspace = true
 serde_json.workspace = true
-tokio = { workspace = true, features = ["fs", "process", "sync", "io-util"] }
 toml.workspace = true
 tracing.workspace = true
 

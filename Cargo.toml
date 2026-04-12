@@ -33,12 +33,12 @@ egui = "0.34.1"
 egui_extras = "0.34.1"
 font-kit = { version = "0.14", default-features = false }
 freedesktop-icons = "0.4"
+futures = "0.3"
 hex_color = "3"
 image = { version = "0.25", default-features = false }
 interprocess = "2.2.3"
 mimalloc = { version = "0.1", features = ["v3"] }
 notify-rust = "4"
-parking_lot = "0.12"
 proc-macro-error2 = "2"
 proc-macro2 = "1"
 quote = "1"

@@ -14,7 +14,7 @@ use covey_schema::{
     keyed_list::Identify,
     manifest::PluginManifest,
 };
-use tokio::sync::mpsc;
+use futures::channel::mpsc;
 
 use crate::{DATA_DIR, event::Message};
 
@@ -58,7 +58,7 @@ impl Plugin {
             inner: Arc::new(PluginInner {
                 manifest,
                 entry,
-                messages,
+                messages: Mutex::new(messages),
                 process: Mutex::new(None),
             }),
             generation: PLUGIN_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
@@ -149,7 +149,7 @@ impl Plugin {
             self.downgrade(),
             &bin_path,
             &self.config_entry().settings,
-            self.inner.messages.clone(),
+            self.inner.messages.lock().unwrap().clone(),
         )
     }
 
@@ -198,10 +198,15 @@ impl Plugin {
         match self.send_request_with_retry(request) {
             Ok(()) => {}
             Err(e) => {
-                _ = self.inner.messages.send(Message::PluginResponse(
-                    self.clone(),
-                    covey_proto::Response::display_error(request.id, format!("{e:#}")),
-                ))
+                let _: Result<_, _> =
+                    self.inner
+                        .messages
+                        .lock()
+                        .unwrap()
+                        .unbounded_send(Message::PluginResponse(
+                            self.clone(),
+                            covey_proto::Response::display_error(request.id, format!("{e:#}")),
+                        ));
             }
         }
     }
@@ -344,7 +349,7 @@ impl Identify for PluginWeak {
 struct PluginInner {
     manifest: PluginManifest,
     entry: PluginEntry,
-    messages: mpsc::UnboundedSender<Message>,
+    messages: Mutex<mpsc::UnboundedSender<Message>>,
     process: Mutex<Option<ActiveProcess>>,
 }
 
@@ -412,7 +417,7 @@ impl ActiveProcess {
                 };
 
                 tracing::trace!("plugin {id} (stdout): {line}", id = plugin.id());
-                match messages.send(Message::PluginResponse(plugin.clone(), response)) {
+                match messages.unbounded_send(Message::PluginResponse(plugin.clone(), response)) {
                     Ok(()) => {}
                     Err(e) => {
                         tracing::error!(?plugin, "failed to send response through channel: {e:#}");

@@ -95,7 +95,7 @@ pub enum ListStyle {
 pub struct ListItem {
     pub(crate) title: String,
     pub(crate) description: String,
-    pub(crate) icon: Option<ResolvedIcon>,
+    pub(crate) icon: Option<Icon>,
     pub(crate) activation_target: ActivationTarget,
 }
 
@@ -112,7 +112,7 @@ impl ListItem {
         &self.description
     }
 
-    pub fn icon(&self) -> Option<&ResolvedIcon> {
+    pub fn icon(&self) -> Option<&Icon> {
         self.icon.as_ref()
     }
 
@@ -157,38 +157,40 @@ impl ActivationTarget {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Icon(pub(crate) covey_proto::ListItemIcon);
+
+impl Icon {
+    /// New icon that will be searched in the file system.
+    pub fn new_named(name: String) -> Self {
+        Self(covey_proto::ListItemIcon::Name(name))
+    }
+
+    pub fn resolve(&self, host: &Host) -> Result<ResolvedIcon, ResolveIconError> {
+        host.resolve_icon(self)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ResolveIconError {
+    Loading,
+    NotFound,
+}
+
+impl fmt::Display for ResolveIconError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ResolveIconError::Loading => write!(f, "icon loading"),
+            ResolveIconError::NotFound => write!(f, "icon not found"),
+        }
+    }
+}
+
+impl std::error::Error for ResolveIconError {}
+
 /// Icon with named system icons resolved to a file path.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ResolvedIcon {
     File(PathBuf),
     Text(String),
-}
-
-impl ResolvedIcon {
-    pub fn resolve_icon_name(host: &Host, name: &str) -> Option<PathBuf> {
-        host.config().app.icon_themes.iter().find_map(|theme| {
-            let path = freedesktop_icons::lookup(name)
-                .with_theme(theme)
-                .with_size(48)
-                .with_cache()
-                .find()
-                .inspect(|path| {
-                    tracing::trace!("found icon {name:?} with theme {theme:?} at {path:?}")
-                });
-
-            // lookup automatically goes through several backup options, including hicolor
-            // and other paths. do not count an icon as being found if a backup is used.
-            // To check whether a backup is used, see if the path contains the theme name.
-            // But special case hicolor to allow the backup paths to be used.
-            if theme == "hicolor"
-                || path
-                    .as_ref()
-                    .is_some_and(|path| path.to_str().is_some_and(|str| str.contains(theme)))
-            {
-                path
-            } else {
-                None
-            }
-        })
-    }
 }

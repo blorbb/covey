@@ -1,3 +1,4 @@
+mod cache;
 mod event;
 mod from_proto;
 mod host;
@@ -6,7 +7,10 @@ mod plugin;
 use std::{path::PathBuf, sync::LazyLock};
 
 pub use covey_schema;
-pub use event::{Action, ActivationTarget, Input, List, ListItem, ListStyle, ResolvedIcon};
+pub use event::{
+    Action, ActivationTarget, Icon, Input, List, ListItem, ListStyle, ResolveIconError,
+    ResolvedIcon,
+};
 pub use host::{ActionReceiver, Host, channel};
 pub use plugin::{Plugin, PluginWeak};
 

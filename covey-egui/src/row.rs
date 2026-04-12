@@ -1,4 +1,4 @@
-use covey::{ListItem, covey_schema::style::UserStyle};
+use covey::{Host, ListItem, covey_schema::style::UserStyle};
 use egui::{Align, Layout, TextStyle, Ui, Vec2};
 
 use crate::{
@@ -27,6 +27,7 @@ impl<'sel, 'item, Value: PartialEq> ListCell<'sel, 'item, Value> {
 
     pub(crate) fn show(
         self,
+        host: &Host,
         ui: &mut Ui,
         style: &UserStyle,
         list_style: covey::ListStyle,
@@ -55,7 +56,8 @@ impl<'sel, 'item, Value: PartialEq> ListCell<'sel, 'item, Value> {
             .show_with_layout(ui, icon_text_layout, |ui| {
                 ui.spacing_mut().item_spacing = style.list_item_padding().as_egui();
 
-                if let Some(icon) = self.item.icon() {
+                // TODO: different for not found and loading?
+                if let Some(icon) = self.item.icon().and_then(|icon| icon.resolve(host).ok()) {
                     ui.add(CellIcon::new(icon.clone()));
                 }
 

@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use covey::{Icon, ResolveIconError};
 use egui::{
     Color32, CornerRadius, Image, InnerResponse, Margin, NumExt, Sense, Stroke, Ui, Vec2, Widget,
 };
@@ -249,11 +250,18 @@ impl ImageIcon {
         Self { file_path, size }
     }
 
-    pub fn from_icon_name(host: &covey::Host, icon_name: &str, size: Vec2) -> Option<Self> {
-        Some(Self::from_file_path(
-            covey::ResolvedIcon::resolve_icon_name(host, icon_name)?,
-            size,
-        ))
+    pub fn from_icon_name(
+        host: &covey::Host,
+        icon_name: &str,
+        size: Vec2,
+    ) -> Result<Self, ResolveIconError> {
+        let path = match Icon::new_named(icon_name.to_owned()).resolve(host)? {
+            covey::ResolvedIcon::File(path_buf) => path_buf,
+            covey::ResolvedIcon::Text(t) => {
+                unreachable!("named icon should resolve to file path, got text {t:?}")
+            }
+        };
+        Ok(Self::from_file_path(path, size))
     }
 }
 

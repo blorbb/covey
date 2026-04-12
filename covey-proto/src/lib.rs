@@ -153,7 +153,7 @@ pub struct ListItem {
     pub commands: Vec<CommandId>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[serde(rename_all = "kebab-case")]
 pub enum ListItemIcon {
     Name(String),

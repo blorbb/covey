@@ -223,7 +223,7 @@ impl App {
                 AppControlFlow::CloseGui | AppControlFlow::ExitProcess => return,
             }
         }
-        while let Some(action) = self.plugin_actions.try_recv(&self.host) {
+        while let Some(action) = self.plugin_actions.try_recv() {
             match self.handle_plugin_action(Some(ui), action, &mut rendering_state) {
                 AppControlFlow::Continue | AppControlFlow::OpenGui => {}
                 AppControlFlow::CloseGui | AppControlFlow::ExitProcess => return,
@@ -428,9 +428,7 @@ impl App {
                             .as_ref()
                             .is_none_or(|l| l.is_response_of_latest_query(&self.host))
                         {
-                            // TODO: cache None icons as well, otherwise this constantly searches
-                            // for a non-existent icon.
-                            if let Some(icon) = ImageIcon::from_icon_name(
+                            if let Ok(icon) = ImageIcon::from_icon_name(
                                 &self.host,
                                 "search",
                                 Vec2::splat(icon_size),
@@ -503,7 +501,7 @@ impl App {
                     let mut show_cells = |ui: &mut Ui| {
                         for (i, item) in list.items.iter().enumerate() {
                             let response = ListCell::new(&mut self.list_selection, i, item)
-                                .show(ui, s, list_style);
+                                .show(&self.host, ui, s, list_style);
 
                             if i % GRID_COLS == 3 {
                                 ui.end_row();

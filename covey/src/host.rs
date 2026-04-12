@@ -10,6 +10,7 @@ use std::{
     collections::HashMap,
     fs,
     io::{Read as _, Write as _},
+    path::PathBuf,
     sync::{Arc, Mutex, atomic::AtomicBool},
     thread,
     time::{Duration, Instant},
@@ -26,9 +27,8 @@ use futures::channel::mpsc;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    CONFIG_DIR, CONFIG_PATH, PLUGINS_DIR, Plugin,
-    event::{Action, ActivationTarget, Message},
-    plugin::PluginWeak,
+    Action, ActivationTarget, CONFIG_DIR, CONFIG_PATH, Icon, PLUGINS_DIR, Plugin, ResolveIconError,
+    ResolvedIcon, cache::Cache, event::Message, plugin::PluginWeak,
 };
 
 pub fn channel() -> Result<(Host, ActionReceiver)> {
@@ -53,6 +53,8 @@ pub fn channel() -> Result<(Host, ActionReceiver)> {
     let plugins = load_plugins_from_config(&global_config, &tx);
     info!("found plugins: {plugins:?}");
 
+    let icon_themes = Arc::clone(&global_config.app.icon_themes);
+
     Ok((
         Host {
             config: global_config,
@@ -63,6 +65,7 @@ pub fn channel() -> Result<(Host, ActionReceiver)> {
             latest_sent_query_request_id: covey_proto::RequestId(0),
             // TODO: make this configurable
             plugin_process_gc: PluginProcessGc::new(Duration::from_hours(24)),
+            icon_cache: Cache::new(move |name: &String| find_system_icon(name, &icon_themes)),
         },
         ActionReceiver {
             messages: rx,
@@ -78,6 +81,9 @@ pub struct Host {
     next_request_id: u64,
     latest_sent_query_request_id: covey_proto::RequestId,
     plugin_process_gc: PluginProcessGc,
+    /// Map from icon name to resolved path. Value is [`None`] if resolving
+    /// failed.
+    icon_cache: Cache<String, Option<PathBuf>>,
 }
 
 impl Host {
@@ -155,6 +161,11 @@ impl Host {
         debug!("reloading");
         self.config = config;
         self.plugins = load_plugins_from_config(&self.config, &self.messages);
+
+        let icon_themes = Arc::clone(&self.config.app.icon_themes);
+        self.icon_cache
+            .clear(move |name| find_system_icon(name, &icon_themes));
+
         // TODO: spawn this in another task and handle errors properly
         Self::write_config(&self.config).expect("TODO");
     }
@@ -209,16 +220,6 @@ impl Host {
                 description.into(),
             )));
     }
-
-    pub(crate) fn query_request_id_is_latest(&self, id: covey_proto::RequestId) -> bool {
-        debug_assert!(
-            self.latest_sent_query_request_id.0 >= id.0,
-            "found {id:?} when latest should be {:?}",
-            self.latest_sent_query_request_id
-        );
-
-        self.latest_sent_query_request_id.0 == id.0
-    }
 }
 
 pub struct ActionReceiver {
@@ -231,7 +232,7 @@ impl ActionReceiver {
     ///
     /// Cancel safe.
     #[tracing::instrument(skip_all)]
-    pub async fn recv(&mut self, host: &Host) -> Action {
+    pub async fn recv(&mut self) -> Action {
         loop {
             let message = self
                 .messages
@@ -242,7 +243,7 @@ impl ActionReceiver {
             match message {
                 Message::Action(action) => return action,
                 Message::PluginResponse(plugin, response) => {
-                    if let Some(action) = self.response_to_action(host, &plugin, response) {
+                    if let Some(action) = self.response_to_action(&plugin, response) {
                         return action;
                     }
                 }
@@ -251,13 +252,13 @@ impl ActionReceiver {
     }
 
     #[tracing::instrument(skip_all)]
-    pub fn try_recv(&mut self, host: &Host) -> Option<Action> {
+    pub fn try_recv(&mut self) -> Option<Action> {
         let message = self.messages.try_recv();
 
         match message {
             Ok(Message::Action(action)) => Some(action),
             Ok(Message::PluginResponse(plugin, response)) => {
-                self.response_to_action(host, &plugin, response)
+                self.response_to_action(&plugin, response)
             }
             Err(_) => None,
         }
@@ -265,7 +266,6 @@ impl ActionReceiver {
 
     fn response_to_action(
         &mut self,
-        host: &Host,
         plugin: &Plugin,
         response: covey_proto::Response,
     ) -> Option<Action> {
@@ -280,7 +280,6 @@ impl ActionReceiver {
                     self.latest_received_query_request_id = new;
                     Some(Action::SetList(crate::from_proto::list(
                         list,
-                        host,
                         plugin,
                         response.request_id,
                     )))
@@ -340,6 +339,32 @@ fn find_and_insert_plugins_from_fs(config: &mut GlobalConfig) {
         entry.disabled = true; // require explicitly enabling a new plugin
         entry
     }));
+}
+
+/// Additional functions that need host internals but are exposed elsewhere.
+impl Host {
+    pub(crate) fn query_request_id_is_latest(&self, id: covey_proto::RequestId) -> bool {
+        debug_assert!(
+            self.latest_sent_query_request_id.0 >= id.0,
+            "found {id:?} when latest should be {:?}",
+            self.latest_sent_query_request_id
+        );
+
+        self.latest_sent_query_request_id.0 == id.0
+    }
+
+    pub(crate) fn resolve_icon(&self, icon: &Icon) -> Result<ResolvedIcon, ResolveIconError> {
+        match &icon.0 {
+            covey_proto::ListItemIcon::Text(text) => Ok(ResolvedIcon::Text(text.clone())),
+            covey_proto::ListItemIcon::Name(name) => {
+                match self.icon_cache.get_or_insert_with(name.clone()) {
+                    Some(Some(resolved)) => Ok(ResolvedIcon::File(resolved)),
+                    Some(None) => Err(ResolveIconError::NotFound),
+                    None => Err(ResolveIconError::Loading),
+                }
+            }
+        }
+    }
 }
 
 /// Automatically kills plugin processes after a period of time if they haven't
@@ -414,4 +439,28 @@ impl Drop for PluginProcessGc {
         self.stop_signal
             .store(true, std::sync::atomic::Ordering::Relaxed);
     }
+}
+
+fn find_system_icon(name: &str, icon_themes: &[String]) -> Option<PathBuf> {
+    icon_themes.iter().find_map(|theme| {
+        let path = freedesktop_icons::lookup(name)
+            .with_theme(theme)
+            .with_size(48)
+            .find();
+
+        // lookup automatically goes through several backup options,
+        // including hicolor and other paths. do not count an icon as being
+        // found if a backup is used. To check whether a backup is used, see
+        // if the path contains the theme name. But special case hicolor to
+        // allow the backup paths to be used.
+        if theme == "hicolor"
+            || path
+                .as_ref()
+                .is_some_and(|path| path.to_str().is_some_and(|str| str.contains(theme)))
+        {
+            path
+        } else {
+            None
+        }
+    })
 }

@@ -62,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             let control_flow = tokio::select! {
-                action = app.plugin_actions.recv(&app.host) => {
+                action = app.plugin_actions.recv() => {
                     tracing::debug!("received plugin action {action:?}");
                     app.handle_plugin_action(None, action, &mut dummy_rendering_state)
                 }

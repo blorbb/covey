@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::{Host, Plugin};
+use crate::Plugin;
 
 pub(crate) fn input(input: covey_proto::Input, plugin: &Plugin) -> crate::Input {
     let covey_proto::Input {
@@ -26,7 +26,6 @@ pub(crate) fn input(input: covey_proto::Input, plugin: &Plugin) -> crate::Input 
 
 pub(crate) fn list(
     list: covey_proto::List,
-    host: &Host,
     plugin: &Plugin,
     request_id: covey_proto::RequestId,
 ) -> crate::List {
@@ -40,7 +39,7 @@ pub(crate) fn list(
     let style = style.map(self::list_style);
     let list: Vec<_> = items
         .into_iter()
-        .map(|item| self::list_item(item, host, plugin))
+        .map(|item| self::list_item(item, plugin))
         .collect();
 
     crate::List {
@@ -55,7 +54,7 @@ pub(crate) fn list(
     }
 }
 
-fn list_item(item: covey_proto::ListItem, host: &Host, plugin: &Plugin) -> crate::ListItem {
+fn list_item(item: covey_proto::ListItem, plugin: &Plugin) -> crate::ListItem {
     let covey_proto::ListItem {
         title,
         description,
@@ -70,7 +69,7 @@ fn list_item(item: covey_proto::ListItem, host: &Host, plugin: &Plugin) -> crate
             local_target_id: id,
             commands: item_commands,
         },
-        icon: icon.and_then(|icon| self::icon(icon, host)),
+        icon: icon.map(self::icon),
         title,
         description,
     }
@@ -87,17 +86,6 @@ fn list_style(proto: covey_proto::ListStyle) -> crate::ListStyle {
     }
 }
 
-fn icon(proto: covey_proto::ListItemIcon, host: &Host) -> Option<crate::ResolvedIcon> {
-    // `freedesktop_icons::lookup` can do filesystem reads, which is blocking.
-    // Maybe this function should be async. But this is used on the path of turning
-    // responses to actions, which is tricky to turn async.
-    //
-    // Only new icons will need to perform a filesystem lookup. Most icons should be
-    // cached, which is a fast lookup and doesn't block.
-    match proto {
-        covey_proto::ListItemIcon::Name(name) => {
-            crate::ResolvedIcon::resolve_icon_name(host, &name).map(crate::ResolvedIcon::File)
-        }
-        covey_proto::ListItemIcon::Text(text) => Some(crate::ResolvedIcon::Text(text)),
-    }
+fn icon(proto: covey_proto::ListItemIcon) -> crate::Icon {
+    crate::Icon(proto)
 }

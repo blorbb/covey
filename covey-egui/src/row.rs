@@ -1,5 +1,5 @@
 use covey::{Host, ListItem, covey_schema::style::UserStyle};
-use egui::{Align, Layout, TextStyle, Ui, Vec2};
+use egui::{TextStyle, Ui, Vec2};
 
 use crate::{
     AsEgui, ICON_TEXT_STYLE,
@@ -25,26 +25,7 @@ impl<'sel, 'item, Value: PartialEq> ListCell<'sel, 'item, Value> {
         }
     }
 
-    pub(crate) fn show(
-        self,
-        host: &Host,
-        ui: &mut Ui,
-        style: &UserStyle,
-        list_style: covey::ListStyle,
-    ) -> egui::Response {
-        let icon_text_layout = match list_style {
-            covey::ListStyle::Rows => Layout::left_to_right(Align::Min),
-            covey::ListStyle::Grid | covey::ListStyle::GridWithColumns(_) => {
-                Layout::top_down(Align::Center)
-            }
-        };
-        let title_desc_layout = match list_style {
-            covey::ListStyle::Rows => Layout::top_down(Align::Min),
-            covey::ListStyle::Grid | covey::ListStyle::GridWithColumns(_) => {
-                Layout::top_down(Align::Center)
-            }
-        };
-
+    pub(crate) fn show(self, host: &Host, ui: &mut Ui, style: &UserStyle) -> egui::Response {
         let mut button = Container::new()
             .fill(style.list_item_bg().as_egui())
             .hover_fill(style.list_item_hovered_bg().as_egui())
@@ -53,7 +34,7 @@ impl<'sel, 'item, Value: PartialEq> ListCell<'sel, 'item, Value> {
             .corner_radius(style.list_item_rounding().into())
             .selected(*self.current_value == self.selected_value)
             .min_size(Vec2::new(ui.available_width(), 0.0))
-            .show_with_layout(ui, icon_text_layout, |ui| {
+            .show_horizontal(ui, |ui| {
                 ui.spacing_mut().item_spacing = style.list_item_padding().as_egui();
 
                 // TODO: different for not found and loading?
@@ -61,7 +42,7 @@ impl<'sel, 'item, Value: PartialEq> ListCell<'sel, 'item, Value> {
                     ui.add(CellIcon::new(icon.clone()));
                 }
 
-                ui.with_layout(title_desc_layout, |ui| {
+                ui.vertical(|ui| {
                     ui.spacing_mut().item_spacing = Vec2::ZERO;
 
                     ui.label(self.item.title());

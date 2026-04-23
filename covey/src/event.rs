@@ -35,7 +35,6 @@ pub struct Input {
 #[non_exhaustive]
 pub struct List {
     pub items: Vec<ListItem>,
-    pub style: Option<ListStyle>,
     pub(crate) activation_target: ActivationTarget,
     pub(crate) request_id: covey_proto::RequestId,
 }
@@ -52,7 +51,6 @@ impl fmt::Debug for List {
                     .map(ListItem::title)
                     .collect::<Box<[_]>>(),
             )
-            .field("style", &self.style)
             .field("plugin", &self.plugin())
             .field("activation_target", &self.activation_target)
             .field("request_id", &self.request_id)

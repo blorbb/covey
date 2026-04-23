@@ -126,21 +126,12 @@ pub struct ActivationTarget(pub u64);
 #[serde(rename_all = "kebab-case")]
 pub struct List {
     pub items: Vec<ListItem>,
-    pub style: Option<ListStyle>,
     pub id: ActivationTarget,
     /// Commands that are not tied to a particular list item.
     ///
     /// If a list item has an available command with the same command ID, the
     /// list item command will be ran instead of this command.
     pub commands: Vec<CommandId>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "kebab-case")]
-pub enum ListStyle {
-    Rows,
-    Grid,
-    GridWithColumns(u32),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

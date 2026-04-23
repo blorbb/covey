@@ -496,39 +496,21 @@ impl App {
                 .max_height(s.max_list_height())
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing = Vec2::splat(s.list_item_gap());
-                    let list_style = list.style.unwrap_or(covey::ListStyle::Rows);
 
-                    let mut show_cells = |ui: &mut Ui| {
-                        for (i, item) in list.items.iter().enumerate() {
-                            let response = ListCell::new(&mut self.list_selection, i, item)
-                                .show(&self.host, ui, s, list_style);
+                    for (i, item) in list.items.iter().enumerate() {
+                        let response = ListCell::new(&mut self.list_selection, i, item)
+                            .show(&self.host, ui, s);
 
-                            if i % GRID_COLS == 3 {
-                                ui.end_row();
-                            }
-
-                            if rendering_state.list_selection_changed && i == self.list_selection {
-                                tracing::info!("list selection changed");
-                                response.scroll_to_me_animation(
-                                    None, // Don't scroll if already visible.
-                                    ScrollAnimation::duration(0.2),
-                                );
-                            }
+                        if i % GRID_COLS == 3 {
+                            ui.end_row();
                         }
-                    };
 
-                    match list_style {
-                        covey::ListStyle::Rows => {
-                            show_cells(ui);
-                        }
-                        covey::ListStyle::Grid | covey::ListStyle::GridWithColumns(_) => {
-                            let col_width = (ui.available_width()
-                                - (GRID_COLS as f32 - 1.0) * s.list_item_gap())
-                                / (GRID_COLS as f32);
-                            egui::Grid::new("list grid")
-                                .min_col_width(col_width)
-                                .max_col_width(col_width)
-                                .show(ui, show_cells);
+                        if rendering_state.list_selection_changed && i == self.list_selection {
+                            tracing::info!("list selection changed");
+                            response.scroll_to_me_animation(
+                                None, // Don't scroll if already visible.
+                                ScrollAnimation::duration(0.2),
+                            );
                         }
                     }
                 })

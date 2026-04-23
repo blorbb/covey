@@ -87,7 +87,6 @@ impl CommandMap {
             id: list_target_id,
             commands: list_command_ids,
             items,
-            style: list.style.map(crate::into_proto::list_style),
         }
     }
 

@@ -1,14 +1,3 @@
-#[expect(clippy::needless_pass_by_value)]
-pub(crate) fn list_style(ls: crate::ListStyle) -> covey_proto::ListStyle {
-    match ls {
-        crate::ListStyle::Rows => covey_proto::ListStyle::Rows,
-        crate::ListStyle::Grid => covey_proto::ListStyle::Grid,
-        crate::ListStyle::GridWithColumns(columns) => {
-            covey_proto::ListStyle::GridWithColumns(columns)
-        }
-    }
-}
-
 pub(crate) fn icon(icon: crate::Icon) -> covey_proto::ListItemIcon {
     match icon {
         crate::Icon::Name(name) => covey_proto::ListItemIcon::Name(name),

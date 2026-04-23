@@ -32,18 +32,15 @@ pub(crate) fn list(
     let covey_proto::List {
         id,
         items,
-        style,
         commands: list_commands,
     } = list;
 
-    let style = style.map(self::list_style);
     let list: Vec<_> = items
         .into_iter()
         .map(|item| self::list_item(item, plugin))
         .collect();
 
     crate::List {
-        style,
         items: list,
         request_id,
         activation_target: crate::ActivationTarget {
@@ -72,17 +69,6 @@ fn list_item(item: covey_proto::ListItem, plugin: &Plugin) -> crate::ListItem {
         icon: icon.map(self::icon),
         title,
         description,
-    }
-}
-
-#[expect(clippy::needless_pass_by_value)]
-fn list_style(proto: covey_proto::ListStyle) -> crate::ListStyle {
-    match proto {
-        covey_proto::ListStyle::Rows => crate::ListStyle::Rows,
-        covey_proto::ListStyle::Grid => crate::ListStyle::Grid,
-        covey_proto::ListStyle::GridWithColumns(columns) => {
-            crate::ListStyle::GridWithColumns(columns)
-        }
     }
 }
 

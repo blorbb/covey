@@ -32,30 +32,12 @@ pub struct Input {
 }
 
 /// A list of results to show provided by a plugin.
+#[derive(Debug)]
 #[non_exhaustive]
 pub struct List {
-    pub items: Vec<ListItem>,
+    pub sections: Vec<ListSection>,
     pub(crate) activation_target: ActivationTarget,
     pub(crate) request_id: covey_proto::RequestId,
-}
-
-impl fmt::Debug for List {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("List")
-            .field(
-                "items",
-                &self
-                    .items
-                    .iter()
-                    .take(3)
-                    .map(ListItem::title)
-                    .collect::<Box<[_]>>(),
-            )
-            .field("plugin", &self.plugin())
-            .field("activation_target", &self.activation_target)
-            .field("request_id", &self.request_id)
-            .finish_non_exhaustive()
-    }
 }
 
 impl List {
@@ -63,12 +45,24 @@ impl List {
         &self.activation_target.plugin
     }
 
-    pub fn len(&self) -> usize {
-        self.items.len()
+    pub fn get_item(&self, idx: usize) -> Option<&ListItem> {
+        let mut items_passed = 0;
+        for section in &self.sections {
+            if items_passed + section.items.len() <= idx {
+                items_passed += section.items.len();
+            } else {
+                return section.items.get(idx - items_passed);
+            }
+        }
+
+        None
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.items.is_empty()
+    pub fn total_len(&self) -> usize {
+        self.sections
+            .iter()
+            .map(|section| section.items.len())
+            .sum()
     }
 
     pub fn is_response_of_latest_query(&self, host: &Host) -> bool {
@@ -80,12 +74,19 @@ impl List {
     }
 }
 
-/// The style to display the list provided by a plugin.
-#[derive(Debug, Clone, Copy)]
-pub enum ListStyle {
-    Rows,
-    Grid,
-    GridWithColumns(u32),
+#[non_exhaustive]
+pub struct ListSection {
+    pub title: String,
+    pub items: Vec<ListItem>,
+}
+
+impl fmt::Debug for ListSection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ListSection")
+            .field("title", &self.title)
+            .field("items", &&self.items[..3.min(self.items.len())])
+            .finish()
+    }
 }
 
 /// A single result provided by a plugin.

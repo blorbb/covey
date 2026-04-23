@@ -29,7 +29,6 @@ pub mod widgets;
 
 static ICON_TEXT_STYLE: LazyLock<TextStyle> = LazyLock::new(|| TextStyle::Name(Arc::from("icon")));
 static FONTS: LazyLock<egui::FontDefinitions> = LazyLock::new(style::load_system_fonts);
-const GRID_COLS: usize = 4;
 
 fn icon_size(ctx: &egui::Context) -> f32 {
     let icon_font = ICON_TEXT_STYLE.resolve(&ctx.global_style());
@@ -347,7 +346,7 @@ impl App {
                 AppControlFlow::Continue
             }
             covey::Action::SetList(list) => {
-                tracing::debug!("received list with {} items", list.len());
+                tracing::debug!("received list with {} items", list.total_len());
                 self.list = Some(list);
                 self.list_selection = 0;
                 rendering_state.list_selection_changed = true;
@@ -363,14 +362,14 @@ impl App {
             ui.send_viewport_cmd(egui::ViewportCommand::Close);
         }
 
-        // TODO: how to handle moving around a grid? pressing left/right still needs to
-        // work with the text input somehow.
         if let Some(list) = &self.list {
             if hotkeys::key_pressed_consume(ui, Key::ArrowDown) {
-                self.list_selection = bounded_wrapping_add(self.list_selection, 1, list.len());
+                self.list_selection =
+                    bounded_wrapping_add(self.list_selection, 1, list.total_len());
                 rendering_state.list_selection_changed = true;
             } else if hotkeys::key_pressed_consume(ui, Key::ArrowUp) {
-                self.list_selection = bounded_wrapping_sub(self.list_selection, 1, list.len());
+                self.list_selection =
+                    bounded_wrapping_sub(self.list_selection, 1, list.total_len());
                 rendering_state.list_selection_changed = true;
             } else if hotkeys::hotkey_pressed_consume(ui, self.host.config().app.reload_hotkey) {
                 let plugin_to_reload = list.plugin().id().clone();
@@ -388,8 +387,7 @@ impl App {
         {
             // list commands are lower priority than list item commands.
             let activated_command = list
-                .items
-                .get(self.list_selection)
+                .get_item(self.list_selection)
                 .and_then(|item| {
                     self.host
                         .activate_by_hotkey(item.activation_target(), hotkey)
@@ -497,21 +495,27 @@ impl App {
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing = Vec2::splat(s.list_item_gap());
 
-                    for (i, item) in list.items.iter().enumerate() {
-                        let response = ListCell::new(&mut self.list_selection, i, item)
-                            .show(&self.host, ui, s);
-
-                        if i % GRID_COLS == 3 {
-                            ui.end_row();
+                    let mut passed_items = 0;
+                    for section in &list.sections {
+                        if !section.title.is_empty() {
+                            ui.label(&section.title);
                         }
 
-                        if rendering_state.list_selection_changed && i == self.list_selection {
-                            tracing::info!("list selection changed");
-                            response.scroll_to_me_animation(
-                                None, // Don't scroll if already visible.
-                                ScrollAnimation::duration(0.2),
-                            );
+                        for (i, item) in section.items.iter().enumerate() {
+                            let i = i + passed_items;
+                            let response = ListCell::new(&mut self.list_selection, i, item)
+                                .show(&self.host, ui, s);
+
+                            if rendering_state.list_selection_changed && i == self.list_selection {
+                                tracing::info!("list selection changed");
+                                response.scroll_to_me_animation(
+                                    None, // Don't scroll if already visible.
+                                    ScrollAnimation::duration(0.2),
+                                );
+                            }
                         }
+
+                        passed_items += section.items.len();
                     }
                 })
         });
@@ -531,7 +535,7 @@ impl App {
                     // subsequent commands.
                     let mut used_hotkeys = HashSet::<Hotkey>::new();
 
-                    if let Some(selected_item) = list.items.get(self.list_selection) {
+                    if let Some(selected_item) = list.get_item(self.list_selection) {
                         show_command_buttons(
                             &mut self.host,
                             ui,

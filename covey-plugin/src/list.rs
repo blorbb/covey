@@ -8,41 +8,30 @@ use crate::{
 
 #[non_exhaustive]
 pub struct List {
-    pub items: Vec<ListItem>,
-    /// The kind of list to show.
-    ///
-    /// If this is [`None`], the list style will be the default set by
-    /// the user. Plugins should only set one if the content makes the most
-    /// sense with one of these styles.
-    pub style: Option<ListStyle>,
+    pub(crate) sections: Vec<ListSection>,
     pub(crate) callbacks: TargetCallbacks,
 }
 
 impl List {
     pub fn new(items: Vec<ListItem>) -> Self {
         Self {
-            items,
-            style: None,
+            sections: vec![ListSection::new(String::new(), items)],
             callbacks: TargetCallbacks::new(),
         }
     }
 
-    #[must_use = "builder method consumes self"]
-    pub fn as_grid_with_columns(mut self, columns: u32) -> Self {
-        self.style = Some(ListStyle::GridWithColumns(columns));
-        self
+    pub fn from_sections(sections: Vec<ListSection>) -> Self {
+        Self {
+            sections,
+            callbacks: TargetCallbacks::new(),
+        }
     }
 
-    #[must_use = "builder method consumes self"]
-    pub fn as_grid(mut self) -> Self {
-        self.style = Some(ListStyle::Grid);
-        self
-    }
-
-    #[must_use = "builder method consumes self"]
-    pub fn as_rows(mut self) -> Self {
-        self.style = Some(ListStyle::Rows);
-        self
+    pub fn total_len(&self) -> usize {
+        self.sections
+            .iter()
+            .map(|section| section.items.len())
+            .sum()
     }
 
     /// Adds a command that can be called.
@@ -62,11 +51,30 @@ impl List {
     }
 }
 
-#[non_exhaustive]
-pub enum ListStyle {
-    Rows,
-    Grid,
-    GridWithColumns(u32),
+pub struct ListSection {
+    pub(crate) title: String,
+    pub(crate) items: Vec<ListItem>,
+}
+
+impl ListSection {
+    pub fn new(title: impl Into<String>, items: Vec<ListItem>) -> Self {
+        Self {
+            title: title.into(),
+            items,
+        }
+    }
+
+    pub fn unnamed(items: Vec<ListItem>) -> Self {
+        Self::new(String::new(), items)
+    }
+
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+
+    pub fn items(&self) -> &[ListItem] {
+        &self.items
+    }
 }
 
 #[derive(Clone)]

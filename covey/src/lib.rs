@@ -8,7 +8,7 @@ use std::{path::PathBuf, sync::LazyLock};
 
 pub use covey_schema;
 pub use event::{
-    Action, ActivationTarget, Icon, Input, List, ListItem, ListStyle, ResolveIconError,
+    Action, ActivationTarget, Icon, Input, List, ListItem, ListSection, ResolveIconError,
     ResolvedIcon,
 };
 pub use host::{ActionReceiver, Host, channel};

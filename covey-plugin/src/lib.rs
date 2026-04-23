@@ -16,7 +16,7 @@ use std::{
 
 pub use action::Action;
 pub use input::{Input, SelectionRange};
-pub use list::{Icon, List, ListItem, ListStyle};
+pub use list::{Icon, List, ListItem, ListSection};
 pub use menu::Menu;
 pub use plugin::Plugin;
 pub use server::{run_server, run_server_blocking};

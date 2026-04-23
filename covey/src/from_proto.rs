@@ -31,23 +31,33 @@ pub(crate) fn list(
 ) -> crate::List {
     let covey_proto::List {
         id,
-        items,
+        sections,
         commands: list_commands,
     } = list;
 
-    let list: Vec<_> = items
-        .into_iter()
-        .map(|item| self::list_item(item, plugin))
-        .collect();
-
     crate::List {
-        items: list,
+        sections: sections
+            .into_iter()
+            .map(|section| self::list_section(section, plugin))
+            .collect(),
         request_id,
         activation_target: crate::ActivationTarget {
             plugin: plugin.clone(),
             local_target_id: id,
             commands: list_commands,
         },
+    }
+}
+
+fn list_section(section: covey_proto::ListSection, plugin: &Plugin) -> crate::ListSection {
+    let covey_proto::ListSection { title, items } = section;
+
+    crate::ListSection {
+        title,
+        items: items
+            .into_iter()
+            .map(|item| self::list_item(item, plugin))
+            .collect(),
     }
 }
 

@@ -92,6 +92,7 @@ pub struct UserStyle {
     // fonts
     font_size: Option<f32>,
     description_font_size: Option<f32>,
+    eyebrow_font_size: Option<f32>,
     // input
     input_height: Option<f32>,
     cursor_selection_bg: Option<Color>,
@@ -152,6 +153,11 @@ impl UserStyle {
     pub fn description_font_size(&self) -> f32 {
         self.description_font_size
             .unwrap_or(f32::round(self.font_size() * 0.85))
+    }
+
+    pub fn eyebrow_font_size(&self) -> f32 {
+        self.eyebrow_font_size
+            .unwrap_or(f32::round(self.font_size() * 0.75))
     }
 
     pub fn input_height(&self) -> f32 {

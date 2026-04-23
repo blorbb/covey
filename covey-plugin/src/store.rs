@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, VecDeque},
+    iter,
     ops::Range,
     pin::Pin,
     sync::{
@@ -33,55 +34,46 @@ impl CommandMap {
     /// Stores the result of a query, returning the response that should be
     /// sent to covey.
     pub(crate) fn store_query_result(&self, list: List) -> covey_proto::List {
-        let new_ids = self.target_ids.fetch_many(list.total_len() as u64 + 1);
-        let list_target_id = covey_proto::ActivationTarget(new_ids.start);
-        let mut next_item_id = new_ids.start + 1;
+        let List {
+            items,
+            section_titles,
+            callbacks: list_callbacks,
+        } = list;
 
+        let new_ids = self.target_ids.fetch_many(items.len() as u64 + 1);
+        let list_target_id = covey_proto::ActivationTarget(new_ids.start);
+
+        let mut proto_items = vec![];
         let mut item_callbacks = vec![];
 
-        let sections: Vec<_> = list
-            .sections
-            .into_iter()
-            .map(
-                |crate::ListSection { title, items }| covey_proto::ListSection {
-                    title,
-                    items: items
-                        .into_iter()
-                        .map(
-                            |crate::ListItem {
-                                 title,
-                                 description,
-                                 icon,
-                                 visit_id,
-                                 callbacks,
-                             }| {
-                                let id = covey_proto::ActivationTarget(next_item_id);
-                                next_item_id += 1;
-                                let commands = callbacks.ids().cloned().collect();
-                                item_callbacks.push((visit_id, callbacks));
-                                covey_proto::ListItem {
-                                    id,
-                                    title,
-                                    description,
-                                    icon: icon.map(crate::into_proto::icon),
-                                    commands,
-                                }
-                            },
-                        )
-                        .collect(),
-                },
-            )
-            .collect();
-        assert_eq!(next_item_id, new_ids.end);
+        for (id, item) in iter::zip(new_ids.start + 1..new_ids.end, items) {
+            let crate::ListItem {
+                title,
+                description,
+                icon,
+                visit_id,
+                callbacks,
+            } = item;
 
-        let list_command_ids = list.callbacks.ids().cloned().collect();
+            let commands = callbacks.ids().cloned().collect();
+            item_callbacks.push((visit_id, callbacks));
+            proto_items.push(covey_proto::ListItem {
+                id: covey_proto::ActivationTarget(id),
+                title,
+                description,
+                icon: icon.map(crate::into_proto::icon),
+                commands,
+            })
+        }
+
+        let list_command_ids = list_callbacks.ids().cloned().collect();
 
         let num_lists = {
             let mut lists = self.lists.lock().unwrap();
             lists.push_back(ListCallbacks {
                 list_target_id,
+                list_callbacks,
                 item_callbacks,
-                list_callbacks: list.callbacks,
             });
             lists.len()
         };
@@ -101,7 +93,8 @@ impl CommandMap {
         covey_proto::List {
             id: list_target_id,
             commands: list_command_ids,
-            sections,
+            items: proto_items,
+            section_titles,
         }
     }
 

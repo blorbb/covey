@@ -1,4 +1,4 @@
-use std::time::SystemTime;
+use std::{collections::BTreeMap, time::SystemTime};
 
 use crate::{
     Menu,
@@ -8,30 +8,45 @@ use crate::{
 
 #[non_exhaustive]
 pub struct List {
-    pub(crate) sections: Vec<ListSection>,
+    pub(crate) items: Vec<ListItem>,
+    pub(crate) section_titles: BTreeMap<usize, String>,
     pub(crate) callbacks: TargetCallbacks,
 }
 
 impl List {
     pub fn new(items: Vec<ListItem>) -> Self {
         Self {
-            sections: vec![ListSection::new(String::new(), items)],
+            items,
+            section_titles: BTreeMap::new(),
             callbacks: TargetCallbacks::new(),
         }
     }
 
-    pub fn from_sections(sections: Vec<ListSection>) -> Self {
+    pub fn from_sections(sections: impl IntoIterator<Item = ListSection>) -> Self {
+        let mut section_titles = BTreeMap::new();
+        let mut last_section_end = 0;
+        let mut items = vec![];
+        for section in sections {
+            if !section.title.is_empty() {
+                section_titles.insert(last_section_end, section.title);
+            }
+            last_section_end += section.items.len();
+            items.extend(section.items);
+        }
+
         Self {
-            sections,
+            items,
+            section_titles,
             callbacks: TargetCallbacks::new(),
         }
     }
 
-    pub fn total_len(&self) -> usize {
-        self.sections
-            .iter()
-            .map(|section| section.items.len())
-            .sum()
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     /// Adds a command that can be called.

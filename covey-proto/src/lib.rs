@@ -1,6 +1,6 @@
 //! Messages sent as newline delimited JSON over stdin/out.
 
-use std::ops::Range;
+use std::{collections::BTreeMap, ops::Range};
 
 pub use covey_schema::id::CommandId;
 use serde::{Deserialize, Serialize};
@@ -125,20 +125,18 @@ pub struct ActivationTarget(pub u64);
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct List {
-    pub sections: Vec<ListSection>,
+    pub items: Vec<ListItem>,
+    /// Place section titles right **before** these indices.
+    ///
+    /// Every usize should be a valid index into [`Self::items`]. Invalid
+    /// indices may be ignored.
+    pub section_titles: BTreeMap<usize, String>,
     pub id: ActivationTarget,
     /// Commands that are not tied to a particular list item.
     ///
     /// If a list item has an available command with the same command ID, the
     /// list item command will be ran instead of this command.
     pub commands: Vec<CommandId>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "kebab-case")]
-pub struct ListSection {
-    pub title: String,
-    pub items: Vec<ListItem>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

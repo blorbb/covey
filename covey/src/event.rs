@@ -1,6 +1,6 @@
 //! Actions returned by a plugin.
 
-use std::{fmt, path::PathBuf};
+use std::{collections::BTreeMap, fmt, path::PathBuf};
 
 use covey_schema::{hotkey::Hotkey, manifest::Command};
 
@@ -32,10 +32,9 @@ pub struct Input {
 }
 
 /// A list of results to show provided by a plugin.
-#[derive(Debug)]
-#[non_exhaustive]
 pub struct List {
-    pub sections: Vec<ListSection>,
+    pub(crate) items: Vec<ListItem>,
+    pub(crate) section_titles: BTreeMap<usize, String>,
     pub(crate) activation_target: ActivationTarget,
     pub(crate) request_id: covey_proto::RequestId,
 }
@@ -45,24 +44,24 @@ impl List {
         &self.activation_target.plugin
     }
 
-    pub fn get_item(&self, idx: usize) -> Option<&ListItem> {
-        let mut items_passed = 0;
-        for section in &self.sections {
-            if items_passed + section.items.len() <= idx {
-                items_passed += section.items.len();
-            } else {
-                return section.items.get(idx - items_passed);
-            }
-        }
-
-        None
+    pub fn items(&self) -> &[ListItem] {
+        &self.items
     }
 
-    pub fn total_len(&self) -> usize {
-        self.sections
-            .iter()
-            .map(|section| section.items.len())
-            .sum()
+    pub fn get(&self, idx: usize) -> Option<&ListItem> {
+        self.items.get(idx)
+    }
+
+    pub fn section_title_at(&self, idx: usize) -> Option<&str> {
+        self.section_titles.get(&idx).map(String::as_str)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn len(&self) -> usize {
+        self.items.len()
     }
 
     pub fn is_response_of_latest_query(&self, host: &Host) -> bool {
@@ -74,17 +73,13 @@ impl List {
     }
 }
 
-#[non_exhaustive]
-pub struct ListSection {
-    pub title: String,
-    pub items: Vec<ListItem>,
-}
-
-impl fmt::Debug for ListSection {
+impl fmt::Debug for List {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ListSection")
-            .field("title", &self.title)
+        f.debug_struct("List")
             .field("items", &&self.items[..3.min(self.items.len())])
+            .field("section_titles", &self.section_titles)
+            .field("activation_target", &self.activation_target)
+            .field("request_id", &self.request_id)
             .finish()
     }
 }

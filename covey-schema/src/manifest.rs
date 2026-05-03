@@ -105,6 +105,7 @@ pub struct PluginConfigSchema {
     pub id: PluginId,
     pub title: String,
     pub description: Option<String>,
+    #[serde(flatten)]
     pub r#type: SchemaType,
 }
 
@@ -115,12 +116,16 @@ impl Identify for PluginConfigSchema {
     }
 }
 
+// TODO: default doesn't make sense in nested types. Maybe move default to
+// `PluginConfigSchema` instead? But this makes it harder to match the type
+// of the default and the actual specified type.
+
 /// TODO: better docs
 ///
 /// If there is no default, then this type will be *required*.
 #[derive(Debug, PartialEq, Clone, Serialize)]
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "kebab-case", tag = "type")]
 pub enum SchemaType {
     Int(SchemaInt),
     Text(SchemaText),
@@ -210,7 +215,7 @@ macros::make_config_subtypes! {
 /// [`SchemaType`] isn't a struct wrapper around this so that users can match
 /// on it's variants.
 #[derive(Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "kebab-case", tag = "type")]
 enum __SchemaTypeSerdeDerive {
     Int(SchemaInt),
     Text(SchemaText),
@@ -402,9 +407,10 @@ mod tests {
 
     #[test]
     fn int() {
-        let input = r"
-            int = { min = 0 }
-        ";
+        let input = r#"
+            type = "int"
+            min = 0
+        "#;
         let output: SchemaType = toml::from_str(input).unwrap();
         assert_eq!(
             output,
@@ -420,7 +426,8 @@ mod tests {
         let input = r#"
             id = "thing-id"
             title = "thing"
-            type = { list = { item-type = "int" } }
+            type = "list"
+            item-type = "int"
         "#;
         let output: PluginConfigSchema = toml::from_str(input).unwrap();
         assert_eq!(
@@ -449,7 +456,11 @@ mod tests {
             [[schema]]
             id = "urls"
             title = "List of URLs to show"
-            type.map.value-type.struct.fields = { name = "text", url = "text" }
+            type = "map"
+            value-type = {
+                type = "struct",
+                fields = { name = "text", url = "text" }
+            }
         "#;
         let output: PluginManifest = toml::from_str(input).unwrap();
         assert_eq!(
@@ -483,8 +494,9 @@ mod tests {
     #[test]
     fn selection() {
         let input = r#"
-            selection.allowed-values = ["some-thing", "another-thing", "and-yet-another"]
-            selection.default = "some-thing"
+            type = "selection"
+            allowed-values = ["some-thing", "another-thing", "and-yet-another"]
+            default = "some-thing"
         "#;
         let output: SchemaType = toml::from_str(input).unwrap();
         assert_eq!(

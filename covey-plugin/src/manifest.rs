@@ -81,18 +81,21 @@ mod tests {
                 [[schema]]
                 id = "urls"
                 title = "List of URLs to show"
-                type.map.value-type.struct.fields = { name = "text", url = "text", extra-field = "int" }
+                type = "map"
+                value-type = { type = "struct", fields = { name = "text", url = "text", extra-field = "int" } }
 
                 [[schema]]
                 id = "thing-with-dash"
                 title = "Some selection"
-                type.selection.allowed-values = ["a", "ab", "ab-cde"]
+                type = "selection"
+                allowed-values = ["a", "ab", "ab-cde"]
 
                 [[schema]]
                 id = "with-default"
                 title = "Yet another selection"
-                type.selection.allowed-values = ["oaiwrha", "iosdg"]
-                type.selection.default = "iosdg"
+                type = "selection"
+                allowed-values = ["oaiwrha", "iosdg"]
+                default = "iosdg"
             "#
         );
     }

@@ -189,7 +189,9 @@ impl FieldType {
         Self {
             type_path: TypePath::absolute(quote! { ::std::path::PathBuf }),
             validator: extension_check.unwrap_or_default(),
-            default: TypeDefault::from(default),
+            default: TypeDefault::from(default.map(|d| {
+                quote! { ::std::path::PathBuf::from(#d) }
+            })),
             extras: TokenStream::new(),
         }
     }
@@ -201,7 +203,9 @@ impl FieldType {
         Self {
             type_path: TypePath::absolute(quote! { ::std::path::PathBuf }),
             validator: quote! {},
-            default: TypeDefault::from(default),
+            default: TypeDefault::from(default.map(|d| {
+                quote! { ::std::path::PathBuf::from(#d) }
+            })),
             extras: TokenStream::new(),
         }
     }
